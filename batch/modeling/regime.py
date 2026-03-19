@@ -38,47 +38,21 @@ def get_market_regime_model_beta(df_index, df_sp500):
 
     # --- 学習モデル生成 ---
 
-    # Driver Profiler
-    #df_driver = df_features.join(df_label["driver"])
-    #driver_clf, df_driver_trajectory = learning_lgbm_final(
-    #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
-    #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-    #    reg_alpha=0.5, reg_lambda=0.5,
-
-    #learning_lgbm_test(
-    #    df_driver, "driver",
-    #    n_splits=5, gap =20,
-    #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-    #    reg_alpha=0.5, reg_lambda=0.5,
-    #    )
-
-    # Test
-    df_gli = df_index["gli"].dropna()
-    df_gli.index = df_gli.index - pd.offsets.MonthEnd(1)
-    from batch.modeling.modeling_gli_pressure import _make_label_gli
-    label_gli = _make_label_gli(df_gli).resample("D").ffill()
-
-    df_dsr = df_index["dsr"].dropna()
-    df_dsr.index = df_dsr.index - pd.offsets.MonthEnd(1)
-    from batch.modeling.modeling_dsr_pressure import _make_label_dsr
-    label_dsr = _make_label_dsr(df_dsr).resample("D").ffill()
-
     # Regime Prism
-    #df_regime = df_features.join(df_label[["regime","driver"]]).dropna()
-    df_regime = pd.concat([df_features,df_label[["regime","driver"]], label_gli, label_dsr], axis=1).dropna()
-    print(df_regime)
+    df_regime = df_features.join(df_label["regime"]).dropna()
+
     #regime_clf, df_regime_trajectory = learning_lgbm_final(
     #    df_regime, "regime", model_name="Regime", label_name_list=["1: Golden Dip", "2: Crash Flash", "3: Slow Bleed", "4: Liquidity In", "5: Healthy/Neutral"],
     #    n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
     #    reg_alpha=0.4, reg_lambda=0.4,
     #    )
 
-    learning_lgbm_test(
+    df_oof_all = learning_lgbm_test(
         df_regime, "regime", labels=["1: Golden Dip", "2: Crash Flash", "3: Slow Bleed", "4: Liquidity In", "5: Healthy/Neutral"],
         n_splits=5, gap =20,
         n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
         reg_alpha=0.4, reg_lambda=0.4,
-        learning_curve=True,
+        learning_curve=False,
         )
 
     # --- 可視化 ---
@@ -105,7 +79,8 @@ def get_market_regime_model_beta(df_index, df_sp500):
     # --- リバランスシミュレーター ---
     #run_modulator_backtest(df_trajectory, df_regime_features["sp500_ret_1d"])
 
-    return regime_clf, df_regime_trajectory, df_regime, driver_clf, df_driver_trajectory, df_driver
+    #return regime_clf, df_regime_trajectory, df_regime, driver_clf, df_driver_trajectory, df_driver
+    return df_oof_all
 
 def run_modulator_backtest(df_trajectory, sp500_ret_1d):
     # 1. 各レジュームのウェイト設定（ここを調整して自分好みの戦略にできます）
@@ -318,22 +293,9 @@ def _make_label(df_daily):
     df = make_regime_label(df)
     #print(df.tail(30))
 
-    # --- 主導パターン判定 ---
-    df = make_lead_factor(df)
-
-    # 最終詳細ラベル
-    df['regime_detailed'] = df['regime_name'] + " (" + df['driver_name'] + ")"
-
-    #print(df)
-
     # インデックスを有効な日付に合わせる
     df = df.reindex(df["next_20d_ret_usd_jpy"].dropna().index)
     #check_nan_time(df, "2005-01-01")
-
-    # 表示・分析・評価
-    #df['sp500'] = df_daily["^GSPC"].dropna()
-    #plot_factor_label(df)
-    #evaluate_regimes(df)
 
     print("\nレジューム学習の教師ラベルの期間: ",df.index[0].date(), df.index[-1].date())
 
@@ -359,32 +321,6 @@ def make_regime_label(df):
     is_liquidity_in = (df["next_20d_ret_sp500"] > 0.03) & (~is_golden_dip) & (~is_flash_crash)
     df.loc[is_liquidity_in, "regime_name"] = "4: Liquidity In"
     df.loc[is_liquidity_in, "regime"] = 4
-
-    return df
-
-def make_lead_factor(df):
-    # 関数の冒頭で初期化
-    df['driver_name'] = 'Neutral'
-    df['driver'] = 4  # または仕様に合わせたデフォルト値
-
-    next_20d_ret_sp500_abs = df['next_20d_ret_sp500'].abs()
-
-    #【優先度低】通貨: 20日で4%以上動いたら
-    #df.loc[df['next_20d_ret_usd_jpy'].abs() > 0.04, 'driver_name'] = 'Currency'
-    #df.loc[df['next_20d_ret_usd_jpy'].abs() > 0.04, 'driver'] = 4
-
-    #【優先度中】債券: TLTの変動がSP500の半分以上なら (2022年はこれが主役になる)
-    df.loc[df['next_20d_ret_tlt'].abs() > (next_20d_ret_sp500_abs * 0.5), 'driver_name'] = 'Bond'
-    df.loc[df['next_20d_ret_tlt'].abs() > (next_20d_ret_sp500_abs * 0.5), 'driver'] = 2
-
-    #【優先度高】信用: スプレッドが20日で0.5ポイント(50bps)以上「拡大」したら本当の危機
-    df.loc[df['next_20d_diff_hy'].abs() > 0.5, 'driver_name'] = 'Credit'
-    df.loc[df['next_20d_diff_hy'].abs() > 0.5, 'driver'] = 1
-
-    no_external_driver = (df['driver_name'] == 'Neutral')
-    is_equity_move = next_20d_ret_sp500_abs > 0.03
-    df.loc[no_external_driver & is_equity_move, 'driver_name'] = 'Equity'
-    df.loc[no_external_driver & is_equity_move, 'driver'] = 3
 
     return df
 

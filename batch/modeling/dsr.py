@@ -119,8 +119,8 @@ def get_dsr_model_beta(df_index):
     # --- 学習 ---
     df_master = pd.concat([X, y], axis=1).dropna()
     #plot_index(df_master)
-    learning_lgbm_test(
-        df_master, target_col="dsr_label",
+    df_oof_all = learning_lgbm_test(
+        df_master, target_col="dsr_label",labels=["1:LIFT", "2:CRUISE", "3:STALL"],
         n_splits=3, gap=3,
         n_estimators=300,learning_rate=0.01,num_leaves=24, min_data_in_leaf=14,
         reg_alpha=0.5, reg_lambda=0.5,
@@ -135,6 +135,7 @@ def get_dsr_model_beta(df_index):
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
 
+    return df_oof_all
 def _aggregation(df):
 
     df_daily = df[get_columns_by_frequency(df, target="daily")].dropna(how="all")

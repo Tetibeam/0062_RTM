@@ -84,8 +84,9 @@ def get_gli_model_beta(df_index):
     #plot_index(df_master)
     #learning_regime_lgbm_test(df_master, "gli_label")
     #gli_clf, df_trajectory = learning_gli_final(df_master, "gli_label")
-    learning_lgbm_test(
-        df_master, target_col="gli_label",
+
+    df_oof_all = learning_lgbm_test(
+        df_master, target_col="gli_label",labels=["STALL", "CRUISE", "LIFT"],
         n_splits=3, gap=3,
         n_estimators=300,learning_rate=0.01,num_leaves=20, min_data_in_leaf=15,
         reg_alpha=0.5, reg_lambda=0.5,
@@ -93,6 +94,8 @@ def get_gli_model_beta(df_index):
     )
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
+
+    return df_oof_all
 
 def _aggregation(df):
 
