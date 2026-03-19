@@ -1,0 +1,548 @@
+/* 全体レイアウト */
+body {
+  font-family: "Montserrat", sans-serif;
+  margin-top: 1vh;
+  margin-left: 1vh;
+  margin-bottom: 1vh;
+  margin-right: 1vh;
+  background: #121212;
+  color: #e0e0e0;
+}
+
+#root {
+  display: flex;
+}
+
+.app-container {
+  display: flex;
+  width: 100%;
+}
+
+/* サイドバー */
+.sidebar {
+  position: fixed;
+  width: 18%;
+  height: calc(100vh - 2vh);
+  background: #1f1f1f;
+  padding: 4vh 1vh 1vh 1vh; /* Top padding matched to menu-dashboard */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+
+  font-size: 4.5vh;
+  font-weight: 900;
+  margin: 0;
+  line-height: 1;
+}
+
+/* ← グラデーションは文字だけ */
+.title-text {
+  background: linear-gradient(to left, #ceec20, #ffffff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  letter-spacing: -1px;
+  text-shadow: 0 5px 15px rgba(190, 241, 6, 0.2);
+}
+
+/* ← アイコンは完全に独立 */
+.title-icon {
+  font-size: 1em;
+  line-height: 1;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.25));
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar a {
+  display: block;
+  margin: 1vh 0;
+  color: #ccc;
+  text-decoration: none;
+}
+
+.sidebar a:hover {
+  color: #bef106;
+}
+
+/* Back Button styling */
+.back-button {
+  display: flex !important;
+  align-items: center;
+  background: linear-gradient(135deg, #333 0%, #222 100%);
+  padding: 10px 15px !important;
+  border-radius: 8px;
+  color: #fff !important;
+  font-weight: 600;
+  font-size: 1.6vh !important;
+  margin-bottom: 2vh !important;
+  border: 1px solid #444;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.back-button:hover {
+  background: linear-gradient(135deg, #444 0%, #333 100%);
+  border-color: #bef106;
+  box-shadow: 0 0 10px rgba(190, 241, 6, 0.2);
+  transform: translateX(-5px);
+}
+
+.back-icon {
+  margin-right: 10px;
+  font-size: 2vh;
+}
+
+.sidebar-top {
+  border-bottom: 1px solid #333;
+  margin-bottom: 2vh;
+  padding-bottom: 1vh;
+}
+
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  margin-bottom: 6px !important;
+  color: #e0e0e0 !important;
+  font-weight: 500;
+  font-size: 1.7vh;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+}
+
+.sidebar-nav a:hover {
+  background: rgba(190, 241, 6, 0.1);
+  border-color: rgba(190, 241, 6, 0.4);
+  color: #bef106 !important;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.nav-icon {
+  font-size: 2.2vh;
+  margin-right: 12px;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.2));
+}
+
+/* Sidebar Graph Container */
+.sidebar-graph-container {
+  width: 100%;
+  margin-bottom: 1vh;
+  background: #1f1f1f;
+  border-radius: 1vh;
+  overflow: hidden;
+}
+
+/* dashboard-summary */
+#dashboard-summary {
+  margin-top: auto;
+  font-size: 2vh;
+  margin-bottom: 1vh;
+}
+
+.kpi-header {
+  background: linear-gradient(135deg, #2c3e50 0%, #000000 100%);
+  padding: 12px 16px;
+  border-radius: 8px 8px 0 0;
+  margin: -8px -8px 12px -8px;
+  border-bottom: 2px solid #bef106;
+}
+
+.kpi-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 2vh;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5vh 1.5vh;
+  font-size: 1.8vh;
+}
+
+.summary-grid > div:nth-child(odd) {
+  font-weight: 600;
+}
+
+/* メインコンテンツ 6 graphs*/
+.main {
+  margin-left: 1vh;
+  margin-right: 0vh;
+  margin-top: 0vh;
+  margin-bottom: 0vh;
+  width: 100%;
+  height: calc(100vh - 2vh);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 1vh;
+  box-sizing: border-box;
+
+  /* Padding settings */
+  padding-top: 0vh;
+  padding-right: 0vh;
+  padding-bottom: 0vh;
+  padding-left: calc(18% + 0vh); /* Sidebar width (15%) + gap (1vh) */
+}
+
+/* グリッドの子要素がコンテンツで拡張しないようにする */
+.main > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* メインコンテンツ 2 graphs */
+.main_sub {
+  margin-left: 1vh;
+  margin-right: 0vh;
+  margin-top: 0vh;
+  margin-bottom: 0vh;
+  width: 100%;
+  height: calc(100vh - 2vh);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1vh;
+  box-sizing: border-box;
+
+  /* Padding settings */
+  padding-top: 0vh;
+  padding-right: 0vh;
+  padding-bottom: 0vh;
+  padding-left: calc(18% + 0vh); /* Sidebar width (15%) + gap (1vh) */
+}
+
+/* グリッドの子要素がコンテンツで拡張しないようにする */
+.main_sub > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* グラフコンテナ */
+.graph-container {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  background: #1f1f1f;
+  border-radius: 1vh;
+  padding: 0vh;
+  position: relative;
+  min-width: 0; /* Prevent grid item from expanding beyond its container */
+}
+
+/* タイトル */
+.graph-title {
+  font-size: 2.5vh;
+  margin: 0vh 0.5vh 0.5vh 0.5vh;
+  font-family: "Montserrat", sans-serif !important;
+  color: #dddddd;
+}
+
+/* Plotly 描画エリア */
+.graph-container > .plotly-graph {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0;
+}
+
+.graph-container > .plotly-graph > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* フルサイズ表示用（Sidebarは残す） */
+.graph-fullscreen {
+  margin-top: 1vh;
+  margin-bottom: 1vh;
+  margin-left: 2vh;
+  margin-right: 4vh;
+  position: fixed;
+  top: 0;
+  left: 18%;
+  width: 80%;
+  height: 98vh;
+  z-index: 999;
+  background: #1f1f1f;
+  border-radius: 1vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2vh;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.graph-fullscreen > div:last-child {
+  flex: 1;
+  width: 100% !important;
+  height: 90% !important;
+}
+/* プレミアム・ダッシュボード (Bento Grid) */
+.menu-dashboard {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: auto repeat(2, 1fr);
+    gap: 2vh;
+    padding-top: 4vh; /* Sidebar top padding is also 4vh */
+    padding-bottom: 4vh;
+}
+
+.menu-header-card {
+    grid-column: 1 / -1;
+    margin-bottom: 2vh;
+    padding-left: 1vh;
+}
+
+.premium-title {
+    font-size: 4.5vh; /* Matched to sidebar */
+    font-weight: 900;
+    margin: 0;
+    line-height: 1; /* Match line-height for baseline alignment */
+    letter-spacing: -2px;
+    background: linear-gradient(to right, #ffffff, #bef106);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 10px 30px rgba(190, 241, 6, 0.2);
+}
+
+.nexus-text {
+    color: #bef106;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 1.8vh;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-top: 0.5vh;
+}
+
+.bento-card {
+    position: relative;
+    border-radius: 24px;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.bento-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    background: linear-gradient(135deg, rgba(190, 241, 6, 0.3) 0%, rgba(255,255,255,0.05) 100%);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.card-glass {
+    background: rgba(31, 31, 31, 0.8);
+    backdrop-filter: blur(12px);
+    width: 100%;
+    height: 100%;
+    border-radius: 22px;
+    padding: 2.5vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-tag {
+    font-size: 1.2vh;
+    color: #bef106;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    margin-bottom: 1.5vh;
+    opacity: 0.8;
+}
+
+.bento-card h3 {
+    margin: 0;
+    font-size: 2.4vh;
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Specific Cards */
+.welcome-card { grid-column: span 1; }
+.growth-card { grid-column: span 1; }
+.kpi-card { grid-column: span 1; }
+.market-card { grid-column: span 1; grid-row: span 2; }
+.system-card { grid-column: span 1; }
+.shortcuts-card { grid-column: span 2; }
+
+.compact-welcome {
+    font-size: 3vh !important;
+    opacity: 0.7;
+    margin-bottom: 0.5vh !important;
+}
+
+.clock-display.compact .time {
+    font-size: 6vh !important;
+}
+
+.clock-display.compact .date {
+    font-size: 2vh !important;
+}
+
+.clock-display {
+    margin-top: auto;
+}
+
+.clock-display .time {
+    font-size: 4.5vh;
+    font-weight: 700;
+    color: #bef106;
+    font-variant-numeric: tabular-nums;
+}
+
+.clock-display .date {
+    font-size: 1.8vh;
+    color: #888;
+}
+
+.kpi-value {
+    font-size: 4vh;
+    font-weight: 800;
+    margin-top: 1vh;
+}
+
+.kpi-value .unit {
+    font-size: 1.5vh;
+    margin-left: 5px;
+    color: #666;
+}
+
+.kpi-trend {
+    font-size: 1.6vh;
+    margin-bottom: 2vh;
+}
+
+.positive { color: #4ade80; }
+.negative { color: #f87171; }
+
+.mini-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 12vh;
+    margin-top: auto;
+    overflow: visible;
+}
+
+.mini-chart svg {
+    filter: drop-shadow(0 0 5px rgba(190, 241, 6, 0.4));
+}
+
+.sparkline-bar {
+    flex: 1;
+    background: linear-gradient(to top, rgba(190, 241, 6, 0.1), #bef106);
+    border-radius: 2px;
+    animation: grow 1.5s ease-out forwards;
+}
+
+@keyframes grow {
+    from { height: 0; }
+}
+
+.market-scroll-container {
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 5px;
+}
+
+.market-scroll-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.market-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(190, 241, 6, 0.2);
+    border-radius: 4px;
+}
+
+.market-item {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 0.8fr;
+    align-items: center;
+    padding: 1.2vh 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 2.5vh; /* Maximum size for single line */
+    white-space: nowrap;
+}
+
+.market-item:last-child { border-bottom: none; }
+
+.market-item .price { 
+    font-weight: 600; 
+    text-align: right;
+    padding-right: 1vh;
+}
+
+.market-item .change {
+    text-align: right;
+}
+
+.status-grid {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 2.4vh;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.online { background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+.offline { background: #f87171; box-shadow: 0 0 10px #f87171; }
+.latency { color: #888; margin-left: auto; }
+
+.shortcut-links {
+    display: flex;
+    gap: 1vh;
+    margin-top: 2vh;
+}
+
+.shortcut-item {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    padding: 1.5vh;
+    border-radius: 12px;
+    text-align: center;
+    text-decoration: none !important;
+    color: #e0e0e0 !important;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.shortcut-item:hover {
+    background: rgba(190, 241, 6, 0.1);
+    border-color: #bef106;
+    color: #bef106 !important;
+}

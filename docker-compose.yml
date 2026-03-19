@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: finance_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: finance_user
+      POSTGRES_PASSWORD: finance_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance_user -d finance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: finance_redis # コンテナ名を明確に定義
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: 
+      [
+        "redis-server", 
+        "--appendonly", "yes", # データ永続化を有効化 (再起動後もキャッシュを保持)
+        "--maxmemory", "500mb", # 最大メモリを 500MB に設定 (サーバー環境に合わせて調整)
+        "--maxmemory-policy", "allkeys-lru" # メモリ上限時の削除ポリシー (LRU: Least Recently Used)
+      ]
+    # オプション: データの永続化のためのボリューム設定
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
