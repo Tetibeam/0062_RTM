@@ -74,7 +74,7 @@ def get_market_regime_model_beta(df_index, df_sp500):
     #    )
 
     learning_lgbm_test(
-        df_regime, "regime",
+        df_regime, "regime", labels=["1: Golden Dip", "2: Crash Flash", "3: Slow Bleed", "4: Liquidity In", "5: Healthy/Neutral"],
         n_splits=5, gap =20,
         n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
         reg_alpha=0.4, reg_lambda=0.4,
@@ -87,7 +87,7 @@ def get_market_regime_model_beta(df_index, df_sp500):
     #plot_market_navigator(df_all, regime_clf=regime_clf, driver_clf=driver_clf)
 
     # Regime Prism
-    plot_regime_trajectory(df_oof_all_driver, df_regime["sp500_ret_1d"].dropna(), labels=driver_labels, start_date="2022-01-01", end_date="2023-01-01") # 
+    #plot_regime_trajectory(df_oof_all_driver, df_regime["sp500_ret_1d"].dropna(), labels=driver_labels, start_date="2022-01-01", end_date="2023-01-01") # 
     #plot_regime_trajectory(df_regime, regime_clf, start_date="2008-09-01", end_date="2009-03-01") # リーマン
     #plot_regime_trajectory(df_regime, regime_clf, start_date="2020-01-01", end_date="2020-06-01") # コロナ
     #plot_regime_trajectory(df_regime, regime_clf, start_date="2022-01-01", end_date="2022-12-01") # インフレショック
