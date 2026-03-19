@@ -282,7 +282,7 @@ def _analysis_label(df, df_daily):
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)
-    plot_driver_label(df, df_daily, start_date="2021-11-01", end_date="2023-03-01")
+    plot_driver_label(df, df_daily, start_date="2008-01-01", end_date="2009-01-01")
 
 ########################################################
 # 実装確認・デバッグ
