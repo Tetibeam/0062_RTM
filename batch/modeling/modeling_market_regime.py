@@ -39,7 +39,6 @@ def get_market_regime_model_beta(df_index, df_sp500):
     # --- 学習モデル生成 ---
 
     # Driver Profiler
-<<<<<<< HEAD
     #df_driver = df_features.join(df_label["driver"])
     #driver_clf, df_driver_trajectory = learning_lgbm_final(
     #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
@@ -49,16 +48,9 @@ def get_market_regime_model_beta(df_index, df_sp500):
     #learning_lgbm_test(
     #    df_driver, "driver",
     #    n_splits=5, gap =20,
-=======
-    df_driver = df_features.join(df_label["driver"])
-    driver_labels = ["1:Credit", "2:Bond", "3:Equity", "4:Mix"]
-    #driver_clf, df_driver_trajectory = learning_lgbm_final(
-    #    df_driver, "driver", model_name="Driver", label_name_list=driver_labels,
->>>>>>> 58afde7f536b37e996574021568877d94d3a7483
     #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
     #    reg_alpha=0.5, reg_lambda=0.5,
     #    )
-<<<<<<< HEAD
 
     # Test
     df_gli = df_index["gli"].dropna()
@@ -80,37 +72,6 @@ def get_market_regime_model_beta(df_index, df_sp500):
     #    n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
     #    reg_alpha=0.4, reg_lambda=0.4,
     #    )
-=======
-    df_oof_all_driver = learning_lgbm_test(
-        df_driver, "driver", labels=driver_labels,
-        n_splits=5, gap =20,
-        n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-        reg_alpha=0.5, reg_lambda=0.5,
-        learning_curve=True,
-        )
-
-
-    # Regime Prism
-    df_regime = df_features.join(df_label["regime"])
-    regime_labels = ["1: Golden Dip", "2: Crash Flash", "3: Slow Bleed", "4: Liquidity In", "5: Healthy/Neutral"]
-    #regime_clf, df_regime_trajectory = learning_lgbm_final(
-    #    df_regime, "regime", model_name="Regime", label_name_list=regime_labels,
-    #    n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
-    #    reg_alpha=0.4, reg_lambda=0.4,option_tscv=True
-    #    )
-
-    df_oof_all_regime = learning_lgbm_test(
-        df_regime, "regime", labels=regime_labels,
-        n_splits=5, gap =20,
-        n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
-        reg_alpha=0.4, reg_lambda=0.4,
-        learning_curve=False,
-        )
-
-    df_oof_all_driver =df_oof_all_driver.dropna()
-    df_oof_all_regime =df_oof_all_regime.dropna()
-    #plot_index(df_oof_all)
->>>>>>> 58afde7f536b37e996574021568877d94d3a7483
 
     learning_lgbm_test(
         df_regime, "regime",
