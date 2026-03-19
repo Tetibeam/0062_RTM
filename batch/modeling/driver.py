@@ -7,11 +7,7 @@ from batch.modeling.learning import(
     explain_prediction,
     )
 from batch.modeling.visualize import (
-    plot_market_navigator,
-    plot_driver_trajectory,
-    plot_shap_explanation,
-    plot_factor_label,
-    plot_index
+    plot_driver_label
     )
 
 import pandas as pd
@@ -29,26 +25,25 @@ def get_driver_model_beta(df_index, df_sp500):
     df_label = _make_label(df_daily)
 
     # --- 前処理（特徴量） ---
-    df_features = _featuring_all(df_daily, df_sp500)
+    #df_features = _featuring_all(df_daily, df_sp500)
 
     # --- 学習モデル生成 ---
+    #df_driver = df_features.join(df_label["driver"])
 
-    # Driver Profiler
-    df_driver = df_features.join(df_label["driver"])
     #driver_clf, df_driver_trajectory = learning_lgbm_final(
     #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
     #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
     #    reg_alpha=0.5, reg_lambda=0.5,
 
-    df_oof_all = learning_lgbm_test(
-        df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
-        n_splits=5, gap =20,
-        n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-        reg_alpha=0.5, reg_lambda=0.5,
-        )
+    #df_oof_all = learning_lgbm_test(
+    #    df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
+    #    n_splits=5, gap =20,
+    #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
+    #    reg_alpha=0.5, reg_lambda=0.5,
+    #    )
 
     #return driver_clf, df_driver_trajectory, df_driver
-    return df_oof_all
+    #return df_oof_all
 
 
 ########################################################
@@ -207,50 +202,87 @@ def _make_label(df_daily):
     master_index = df_daily["^GSPC"].dropna().index
     df = pd.DataFrame(index=master_index)
 
-    # 指標
-    # --- カンニングデータの計算 ---
-    # SP500, TLT, USD/JPY の計算（それぞれ生のまま計算してから、dfに同期）
-    for col, asset_name in zip(["^GSPC", "TLT", "DEXJPUS"], ["sp500", "tlt", "usd_jpy"]):
+    # 指標の生成
+    tlt_ret = df_daily["TLT"].pct_change(fill_method=None)
+    tlt_vol = tlt_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+
+    sp500_ret = df_daily['^GSPC'].pct_change(fill_method=None)
+    sp500_vol = sp500_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+
+    hy_diff = df_daily["BAMLH0A0HYM2"].diff()
+    hy_diff_vol = hy_diff.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+
+    for col, asset_name in zip(["^GSPC", "TLT"], ["sp500", "tlt"]):
         # NAを落として、その資産の純粋な営業日だけで未来20日を計算
         asset_clean = df_daily[col].dropna()
         future_ret = asset_clean.pct_change(20).shift(-20)
         df[f'next_20d_ret_{asset_name}'] = future_ret.reindex(master_index, method="ffill")
-    #print(df.tail(50))
 
     # HYスプレッドは「差分(diff)」で計算する
     hy_clean = df_daily["BAMLH0A0HYM2"].dropna()
     future_diff = hy_clean.diff(20).shift(-20) # 20日後に何ポイント拡大したか
     df['next_20d_diff_hy'] = future_diff.reindex(master_index, method="ffill")
 
-    # --- Driver 教師ラベル ---
-    next_20d_ret_sp500_abs = df['next_20d_ret_sp500'].abs()
+    # --- カンニングラベルの振り分け ---
+    df["driver"] = 3 # Neutral
+    df["driver_name"] = "Neutral"
 
-    df['driver_name'] = 'Neutral'
-    df['driver'] = 4  # または仕様に合わせたデフォルト値
+    # 優先度低
+    significant_bond_move = df['next_20d_ret_tlt'].abs() > (1.35 * tlt_vol * np.sqrt(20))
+    bond_dominance = (df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5)
+    is_bond_move = significant_bond_move & bond_dominance
+    df.loc[is_bond_move, 'driver'] = 2
+    df.loc[is_bond_move, 'driver_name'] = "Bond"
 
-    #【優先度中】債券: TLTの変動がSP500の半分以上なら (2022年はこれが主役になる)
-    df.loc[df['next_20d_ret_tlt'].abs() > (next_20d_ret_sp500_abs * 0.5), 'driver_name'] = 'Bond'
-    df.loc[df['next_20d_ret_tlt'].abs() > (next_20d_ret_sp500_abs * 0.5), 'driver'] = 2
+    # 優先度高
+    significant_credit_move = df['next_20d_diff_hy'].abs() > (2.0 * hy_diff_vol * np.sqrt(20))
+    credit_dominance = (df['next_20d_diff_hy'].abs() / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5)
 
-    #【優先度高】信用: スプレッドが20日で0.5ポイント(50bps)以上「拡大」したら本当の危機
-    df.loc[df['next_20d_diff_hy'].abs() > 0.5, 'driver_name'] = 'Credit'
-    df.loc[df['next_20d_diff_hy'].abs() > 0.5, 'driver'] = 1
+    is_credit_move = significant_credit_move & credit_dominance
+    df.loc[is_credit_move, 'driver'] = 1
+    df.loc[is_credit_move, 'driver_name'] = "Credit"
 
-    no_external_driver = (df['driver_name'] == 'Neutral')
-    is_equity_move = next_20d_ret_sp500_abs > 0.03
-    df.loc[no_external_driver & is_equity_move, 'driver_name'] = 'Equity'
-    df.loc[no_external_driver & is_equity_move, 'driver'] = 3
-
-
-    # インデックスを有効な日付に合わせる
-    df = df.reindex(df["next_20d_diff_hy"].dropna().index)
-    #check_nan_time(df, "2005-01-01")
-
-    # 表示・分析・評価
+    df = df.dropna()
+    #check_nan_time(df)
 
     print("\nDriver教師ラベルの期間: ",df.index[0].date(), df.index[-1].date())
 
+    _analysis_label(df, df_daily)
+
     return df
+
+def _analysis_label(df, df_daily):
+        # 分析・可視化
+    stats = df['driver_name'].value_counts().to_frame(name='Count')
+    stats['Percentage (%)'] = (df['driver_name'].value_counts(normalize=True) * 100).round(2)
+    print(stats)
+
+    market_summary = df.groupby('driver_name').agg({
+        'next_20d_ret_sp500': ['mean', 'std', 'min', 'max'],
+        'next_20d_ret_tlt': ['mean', 'std'],
+        'next_20d_diff_hy': ['mean']
+    }).round(4)
+    print(market_summary)
+
+    # 継続日数の算出
+    df['change'] = df['driver_name'] != df['driver_name'].shift()
+    df['regime_id'] = df['change'].cumsum()
+
+    # 各期間の長さをカウント
+    duration_stats = df.groupby(['regime_id', 'driver_name']).size().reset_index(name='duration')
+    avg_duration = duration_stats.groupby('driver_name')['duration'].mean().round(1)
+    print(f"平均継続日数:\n{avg_duration}")
+
+    # 遷移マトリクス（現在の状態 -> 次の状態）
+    transition_matrix = pd.crosstab(
+        df['driver_name'], 
+        df['driver_name'].shift(-1), 
+        normalize='index'
+    ).round(2)
+
+    print("遷移マトリクス（行：現在 -> 列：次）:")
+    print(transition_matrix)
+    plot_driver_label(df, df_daily, start_date="2021-11-01", end_date="2023-03-01")
 
 ########################################################
 # 実装確認・デバッグ

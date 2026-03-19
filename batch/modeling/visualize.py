@@ -5,97 +5,137 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 import pandas as pd
+import numpy as np
+
 from plotly.subplots import make_subplots
+########################################################
+# Driver
+########################################################
+# 教師ラベルの検証
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+import numpy as np
+
+def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
+    """
+    Driver Profiler v2.0 ラベル検証用可視化（プロフェッショナル・デザイン版）
+    """
+    # 1. データの準備
+    plot_df = df_result.copy()
+    if start_date: plot_df = plot_df.loc[start_date:]
+    if end_date: plot_df = plot_df.loc[:end_date]
+
+    # S&P500価格の算出
+    plot_df['price'] = df_daily['^GSPC'].reindex(plot_df.index)
+
+    # 閾値の計算（表示用）
+    tlt_ret = df_daily["TLT"].pct_change(fill_method=None).dropna()
+    tlt_vol = tlt_ret.rolling(60).std().reindex(plot_df.index, method='ffill')
+
+    plot_df['tlt_threshold_upper'] = 1.35 * tlt_vol * np.sqrt(20)
+    plot_df['tlt_threshold_lower'] = -1.35 * tlt_vol * np.sqrt(20)
+
+    # ラベルと色の設定
+    driver_labels = {1.0: '1: Credit', 2.0: '2: Bond', 3.0: '3: Neutral'}
+    colors = [
+        'rgba(255, 69, 0, 0.8)',   # 1: Credit (Orange Red)
+        'rgba(30, 144, 255, 0.8)',  # 2: Bond (Dodger Blue)
+        'rgba(169, 169, 169, 0.6)'  # 3: Neutral (Gray)
+    ]
+
+    # 2. 可視化の構築
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.6, 0.4],
+        subplot_titles=("MARKET CONTEXT & DRIVER REGIME", "TLT 20D RETURN vs VOL-THRESHOLD")
+    )
+
+    # --- 上段：背景ハイライト (Regime Background) ---
+    y_min, y_max = plot_df['price'].min() * 0.98, plot_df['price'].max() * 1.02
+
+    plot_df['change'] = plot_df['driver'] != plot_df['driver'].shift()
+    plot_df['group'] = plot_df['change'].cumsum()
+
+    for _, group in plot_df.groupby('group'):
+        d_val = group['driver'].iloc[0]
+        color_idx = int(d_val) - 1
+        base_color = colors[color_idx]
+        # 背景用に透明度を調整
+        bg_color = base_color.replace('0.8', '0.12').replace('0.6', '0.08')
+
+        fig.add_shape(
+            type="rect", xref="x", yref="y",
+            x0=group.index[0], x1=group.index[-1],
+            y0=y_min, y1=y_max,
+            fillcolor=bg_color, line_width=0, layer="below", row=1, col=1
+        )
+
+    # --- 上段：Actual Label リボン (Bottom Markers) ---
+    for val, label in driver_labels.items():
+        mask = plot_df['driver'] == val
+        fig.add_trace(go.Scatter(
+            x=plot_df.index[mask],
+            y=[y_min + (y_max - y_min) * 0.02] * mask.sum(),
+            mode='markers',
+            marker=dict(color=colors[int(val)-1], symbol='square', size=14),
+            name=label,
+            hovertemplate=f'<b>{label}</b><extra></extra>',
+            legendgroup=label,
+            showlegend=True
+        ), row=1, col=1)
+
+    # 価格ライン
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['price'],
+        name="S&P500", line=dict(color='#FFFFFF', width=1.5),
+        showlegend=False
+    ), row=1, col=1)
+
+    # --- 下段：TLT Return & Thresholds ---
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['next_20d_ret_tlt'],
+        name="TLT 20d Ret", line=dict(color='rgba(30, 144, 255, 0.9)', width=1.5),
+        fill='toself', fillcolor='rgba(30, 144, 255, 0.1)',
+        showlegend=False
+    ), row=2, col=1)
+
+    threshold_style = dict(color='rgba(255, 69, 0, 0.6)', dash='dash', width=1)
+    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['tlt_threshold_upper'], name="Upper Threshold", line=threshold_style, showlegend=True), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['tlt_threshold_lower'], name="Lower Threshold", line=threshold_style, showlegend=True), row=2, col=1)
+
+    # --- レイアウト設定 ---
+    fig.update_layout(
+        template="plotly_dark",
+        height=850,
+        title=dict(
+            text=f"<b>DRIVER PROFILER v2.0 VERIFICATION</b><br><span style='font-size:12px; color:#A0A0A0;'>Labeling Engine: Volatility-Adjusted (2-Sigma) Thresholds</span>",
+            x=0.05, y=0.96
+        ),
+        margin=dict(l=50, r=50, t=120, b=50),
+        plot_bgcolor='#0a0a0a',
+        paper_bgcolor='#0a0a0a',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified"
+    )
+
+    fig.update_yaxes(gridcolor='#222', zeroline=False, row=1, col=1)
+    fig.update_yaxes(gridcolor='#222', zeroline=False, title_text="TLT Return", tickformat=".1%", row=2, col=1)
+    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False)
+
+    pd.set_option('display.max_rows', None)
+    print(plot_df[["driver","price","next_20d_ret_sp500", "next_20d_ret_tlt", "next_20d_diff_hy"]])
+    fig.show(config=dict(displayModeBar=False))
+
+
+
 
 
 ########################################################
 # Market Navigator
 ########################################################
-
-# Market Navigator統合版
-def plot_market_navigator(df_features, regime_clf, driver_clf, start_date="2022-01-01", end_date="2023-01-01"):
-
-    # 1. データの準備と期間抽出
-    df_plot = df_features.loc[start_date:end_date].copy()
-    price_index = (1 + df_plot['sp500_ret_1d']).cumprod()
-
-    # 各モデルの学習済み特徴量リストを自動取得（順番と数を守るため）
-    regime_feats = regime_clf.feature_name_
-    driver_feats = driver_clf.feature_name_
-
-    # 2. 推論 (各モデルの確率を取得)
-    # --- 1-1. Regime Prism (19指標) ---
-    r_labels = ['1: Golden Dip', '2: Flash Crash', '3: Slow Bleed', '4: Liquidity In', '5: Healthy']
-    r_probs = regime_clf.predict_proba(df_plot[regime_feats])
-    df_r = pd.DataFrame(r_probs, index=df_plot.index, columns=r_labels)
-    df_r['dominant'] = df_r.idxmax(axis=1)
-
-    # --- 1-2. Driver Profiler (21指標) ---
-    d_labels = ['1: Credit', '2: Bond', '3: Equity', '4: Currency', '5: Neutral']
-    d_probs = driver_clf.predict_proba(df_plot[driver_feats])
-    df_d = pd.DataFrame(d_probs, index=df_plot.index, columns=d_labels)
-    df_d['dominant'] = df_d.idxmax(axis=1)
-
-    # 3. カラー定義 (RTM標準パレット)
-    r_colors = ['rgba(255, 215, 0, 0.8)', 'rgba(255, 49, 49, 0.9)', 'rgba(178, 34, 34, 0.8)',
-                'rgba(30, 144, 255, 0.8)', 'rgba(0, 250, 154, 0.7)']
-    d_colors = ['rgba(147, 112, 219, 0.8)', 'rgba(255, 140, 0, 0.8)', 'rgba(50, 205, 50, 0.8)',
-                'rgba(30, 144, 255, 0.8)', 'rgba(169, 169, 169, 0.7)']
-
-    # 4. サブプロットの構築 (3段構成)
-    fig = make_subplots(
-        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05,
-        row_heights=[0.4, 0.3, 0.3],
-        subplot_titles=("NAVIGATOR CONTEXT (Price & Regime Background)",
-                        "REGIME PRISM (State Probability)",
-                        "DRIVER PROFILER (Factor Probability)")
-    )
-
-    # --- Row 1: Price & Regime Background (Prismの色を背景に敷く) ---
-    df_r['change'] = df_r['dominant'] != df_r['dominant'].shift()
-    df_r['group'] = df_r['change'].cumsum()
-    for _, group in df_r.groupby('group'):
-        r_label = group['dominant'].iloc[0]
-        idx = r_labels.index(r_label)
-        bg_color = r_colors[idx].replace('0.8', '0.12').replace('0.9', '0.12').replace('0.7', '0.12')
-        fig.add_shape(type="rect", xref="x", yref="paper", x0=group.index[0], x1=group.index[-1],
-                      y0=0.62, y1=1, fillcolor=bg_color, line_width=0, layer="below", row=1, col=1)
-
-    fig.add_trace(go.Scatter(x=price_index.index, y=price_index, name="S&P500",
-                             line=dict(color='#FFFFFF', width=1.5)), row=1, col=1)
-
-    # --- Row 2: Regime Prism Stacked Area ---
-    for i, col in enumerate(r_labels):
-        fig.add_trace(go.Scatter(x=df_r.index, y=df_r[col], name=col, stackgroup='regime',
-                                 line=dict(width=0, color=r_colors[i]), fillcolor=r_colors[i],
-                                 hovertemplate='%{y:.1%}'), row=2, col=1)
-
-    # --- Row 3: Driver Profiler Stacked Area ---
-    for i, col in enumerate(d_labels):
-        fig.add_trace(go.Scatter(x=df_d.index, y=df_d[col], name=col, stackgroup='driver',
-                                 line=dict(width=0, color=d_colors[i]), fillcolor=d_colors[i],
-                                 hovertemplate='%{y:.1%}'), row=3, col=1)
-
-    # --- レイアウトの最終磨き上げ ---
-    fig.update_layout(
-        template="plotly_dark",
-        title=dict(
-            text=f"<b>RTM: MARKET NAVIGATOR</b><br><span style='font-size:12px; color:#A0A0A0;'>Analysis Period: {start_date} to {end_date}</span>",
-            x=0.02, y=0.97
-        ),
-        hovermode="x unified",
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02, font=dict(size=10)),
-        margin=dict(l=50, r=160, t=60, b=50),
-        plot_bgcolor='#050505', paper_bgcolor='#050505',
-    )
-
-    fig.update_yaxes(title_text="Price Index", gridcolor='#222', row=1, col=1)
-    fig.update_yaxes(title_text="Regime %", tickformat=".0%", range=[0, 1], gridcolor='#222', row=2, col=1)
-    fig.update_yaxes(title_text="Driver %", tickformat=".0%", range=[0, 1], gridcolor='#222', row=3, col=1)
-    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False)
-
-    fig.show(config=dict(displayModeBar=False))
-    return fig
 
 # Regime Prismの可視化
 def plot_regime_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):

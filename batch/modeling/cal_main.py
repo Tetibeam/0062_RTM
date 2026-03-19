@@ -119,9 +119,9 @@ def cal_main():
 
     # --- Macro学習モデルの作成 ---
     df_driver_prob = get_driver_model_beta(df_index, df_sp500)
-    df_gli_prob = get_gli_model_beta(df_index)
-    df_dsr_prob = get_dsr_model_beta(df_index)
-    df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
+    #df_gli_prob = get_gli_model_beta(df_index)
+    #df_dsr_prob = get_dsr_model_beta(df_index)
+    #df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
 
     #df_regional_pred = get_regional_bias_model_beta(df_index, regime_clf, df_regime_features, df_nikkei, df_sp500)
 
