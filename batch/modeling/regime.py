@@ -7,7 +7,6 @@ from batch.modeling.learning import(
     explain_prediction,
     )
 from batch.modeling.visualize import (
-    plot_regime_trajectory,
     plot_driver_trajectory,
     plot_shap_explanation,
     plot_regime_label,

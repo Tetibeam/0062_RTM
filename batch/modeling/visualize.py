@@ -231,14 +231,8 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
 
     fig.show()
 
-
-
-########################################################
-# Market Navigator
-########################################################
-
-# Regime Prismの可視化
-def plot_regime_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
+# Driver Profilerの可視化
+def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
     # 1. データの準備
     X = df_ready.drop(columns=['actual_regime'])
     X_latest = X.loc[start_date:end_date]
@@ -362,134 +356,16 @@ def plot_regime_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
     fig.show(config=dict(displayModeBar=False))
     
     # 解析用に出力データフレームの列を整理して返す
-    return df_probs[['actual_regime', 'dominant_regime'] + regime_labels]
+    return df_probs[['actual_regime', 'dominant_regime']]
 
-# Driver Profilerの可視化
-def plot_driver_trajectory(df_ready, sp500_ret, start_date="2022-01-01", end_date="2023-01-01"):
-    # 1. データの準備
-    X = df_ready.drop(columns=['actual_regime'])
-    X_latest = X.loc[start_date:end_date]
 
-    # ★追加: 正解ラベルを取得
-    y_latest = df_ready.loc[start_date:end_date, 'actual_regime']
+########################################################
+# Market Navigator
+########################################################
 
-    # 2. 予測確率の算出
-    regime_labels = ['1: Credit', '2: Bond', '3: Equity', '4: Neutral']
-    probs = X_latest
-    df_probs = pd.DataFrame(probs, index=X_latest.index, columns=regime_labels)
+# Regime Prismの可視化
 
-    # 最も確率が高いレジュームを特定（強調表示用）
-    df_probs['dominant_regime'] = df_probs.idxmax(axis=1)
 
-    # ★追加: マッピング用の辞書を作成し、返り値のデータフレームにも正解を記録
-    regime_dict = {float(i+1): label for i, label in enumerate(regime_labels)}
-    df_probs['actual_regime'] = y_latest.map(regime_dict)
-    pd.set_option('display.max_rows', None)
-    print(df_probs)
-
-    # 3. カラーパレットの設定（プロ仕様）
-    colors = ['rgba(255, 215, 0, 0.8)', 'rgba(255, 0, 255, 0.85)', 'rgba(178, 34, 34, 0.8)', 
-              'rgba(30, 144, 255, 0.8)', 'rgba(0, 250, 154, 0.7)']
-
-    # ★追加: 正解ラベルの色引き当て用辞書
-    color_dict = {float(i+1): color for i, color in enumerate(colors)}
-
-    # 4. 可視化
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        row_heights=[0.35, 0.65],
-        # ★追加: タイトルを微修正
-        subplot_titles=("MARKET CONTEXT (S&P500) & Actual Regime", "PROBABILISTIC TRAJECTORY")
-    )
-
-    # --- 上段：価格チャート & 支配的レジュームの背景強調 ---
-    sp500_price = (1 + sp500_ret).cumprod()
-    sp500_price = sp500_price.loc[start_date:end_date]
-    min_sp500 = sp500_price.min() - 0.1
-    max_sp500 = sp500_price.max() + 0.1
-
-    df_probs['change'] = df_probs['dominant_regime'] != df_probs['dominant_regime'].shift()
-    df_probs['group'] = df_probs['change'].cumsum()
-
-    regime_groups = df_probs.groupby('group')
-
-    for _, group in regime_groups:
-        start_dt = group.index[0]
-        end_dt = group.index[-1]
-        regime_label = group['dominant_regime'].iloc[0]
-
-        regime_idx = regime_labels.index(regime_label)
-        base_color = colors[regime_idx]
-        bg_color = base_color.replace('0.8', '0.12').replace('0.9', '0.12').replace('0.7', '0.12')
-
-        fig.add_shape(
-            type="rect",
-            xref="x", 
-            yref="y", # ★修正: 元コードの"paper"だとデータ座標(min_sp500等)と噛み合わずズレるため"y"に修正
-            x0=start_dt, x1=end_dt,
-            y0=min_sp500, y1=max_sp500,
-            fillcolor=bg_color,
-            line_width=0,
-            layer="below", 
-            row=1, col=1
-        )
-
-    # ★追加: 正解ラベルの「カラーリボン」を価格チャートの下部に描画
-    true_colors = y_latest.map(color_dict)
-    true_texts = y_latest.map(regime_dict)
-
-    fig.add_trace(go.Scatter(
-        x=y_latest.index,
-        y=[min_sp500 + 0.01] * len(y_latest), # 価格チャートの一番下（min_sp500の少し上）に固定
-        mode='markers',
-        marker=dict(color=true_colors, symbol='square', size=12),
-        name='Actual Regime (True)',
-        text=true_texts,
-        hovertemplate='<b>Actual: %{text}</b><extra></extra>',
-        showlegend=False # 凡例が煩雑になるのを防ぐ
-    ), row=1, col=1)
-
-    # 価格線を重ねる
-    fig.add_trace(go.Scatter(
-        x=sp500_price.index, y=sp500_price, 
-        name="S&P500", line=dict(color='#E0E0E0', width=1.5)
-    ), row=1, col=1)
-
-    # --- 下段：確率のスタックエリア（グラデーション） ---
-    for i, col in enumerate(regime_labels):
-        fig.add_trace(go.Scatter(
-            x=df_probs.index, y=df_probs[col],
-            name=col,
-            stackgroup='one',
-            line=dict(width=0, color=colors[i]),
-            fillcolor=colors[i],
-            hovertemplate='%{y:.1%}'
-        ), row=2, col=1)
-
-    # --- レイアウトの磨き上げ ---
-    fig.update_layout(
-        template="plotly_dark",
-        title=dict(
-            text=f"<b>REGIME PRISM</b><br><span style='font-size:12px; color:#A0A0A0;'>Analysis Period: {start_date} to {end_date}</span>",
-            x=0.05, y=0.95
-        ),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.1, xanchor="right", x=1),
-        margin=dict(l=50, r=50, t=120, b=50),
-        plot_bgcolor='#0a0a0a',
-        paper_bgcolor='#0a0a0a',
-    )
-
-    fig.update_yaxes(gridcolor='#222', zeroline=False)
-    fig.update_yaxes(title_text="Probability", tickformat=".0%", range=[0, 1], row=2, col=1)
-    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False)
-
-    fig.show(config=dict(displayModeBar=False))
-    
-    # 解析用に出力データフレームの列を整理して返す
-    return df_probs[['actual_regime', 'dominant_regime'] + regime_labels]
 
 # Regional Biasの可視化
 def plot_regional_bias_trajectory(df_features, compass_clf, nikkei_price, sp500_price, 

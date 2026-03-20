@@ -7,8 +7,8 @@ from batch.modeling.learning import(
     explain_prediction,
     )
 from batch.modeling.visualize import (
-    plot_driver_label,
-    plot_driver_soft_label
+    plot_driver_soft_label,
+    plot_driver_trajectory
     )
 
 import pandas as pd
@@ -30,20 +30,25 @@ def get_driver_model_beta(df_index, df_sp500):
 
     features_refined = [
         'VIX_z252',
-        #'VVIX_z252',
+        'VVIX_z252',
         'MOVE_z252',
         #'VIX_diff5_zscore',
-        'MOVE_diff5_zscore',
-        'MOVE_VIX_ratio_zscore',###
+        #'MOVE_diff5_zscore',
+        #'MOVE_VIX_ratio_zscore',###
         #'VIX_gap_zscore',
-        'VIX_rv_zscore',
-        'HY_diff5_zscore',
+        #'VIX_rv_zscore',
+        "MOVE_vov",###########
+        #"MOVE_accel",
+        
+        #'HY_diff5_zscore',
         'hy_z252',
         #'TED_spread_z252',
-        'TED_diff5_zscore',
-        #'SOFR_vol_spike',
+        #'TED_diff5_zscore',
+        'SOFR_vol_spike',
         'Term_Premium_z252',
         'Credit_Equity_Divergence',
+        #'Term_Premium_diff5',
+        "Term_Premium_diff5_z252",
 
         'DFII10_diff5_zscore',
         #'DFII10_z252',
@@ -55,11 +60,18 @@ def get_driver_model_beta(df_index, df_sp500):
 
         #'DXY_diff5_zscore',
         #'DXY_z252',
-        'Stock_Bond_Corr_20d',
-        #'Stock_Bond_Corr_zscore',
-        #'Equity_Gold_Ratio_zscore',
-        #'Flight_to_Safety_zscore',
-        #'SP500_Ret_Z'
+        #'Stock_Bond_Corr_20d',
+        'Stock_Bond_Corr_zscore',
+        #"Gold_zscore",
+        'Equity_Gold_Ratio_zscore',
+        'Flight_to_Safety_zscore',
+        #'SP500_Ret_Z',
+        #"tlt_z252",
+        #"tlt_ret_z252",
+        #"tlt_diff_z252",
+        "tlt_hy_ratio_z252",
+        #"tlt_hy_diff_z252",
+        #"oil_ret_z252"
         ]
     df_features = df_features[features_refined]
 
@@ -77,18 +89,23 @@ def get_driver_model_beta(df_index, df_sp500):
     df_driver = df_features.join(df_label["driver"])
 
     #driver_clf, df_driver_trajectory = learning_lgbm_final(
-    #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
-    #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-    #    reg_alpha=0.5, reg_lambda=0.5,
+    #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
+    #    n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
+    #    reg_alpha=0.3, reg_lambda=0.3,
 
     print(f"特徴量のリスト: {df_features.columns}")
     df_oof_all = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
-        n_splits=5, gap =20,
-        n_estimators=2000,learning_rate=0.001,num_leaves=50, min_data_in_leaf=150,
-        class_weight="balanced",#{1: 5.0, 2: 1.5, 3: 1.0},#
+        n_splits=5, gap =30,
+        n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
+        class_weight="balanced",
         sample_weight=df_label["sample_weight"],
-        reg_alpha=0.1, reg_lambda=0.1, learning_curve=True,
+        reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
+        )
+    plot_driver_trajectory(
+        df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
+        ["1:Credit", "2:Bond", "3:Mix"],
+        start_date="2013-01-01", end_date="2018-01-01"
         )
 
     #return driver_clf, df_driver_trajectory, df_driver
@@ -147,6 +164,7 @@ def _vol_feats(df, feats, master_index):
     move_diff = move.diff(5)
     feats['VIX_diff5_zscore'] = _featuring_z_score(vix_diff, window=252).reindex(master_index, method="ffill")
     feats['MOVE_diff5_zscore'] = _featuring_z_score(move_diff, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_accel'] = feats['MOVE_z252'].diff(1).diff(5).reindex(master_index, method="ffill")
 
     # 格差
     ratio = move / vix
@@ -161,6 +179,8 @@ def _vol_feats(df, feats, master_index):
     # ボラのボラ
     vix_rv = vix.pct_change().rolling(20).std()
     feats['VIX_rv_zscore'] = _featuring_z_score(vix_rv, window=252).reindex(master_index, method="ffill")
+    move_z252 = _featuring_z_score(move, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_vov'] = move_z252.diff().rolling(20).std().reindex(master_index, method="ffill")
     return feats
 
 def _credit_liq_feats(df, feats, master_index):
@@ -191,6 +211,8 @@ def _credit_liq_feats(df, feats, master_index):
     # 金融機関の「収益性・貸出意欲」の悪化
     term_premium = dgs10 - dgs3mo
     feats['Term_Premium_z252'] = _featuring_z_score(term_premium, window=252).reindex(master_index, method="ffill")
+    feats['Term_Premium_diff5'] = feats['Term_Premium_z252'].diff(5).reindex(master_index, method="ffill")
+    feats['Term_Premium_diff5_z252'] = _featuring_z_score(feats['Term_Premium_diff5'] , window=252).reindex(master_index, method="ffill")
 
     # クレジットとボラティリティの「乖離」
     vix_z = _featuring_z_score(vix, window=252)
@@ -237,6 +259,8 @@ def _momentum_flow_feats(df, feats, master_index):
     gold = df["GC=F"].dropna()
     sp500 = df["^GSPC"].dropna()
     tlt = df["TLT"].dropna()
+    hy = df["BAMLH0A0HYM2"].dropna()
+    oil = df["CL=F"].dropna()
 
     # ドルの引力
     dxy_diff = dxy.diff(5)
@@ -250,7 +274,9 @@ def _momentum_flow_feats(df, feats, master_index):
     feats['Stock_Bond_Corr_20d'] = corr.reindex(master_index, method="ffill")
     feats['Stock_Bond_Corr_zscore'] = _featuring_z_score(corr, window=252).reindex(master_index, method="ffill")
 
+
     # リスクオン・オフの体温計
+    feats['Gold_zscore'] = _featuring_z_score(gold, window=252).reindex(master_index, method="ffill")
     equity_gold = sp500 / gold
     feats['Equity_Gold_Ratio_zscore'] = _featuring_z_score(equity_gold, window=252).reindex(master_index, method="ffill")
 
@@ -260,6 +286,18 @@ def _momentum_flow_feats(df, feats, master_index):
 
     # 市場のオーバーシュート
     feats['SP500_Ret_Z'] = _featuring_z_score(returns_sp.rolling(20).sum(), window=252).reindex(master_index, method="ffill")
+
+    feats['tlt_z252'] = _featuring_z_score(tlt, window=252).reindex(master_index, method="ffill")
+    feats['tlt_ret_z252'] = _featuring_z_score(tlt.pct_change(), window=252).reindex(master_index, method="ffill")
+    feats['tlt_diff_z252'] = _featuring_z_score(tlt.diff(5), window=252).reindex(master_index, method="ffill")
+    ratio = tlt / hy
+    ratio = ratio.ffill()
+    feats['tlt_hy_ratio_z252'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+    tlt_hy_diff = np.log(tlt)- np.log(hy)
+    feats['tlt_hy_diff_z252'] = _featuring_z_score(tlt_hy_diff, window=252).reindex(master_index, method="ffill")
+
+    feats['oil_ret_z252'] = _featuring_z_score(oil.pct_change(), window=252).reindex(master_index, method="ffill")
+
 
     return feats
 
