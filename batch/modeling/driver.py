@@ -111,6 +111,14 @@ def get_driver_model_beta(df_index, df_sp500):
         ["1:Credit", "2:Bond", "3:Mix"],
         start_date="2010-01-01", end_date="2018-01-01"
         )"""
+    start="2017-01-30"
+    end="2017-02-13"
+    label="1:Credit"
+    shap = df_shap[label].loc[start:end]
+    top10_shap = shap.mean().sort_values(ascending=False).head(10)
+    print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5")
+    print(df_oof_all.loc[start:end].mean().round(2))
+    print(f"\n{top10_shap}")
 
 
     #return driver_clf, df_driver_trajectory, df_driver

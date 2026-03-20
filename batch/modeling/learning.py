@@ -204,13 +204,25 @@ def learning_lgbm_test(
 
         # shap_valuesは多クラスの場合、リスト形式 [class0_array, class1_array, ...] で返る
         for i, label in enumerate(labels):
-            # 各クラスのSHAP値をDataFrame化して辞書に格納
-            df_fold_shap = pd.DataFrame(shap_values[i], index=X_test.index, columns=X.columns)
+            # 1. 戻り値がリスト形式の場合（古いSHAPや一部の環境）
+            if isinstance(shap_values, list):
+                target_shap = shap_values[i]
+            # 2. 戻り値が3次元配列の場合 (サンプル, 特徴量, クラス)
+            elif hasattr(shap_values, "ndim") and shap_values.ndim == 3:
+                # 最後の次元（クラス）をスライスして (サンプル, 特徴量) を取り出す
+                target_shap = shap_values[:, :, i]
+            # 3. それ以外（Explanationオブジェクトや単一クラスなど）
+            else:
+                target_shap = shap_values
+
+            # 取り出した行列をDataFrame化
+            df_fold_shap = pd.DataFrame(target_shap, index=X_test.index, columns=X.columns)
             oof_shap_dict[label].append(df_fold_shap)
 
         # C. Fold情報の表示
         y_pred = clf.predict(X_test)
         acc = balanced_accuracy_score(y_test, y_pred)
+        best_iter = clf.best_iteration_
         print(f"Fold {fold} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()} | Acc: {acc:.4f}")
         print(f" => Balanced Acc: {acc:.4f} (Best Iter: {best_iter})")
 
