@@ -300,7 +300,7 @@ def _featuring_b(df):
     return df_featured
 
 def _featuring_c(df):
-    col = ["SOFR","DFF","TB3MS","DX=F","BAMLC0A4CBBB","BAMLC0A3CA"]
+    col = ["SOFR","DFF","TB3MS","DX-Y.NYB","BAMLC0A4CBBB","BAMLC0A3CA"]
     df_ = df[col].dropna(how="all")
 
     # DFFで代用
@@ -314,10 +314,10 @@ def _featuring_c(df):
     diff_SOFR = df_["SOFR"].diff(12).dropna()
     clip_SOFR = diff_SOFR.clip(-3, 3).rename("SOFR_diff_clip")
 
-    yoy_DXY = df_["DX=F"].pct_change(12).dropna().rename("DXY_yoy")
+    yoy_DXY = df_["DX-Y.NYB"].pct_change(12).dropna().rename("DXY_yoy")
     clip_yoy_DXY = cap_by_sigma(yoy_DXY, sigma=2.5).rename("DXY_yoy_clip")
 
-    diff_DXY = df_["DX=F"].diff().dropna().rename("DXY_diff")
+    diff_DXY = df_["DX-Y.NYB"].diff().dropna().rename("DXY_diff")
     clip_diff_DXY = cap_by_sigma(diff_DXY, sigma=2.5).rename("DXY_diff_clip")
 
     spd_TB3MS = (df_["SOFR"] - df_["TB3MS"]).dropna().rename("SOFR_TB3MS_minus")
@@ -529,7 +529,7 @@ gli_index = [
     "TB3MS",
     "BAMLC0A4CBBB",
     "BAMLC0A3CA",
-    "DX=F",
+    "DX-Y.NYB",
     "RRPONTSYD",
     "WALCL",
     "RESBALNS",

@@ -109,7 +109,6 @@ def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     # --- レイアウト設定 ---
     fig.update_layout(
         template="plotly_dark",
-        height=850,
         title=dict(
             text=f"<b>DRIVER PROFILER v2.0 VERIFICATION</b><br><span style='font-size:12px; color:#A0A0A0;'>Labeling Engine: Volatility-Adjusted (2-Sigma) Thresholds</span>",
             x=0.05, y=0.96
@@ -129,7 +128,108 @@ def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     print(plot_df[["driver","price","next_20d_ret_sp500", "next_20d_ret_tlt", "next_20d_diff_hy"]])
     fig.show(config=dict(displayModeBar=False))
 
+def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
+    """
+    ソフト・ラベル（指数減衰）の挙動を確認するための解剖用可視化
+    """
+    # 1. データのフィルタリング
+    plot_df = df_result.copy()
+    if start_date: plot_df = plot_df.loc[start_date:]
+    if end_date: plot_df = plot_df.loc[:end_date]
 
+    plot_df['price'] = df_daily['^GSPC'].reindex(plot_df.index)
+
+    # 2. サブプロットの構築 (上段: 市場コンテキスト, 下段: 減衰スコアの推移)
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.6, 0.4],
+        subplot_titles=("MARKET CONTEXT & REGIME HIGHLIGHTS", "SOFT LABEL PRECURSORS (DECAY SCORES)")
+    )
+
+    # カラー設定
+    colors = {
+        1.0: 'rgba(255, 69, 0, 0.8)',   # Credit: Orange Red
+        2.0: 'rgba(30, 144, 255, 0.8)',  # Bond: Dodger Blue
+        3.0: 'rgba(169, 169, 169, 0.5)'   # Neutral: Gray
+    }
+
+    # --- 上段: 背景ハイライト (Regime Background) ---
+    y_min, y_max = plot_df['price'].min() * 0.95, plot_df['price'].max() * 1.05
+    
+    # 状態変化地点の特定
+    plot_df['change'] = plot_df['driver'] != plot_df['driver'].shift()
+    plot_df['group'] = plot_df['change'].cumsum()
+
+    for _, group in plot_df.groupby('group'):
+        d_val = group['driver'].iloc[0]
+        bg_color = colors[d_val].replace('0.8', '0.1').replace('0.5', '0.05')
+
+        fig.add_shape(
+            type="rect", xref="x1", yref="y1",
+            x0=group.index[0], x1=group.index[-1],
+            y0=y_min, y1=y_max,
+            fillcolor=bg_color, line_width=0, layer="below", row=1, col=1
+        )
+
+    # 価格ライン
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['price'],
+        name="S&P500", line=dict(color='#FFFFFF', width=2),
+        showlegend=False
+    ), row=1, col=1)
+
+    # カテゴリマーカー（下部のリボン）
+    for val, name in {1.0: 'Credit', 2.0: 'Bond'}.items():
+        mask = plot_df['driver'] == val
+        fig.add_trace(go.Scatter(
+            x=plot_df.index[mask], y=[y_min * 1.01] * mask.sum(),
+            mode='markers', name=name,
+            marker=dict(color=colors[val], symbol='square', size=10),
+            legendgroup=name
+        ), row=1, col=1)
+
+    # --- 下段: ソフトスコア (The "Inside" of Smearing) ---
+    # Credit Score (予兆の強さ)
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['credit_score'],
+        name="Credit Prob (Decay)", 
+        line=dict(color=colors[1.0], width=2.5),
+        fill='tozeroy', fillcolor=colors[1.0].replace('0.8', '0.15'),
+    ),row=2, col=1)
+
+    # Bond Score (予兆の強さ)
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['bond_score'],
+        name="Bond Prob (Decay)", 
+        line=dict(color=colors[2.0], width=2.5, dash='dot'),
+    ),row=2, col=1)
+
+    # 閾値ライン (ラベルが確定する境界線)
+    fig.add_hline(y=0.4, line_dash="dash", line_color="#555", 
+                  annotation_text="Decision Threshold (0.4)", row=2, col=1)
+
+    # --- レイアウト設定 ---
+    fig.update_layout(
+        template="plotly_dark",
+        title=dict(
+            text=f"<b>DRIVER PROFILER v2.0 VERIFICATION</b><br><span style='font-size:12px; color:#A0A0A0;'>Labeling Engine: Volatility-Adjusted (2-Sigma) Thresholds</span>",
+            x=0.05, y=0.96
+        ),
+        plot_bgcolor='#0a0a0a',
+        paper_bgcolor='#0a0a0a',
+        margin=dict(l=50, r=50, t=100, b=50),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified"
+    )
+
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Soft Score", range=[0, 1.1], row=2, col=1)
+
+    print(plot_df)
+
+    fig.show()
 
 
 

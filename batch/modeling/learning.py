@@ -126,6 +126,7 @@ def learning_lgbm_test(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
+    sample_weight=None,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索

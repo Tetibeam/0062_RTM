@@ -63,7 +63,7 @@ ticker_map = {
     "USD/JPY": ["usdjpy", "fred", "DEXJPUS"],
     "USD/CHF": ["usdchf", "fred", "DEXSZUS"],
     "期待インフレ率": ["t10yie", "fred", "T10YIE"],
-    "ドルインデックス": ["dxy", "yfinance", "DX=F"],
+    "ドルインデックス": ["dxy", "yfinance", "DX-Y.NYB"],
     "恐怖指数": ["move", "yfinance", "^MOVE"],
     "ボラのボラ":["vvix","cboe","https://cdn.cboe.com/api/global/us_indices/daily_prices/VVIX_History.csv"],
     "ブラックスワン指数": ["skew", "yfinance", "^SKEW"],

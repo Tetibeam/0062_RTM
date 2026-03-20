@@ -180,7 +180,7 @@ def _macro_gravity_feats(df, feats, master_index):
 
 def _momentum_flow_feats(df, feats, master_index):
     # 指標
-    dxy = df["DX=F"].dropna()
+    dxy = df["DX-Y.NYB"].dropna()
     gold = df["GC=F"].dropna()
     sp500 = df["^GSPC"].dropna()
     tlt = df["TLT"].dropna()

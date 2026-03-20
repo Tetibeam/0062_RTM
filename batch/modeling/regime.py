@@ -127,7 +127,7 @@ def _featuring_all(df_daily, df_sp500):
     nasdaq = df_daily["^IXIC"].dropna()
     russell = df_daily["^RUT"].dropna()
     gold = df_daily["GC=F"].dropna()
-    dxy = df_daily["DX=F"].dropna()
+    dxy = df_daily["DX-Y.NYB"].dropna()
     vvix = df_daily["VVIX"].dropna()
     skew = df_daily["^SKEW"].dropna()
     xlk = df_daily["XLK"].dropna()
