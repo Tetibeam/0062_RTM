@@ -67,7 +67,13 @@ ticker_map = {
     "恐怖指数": ["move", "yfinance", "^MOVE"],
     "ボラのボラ":["vvix","cboe","https://cdn.cboe.com/api/global/us_indices/daily_prices/VVIX_History.csv"],
     "ブラックスワン指数": ["skew", "yfinance", "^SKEW"],
-
+    "銀行信用リスクのプレミアム": ["tedrate", "fred", "TEDRATE"],
+    "企業の短期資金調達コスト": ["CPN3M", "fred", "CPN3M"],
+    "3ヶ月物国債利回り": ["DTB3", "fred", "DTB3"],
+    "米国債 3ヶ月金利": ["DGS3MO", "fred", "DGS3MO"],
+    "米国債2年利回り": ["DGS2", "fred", "DGS2"],
+    
+ 
     "日経平均": ["nikkei", "yfinance", "^N225"],
     "日本10年国債利回り": ["jp10y", "fred", "IRLTLT01JPM156N"],
     "原油": ["oil", "yfinance", "CL=F"],

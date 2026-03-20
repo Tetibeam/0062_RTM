@@ -254,8 +254,8 @@ def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):
     # DataFrameとして結合して平均を取る
     feat_imp = pd.concat(all_importances, axis=1).mean(axis=1).sort_values(ascending=False)
 
-    print("\n===  Top 10 Features (CV Average Gain) ===")
-    print(feat_imp.head(20))
+    print("\n===  Top 50 Features (CV Average Gain) ===")
+    print(feat_imp.head(50))
 
 # シグナル・フィルター (カスタム閾値の探索)
 def search_optimal_thresholds(y_true, y_probs):

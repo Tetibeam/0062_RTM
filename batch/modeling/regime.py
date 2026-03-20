@@ -48,7 +48,7 @@ def get_market_regime_model_beta(df_index, df_sp500):
 
     df_oof_all = learning_lgbm_test(
         df_regime, "regime", labels=["1: Golden Dip", "2: Crash Flash", "3: Slow Bleed", "4: Liquidity In", "5: Healthy/Neutral"],
-        n_splits=5, gap =20,
+        n_splits=5, gap =40,
         n_estimators=1000,learning_rate=0.01,num_leaves=25, min_data_in_leaf=20,
         reg_alpha=0.4, reg_lambda=0.4,
         learning_curve=False,

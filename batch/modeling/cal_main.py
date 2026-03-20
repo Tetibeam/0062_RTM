@@ -69,9 +69,15 @@ regime_index_list = [
     "期待インフレ率",
     "米国国債長期債",
     "ドルインデックス",
-    #"恐怖指数",
+    "恐怖指数",
     "ボラのボラ",
     "ブラックスワン指数",
+    "銀行信用リスクのプレミアム",
+    "企業の短期資金調達コスト",
+    "3ヶ月物国債利回り",
+    "米国債 3ヶ月金利",
+    "米国債2年利回り",
+ 
     # 地域バイアスモデル
     "日経平均",
     "日本10年国債利回り",
@@ -98,7 +104,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_3:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_2:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付

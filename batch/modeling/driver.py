@@ -25,22 +25,39 @@ def get_driver_model_beta(df_index, df_sp500):
     df_label = _make_label(df_daily)
 
     # --- 前処理（特徴量） ---
-    #df_features = _featuring_all(df_daily, df_sp500)
+    df_features = _featuring_all(df_daily, df_sp500)
+
+    features_refined = [
+        "Term_Premium_z252",
+        #"hy_z252",
+        "Stock_Bond_Corr_20d",
+        #"DFII10_z252",
+        "TED_spread_z252",
+        #"SOFR_vol_spike",
+        "Equity_Gold_Ratio_zscore",
+        "VIX_rv_zscore",
+        "Curve_10Y2Y_z252",
+        #"Real_Nominal_ratio_zscore",
+    ]
+    df_features = df_features[features_refined]
+
 
     # --- 学習モデル生成 ---
-    #df_driver = df_features.join(df_label["driver"])
+    df_driver = df_features.join(df_label["driver"])
 
     #driver_clf, df_driver_trajectory = learning_lgbm_final(
     #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
     #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
     #    reg_alpha=0.5, reg_lambda=0.5,
 
-    #df_oof_all = learning_lgbm_test(
-    #    df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Equity", "4:Mix"],
-    #    n_splits=5, gap =20,
-    #    n_estimators=1000,learning_rate=0.01,num_leaves=30, min_data_in_leaf=50,
-    #    reg_alpha=0.5, reg_lambda=0.5,
-    #    )
+    print(f"特徴量のリスト: {df_features.columns}")
+    df_oof_all = learning_lgbm_test(
+        df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
+        n_splits=5, gap =40,
+        n_estimators=1000,learning_rate=0.001,num_leaves=12, min_data_in_leaf=250,
+        class_weight={1: 1.5, 2: 1.2, 3: 1.0},#"balanced",
+        reg_alpha=5, reg_lambda=5,learning_curve=True,
+        )
 
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
@@ -53,105 +70,166 @@ def _featuring_all(df_daily, df_sp500):
 
     # --- リバランスの実行基準となるマスターカレンダー ---
     master_index = df_daily["^GSPC"].dropna().index
+    feats = pd.DataFrame(index=master_index)
 
-    # --- 指標の取得 ---
-    sp500 = df_daily["^GSPC"].dropna()
-    vix = df_daily['VIXCLS'].dropna()
-    hy = df_daily['BAMLH0A0HYM2'].dropna()
-    ig = df_daily["BAMLC0A0CM"].dropna()
-    tlt = df_daily['TLT'].dropna()
-    sector = df_daily[["XLF", "XLK", "XLE", "XLY", "XLP", "XLU"]].dropna(how="all")
-    nasdaq = df_daily["^IXIC"].dropna()
-    russell = df_daily["^RUT"].dropna()
-    gold = df_daily["GC=F"].dropna()
-    dxy = df_daily["DX=F"].dropna()
-    vvix = df_daily["VVIX"].dropna()
-    skew = df_daily["^SKEW"].dropna()
-    xlk = df_daily["XLK"].dropna()
-    xlp = df_daily["XLP"].dropna()
-    usdjpy = df_daily["DEXJPUS"].dropna()
-    usdchf = df_daily["DEXSZUS"].dropna()
+    # ---  恐怖の先行指標 - 初期震動の検知 ---
+    feats = _vol_feats(df_daily, feats, master_index)
 
-    # --- 準備計算 ---
-    sp500_ret_1d = sp500.pct_change(fill_method=None)
-    vvix = vvix["2006-08-01":]  # CBOEで安定して日次でとれるのはこの月から
+    # --- システムの目詰まり（Credit & Liquidity）- Creditレジュームを仕留める ---
+    feats = _credit_liq_feats(df_daily, feats, master_index)
 
-    # --- LayerA - リスク資産の動き ---
-    df_a = pd.DataFrame(index=master_index)
-    df_a["sp500_ret_1d"] = sp500_ret_1d.reindex(master_index)
-    df_a["sp500_rsi_14d"] = _featuring_rsi(sp500, window=14).reindex(master_index)
-    df_a["sp500_breadth_diff_10d"] = _featuring_m_breadth(df_sp500, window=10).reindex(master_index)
+    # --- マクロの重力（Rates & Inflation）- Bondレジュームを仕留める ---
+    feats = _macro_gravity_feats(df_daily, feats, master_index)
 
-    df_a["sector_dispersion_5d"] = _featuring_sector_var(sector, window=1).reindex(master_index)
-    df_a["nasdaq_ret_diff_sp500"] = (nasdaq.pct_change(fill_method=None) - sp500_ret_1d).reindex(master_index)
-    df_a["russell_ret_diff_sp500"] = (russell.pct_change(fill_method=None) - sp500_ret_1d).reindex(master_index)
-    df_a["nasdaq_ret_5d"] = nasdaq.pct_change(5,fill_method=None).reindex(master_index)
-    df_a["russell_ret_5d"] = russell.pct_change(5,fill_method=None).reindex(master_index)
-
-    # Driver Profiler専用
-    #df_a["xlk/xlp_ret_5d"] = (xlk/xlp).pct_change(5,fill_method=None).reindex(master_index)
-
-    #print(df_a)
-    #check_nan_time(df_a, "2005-01-01")
-
-    # --- LayerB - ボラティリティ・不確実性 ---
-    df_b = pd.DataFrame(index=master_index)
-    df_b['vix_level'] = vix.reindex(master_index)   # レベル
-    df_b['vix_chg_5d'] = vix.diff(5).reindex(master_index)  # 直近5日変化
-    df_b["vix_zscore_10d"] = _featuring_z_score(vix, window=10).reindex(master_index)
-    df_b["vix_panic_duration"] = ((vix > 20).astype(int)).rolling(20).sum().reindex(master_index)
-
-    # Driver Profiler専用
-    #df_b["vvix_zscore_10d"] = _featuring_z_score(vvix, window=10).reindex(master_index)
-
-    #print(df_b)
-    #check_nan_time(df_b, "2005-01-01")
-
-    # --- LayerC - クレジット市場 ---
-    df_c = pd.DataFrame(index=master_index)
-    df_c["hy_level"] = hy.reindex(master_index)
-    df_c["ig_level"] = ig.reindex(master_index)
-    df_c['hy_diff_5d'] = hy.diff(5).reindex(master_index) # 直近5日変化
-    df_c['ig_diff_5d'] = ig.diff(5).reindex(master_index) # 直近5日変化
-
-    #print(df_c)
-    #check_nan_time(df_c, "2005-01-01")
-
-    # --- LayerD - 安全資産・ヘッジ資産 ---
-    df_d = pd.DataFrame(index=master_index)
-    df_d['tlt_ret_20d'] = tlt.pct_change(20).reindex(master_index)          # 直近20日変化率
-    df_d["dxy_ret_1d"] = dxy.pct_change(5,fill_method=None).reindex(master_index)
-    df_d["sp500_gold_corr_10d"] = sp500_ret_1d.rolling(window=10).corr(gold.pct_change(fill_method=None)).reindex(master_index)
-    # Driver Profiler専用
-    #df_d["udfjpy_ret_1d"] = usdjpy.pct_change(fill_method=None).reindex(master_index)
-    #df_d["udfjpy_ret_5d"] = usdjpy.pct_change(5,fill_method=None).reindex(master_index)
-    #df_d["usdchf_ret_1d"] = usdchf.pct_change(fill_method=None).reindex(master_index)
-    #df_d["usdchf_ret_5d"] = usdchf.pct_change(5,fill_method=None).reindex(master_index)
-    #df_d["udfjpy_ret_vol"] = usdjpy.rolling(window=20).std().reindex(master_index)
-    #df_d["usdchf_ret_vol"] = usdchf.rolling(window=20).std().reindex(master_index)
-    #print(df_d)
-    #check_nan_time(df_d, "2005-01-01")
-
-    # 結合
-    df_all = pd.concat([df_a, df_b, df_c, df_d], axis=1).sort_index()
+    # --- 資金のうねり（Momentum & Flow）- Creditレジュームを仕留める ---
+    feats = _momentum_flow_feats(df_daily, feats, master_index)
 
     # 未来リーク耐性
-    df_all = df_all.shift(1).dropna(how="all")
+    feats = feats.shift(1).dropna(how="all")
+    #check_nan_time(feats, date="2005-01-01")
 
-    #check_nan_time(df_all, "2005-01-01")
+    # 開始日、終了日をを決める
+    start = "2005-03-16"#feats["MOVE_z252"].first_valid_index()
+    end = feats.apply(pd.Series.last_valid_index).min()
+    feats = feats.loc[start:end]
+    
+    #check_nan_time(feats, date="2005-01-01")
 
-    # --- 全特徴量の共通有効期間 ---
-    #start = df_all.apply(pd.Series.first_valid_index).max()
-    start = df_all["tlt_ret_20d"].first_valid_index()
-    end   = df_all.apply(pd.Series.last_valid_index).min()
-    print("\nレジューム学習の特徴量の期間: ",start, end)
-    df_all = df_all.loc[start:end].ffill()
+    return feats
 
-    #check_nan_time(df_all, "2005-01-01")
-    #print(df_all)
-    #plot_index(pd.concat([sp500, hy, df_all["tlt_ret_20d"], dxy],axis=1))
+    #df_b["vix_panic_duration"] = ((vix > 20).astype(int)).rolling(20).sum().reindex(master_index)
 
-    return df_all
+def _vol_feats(df, feats, master_index):
+    # 指標
+    vix = df['VIXCLS'].dropna()
+    vvix = df["VVIX"].dropna()
+    move = df["^MOVE"].dropna()
+
+    # 異常性
+    feats["VIX_z252"] = _featuring_z_score(vix, window=252).reindex(master_index, method="ffill")
+    feats["VVIX_z252"] = _featuring_z_score(vvix, window=252).reindex(master_index, method="ffill")
+    feats["MOVE_z252"] = _featuring_z_score(move, window=252).reindex(master_index, method="ffill")
+
+    # 加速
+    vix_diff = vix.diff(5)
+    move_diff = move.diff(5)
+    feats['VIX_diff5_zscore'] = _featuring_z_score(vix_diff, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_diff5_zscore'] = _featuring_z_score(move_diff, window=252).reindex(master_index, method="ffill")
+
+    # 格差
+    ratio = move / vix
+    ratio = ratio.ffill()
+    #feats['MOVE_VIX_ratio'] = ratio.reindex(master_index, method="ffill")
+    feats['MOVE_VIX_ratio_zscore'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+
+    # VIXの期間構造(VIX3Mの代用)
+    vix_gap = vix / vix.rolling(window=60).mean()
+    feats['VIX_gap_zscore'] = _featuring_z_score(vix_gap, window=252).reindex(master_index, method="ffill")
+
+    # ボラのボラ
+    vix_rv = vix.pct_change().rolling(20).std()
+    feats['VIX_rv_zscore'] = _featuring_z_score(vix_rv, window=252).reindex(master_index, method="ffill")
+    return feats
+
+def _credit_liq_feats(df, feats, master_index):
+    # 指標
+    hy = df['BAMLH0A0HYM2'].dropna()
+    sofr = df["SOFR"].dropna()
+    tedrate = df["TEDRATE"].dropna()
+    dgs10 = df["DGS10"].dropna()
+    dgs3mo = df["DGS3MO"].dropna()
+    vix = df["VIXCLS"].dropna()
+
+    # クレジットの加速
+    hy_diff = hy.diff(5)
+    feats['HY_diff5_zscore'] = _featuring_z_score(hy_diff, window=252).reindex(master_index, method="ffill")
+    feats["hy_z252"] = _featuring_z_score(hy, window=252).reindex(master_index, method="ffill")
+
+    # 歴史的パニックの同期 (2008年対策)
+    #feats['TED_spread_level'] = tedrate.reindex(master_index, method="ffill")
+    #feats['TED_spread_diff5'] = tedrate.diff(5).reindex(master_index, method="ffill")
+    feats['TED_spread_z252'] = _featuring_z_score(tedrate, window=252).reindex(master_index, method="ffill")
+    feats['TED_diff5_zscore'] = _featuring_z_score(tedrate.diff(5), window=252).reindex(master_index, method="ffill")
+
+    # 現代の流動性ショック
+    sofr_rolling_mean = sofr.rolling(20).mean()
+    sofr_rolling_std = sofr.rolling(20).std().replace(0, np.nan)
+    feats['SOFR_vol_spike'] = ((sofr - sofr_rolling_mean) / sofr_rolling_std).reindex(master_index, method="ffill")
+
+    # 金融機関の「収益性・貸出意欲」の悪化
+    term_premium = dgs10 - dgs3mo
+    feats['Term_Premium_z252'] = _featuring_z_score(term_premium, window=252).reindex(master_index, method="ffill")
+
+    # クレジットとボラティリティの「乖離」
+    vix_z = _featuring_z_score(vix, window=252)
+    feats['Credit_Equity_Divergence'] = (feats['hy_z252'] - vix_z).reindex(master_index, method="ffill")
+
+    return feats
+
+def _macro_gravity_feats(df, feats, master_index):
+    # 指標
+    dfii10 = df["DFII10"].dropna()
+    t10yie = df["T10YIE"].dropna()
+    dgs10 = df["DGS10"].dropna()
+    dgs2 = df["DGS2"].dropna()
+    dgs3mo = df["DGS3MO"].dropna()
+
+    # 実質金利のモメンタム
+    dfii10_diff = dfii10.diff(5)
+    feats['DFII10_diff5_zscore'] = _featuring_z_score(dfii10_diff, window=252).reindex(master_index, method="ffill")
+    feats['DFII10_z252'] = _featuring_z_score(dfii10, window=252).reindex(master_index, method="ffill")
+
+    # イールドカーブ
+    curve10y2y = dgs10 - dgs2
+    curve10y3m = dgs10 - dgs3mo
+    feats['Curve_10Y2Y_z252'] = _featuring_z_score(curve10y2y, window=252).reindex(master_index, method="ffill")
+    feats['Curve_10Y3M_z252'] = _featuring_z_score(curve10y3m, window=252).reindex(master_index, method="ffill")
+
+    # インフレ期待の加速
+    t10yie_diff = t10yie.diff(5)
+    feats['T10YIE_diff5_zscore'] = _featuring_z_score(t10yie_diff, window=252).reindex(master_index, method="ffill")
+
+    # 金利上昇の「質」の分解
+    real_nominal_ratio = dfii10 / dgs10
+    feats['Real_Nominal_ratio_zscore'] = _featuring_z_score(real_nominal_ratio, window=252).reindex(master_index, method="ffill")
+
+    # カーブの「フラット化」速度
+    flattening_speed = curve10y2y.diff(20)
+    feats['Curve_flattening_speed_zscore'] = _featuring_z_score(flattening_speed, window=252).reindex(master_index, method="ffill")
+
+    return feats
+
+def _momentum_flow_feats(df, feats, master_index):
+    # 指標
+    dxy = df["DX=F"].dropna()
+    gold = df["GC=F"].dropna()
+    sp500 = df["^GSPC"].dropna()
+    tlt = df["TLT"].dropna()
+
+    # ドルの引力
+    dxy_diff = dxy.diff(5)
+    feats['DXY_diff5_zscore'] = _featuring_z_score(dxy_diff, window=252).reindex(master_index, method="ffill")
+    feats['DXY_z252'] = _featuring_z_score(dxy, window=252).reindex(master_index, method="ffill")
+
+    # アセット相関の変調
+    returns_sp = sp500.pct_change()
+    returns_tlt = tlt.pct_change()
+    corr = returns_sp.rolling(20).corr(returns_tlt)
+    feats['Stock_Bond_Corr_20d'] = corr.reindex(master_index, method="ffill")
+    feats['Stock_Bond_Corr_zscore'] = _featuring_z_score(corr, window=252).reindex(master_index, method="ffill")
+
+    # リスクオン・オフの体温計
+    equity_gold = sp500 / gold
+    feats['Equity_Gold_Ratio_zscore'] = _featuring_z_score(equity_gold, window=252).reindex(master_index, method="ffill")
+
+    # 資金の逃避速度
+    fts_index = returns_tlt - returns_sp
+    feats['Flight_to_Safety_zscore'] = _featuring_z_score(fts_index, window=252).reindex(master_index, method="ffill")
+
+    # 市場のオーバーシュート
+    feats['SP500_Ret_Z'] = _featuring_z_score(returns_sp.rolling(20).sum(), window=252).reindex(master_index, method="ffill")
+
+    return feats
 
 def _featuring_z_score(df, window):
 
@@ -174,7 +252,7 @@ def _featuring_rsi(series, window=14):
 
 def _featuring_m_breadth(df, window=10):
     df = df.dropna(how="all")
-    returns = df.pct_change(fill_method=None)
+    returns = df.pct_change()
 
     up = (returns > 0).sum(axis=1)
     down = (returns < 0).sum(axis=1)
@@ -188,7 +266,7 @@ def _featuring_m_breadth(df, window=10):
 
 def _featuring_sector_var(df, window=5):
     sector_prices = df.dropna(how="all")
-    sector_returns = sector_prices.pct_change(fill_method=None)
+    sector_returns = sector_prices.pct_change()
     # 日次セクター横断分散（モデル入力用・生値）
     sector_dispersion = sector_returns.var(axis=1)
     return sector_dispersion.rolling(window=window).mean()
@@ -196,17 +274,17 @@ def _featuring_sector_var(df, window=5):
 ########################################################
 # 教師ラベル作成 - カンニングラベル
 ########################################################
-def _make_label(df_daily):
+def _make_label(df_daily, smear_days=5):
 
     # リバランスの実行基準となるマスターカレンダー
     master_index = df_daily["^GSPC"].dropna().index
     df = pd.DataFrame(index=master_index)
 
     # 指標の生成
-    tlt_ret = df_daily["TLT"].pct_change(fill_method=None)
+    tlt_ret = df_daily["TLT"].pct_change()
     tlt_vol = tlt_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
 
-    sp500_ret = df_daily['^GSPC'].pct_change(fill_method=None)
+    sp500_ret = df_daily['^GSPC'].pct_change()
     sp500_vol = sp500_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
 
     hy_diff = df_daily["BAMLH0A0HYM2"].diff()
@@ -223,7 +301,37 @@ def _make_label(df_daily):
     future_diff = hy_clean.diff(20).shift(-20) # 20日後に何ポイント拡大したか
     df['next_20d_diff_hy'] = future_diff.reindex(master_index, method="ffill")
 
-    # --- カンニングラベルの振り分け ---
+    # --- Step 1: 生のフラグ（Raw Flags）を立てる ---
+    # Credit: HYスプレッドの拡大（※絶対値ではなく拡大側にバイアスをかけるのが戦略的）
+    raw_credit = (
+        (df['next_20d_diff_hy'] > (2.0 * hy_diff_vol * np.sqrt(20))) & # 拡大のみ
+        ((df['next_20d_diff_hy'] / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
+    )
+
+    # Bond: TLTの激しい動き
+    raw_bond = (
+        (df['next_20d_ret_tlt'].abs() > (1.35 * tlt_vol * np.sqrt(20))) &
+        ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
+    )
+
+    # --- Step 2: Label Smearing (期間の拡張) ---
+    # 未来に危機が起きるなら、現在(t)からその期間までを「予兆期間」として同じラベルにする
+    # rolling().max() を shift(-smear_days) することで、過去方向にラベルを伸ばす
+    smeared_credit = raw_credit.rolling(window=smear_days + 1, min_periods=1).max().shift(-smear_days).fillna(0).astype(bool)
+    smeared_bond = raw_bond.rolling(window=smear_days + 1, min_periods=1).max().shift(-smear_days).fillna(0).astype(bool)
+
+    # --- Step 3: 優先順位に基づいた最終ラベルの付与 ---
+    df["driver"] = 3 # Neutral (Mix)
+    df["driver_name"] = "Neutral"
+
+    # 優先度低：Bond
+    df.loc[smeared_bond, 'driver'] = 2
+    df.loc[smeared_bond, 'driver_name'] = "Bond"
+
+    # 優先度高：Credit (Bondの上書き)
+    df.loc[smeared_credit, 'driver'] = 1
+    df.loc[smeared_credit, 'driver_name'] = "Credit"
+    """
     df["driver"] = 3 # Neutral
     df["driver_name"] = "Neutral"
 
@@ -241,13 +349,14 @@ def _make_label(df_daily):
     is_credit_move = significant_credit_move & credit_dominance
     df.loc[is_credit_move, 'driver'] = 1
     df.loc[is_credit_move, 'driver_name'] = "Credit"
+    """
 
     df = df.dropna()
     #check_nan_time(df)
 
     print("\nDriver教師ラベルの期間: ",df.index[0].date(), df.index[-1].date())
 
-    _analysis_label(df, df_daily)
+    #_analysis_label(df, df_daily)
 
     return df
 
