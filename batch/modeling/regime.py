@@ -4,7 +4,7 @@
 from batch.modeling.learning import(
     learning_lgbm_test,
     learning_lgbm_final,
-    explain_prediction,
+    learning_get_shap_date,
     )
 from batch.modeling.visualize import (
     plot_driver_trajectory,
@@ -70,7 +70,7 @@ def get_market_regime_model_beta(df_index, df_sp500):
 
     # --- SHAP ---
     # Driver Profiler
-    #importance_df, pred_class, display_date = explain_prediction(driver_clf, df_driver,  target_date="2022-10-14")
+    #importance_df, pred_class, display_date = learning_get_shap_date(driver_clf, df_driver,  target_date="2022-10-14")
     #plot_shap_explanation(importance_df, pred_class)
 
 

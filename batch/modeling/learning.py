@@ -147,7 +147,11 @@ def learning_lgbm_test(
     all_y_test = []      # 精度検証用の「正解ラベル」を集約
     all_y_pred = []      # 精度検証用の「予測ラベル」を集約
     evals_result = {}    # 学習曲線描画用のスコア履歴(Loss)を記録
-    oof_probs_list = []  # 
+    oof_probs_list = []  # OOF
+
+    # クラスごとにSHAP値のリストを格納する辞書
+    # 構造: {"1:Credit": [df_fold1, df_fold2...], "2:Bond": [...], ...}
+    oof_shap_dict = {label: [] for label in labels}
 
     # 4. 学習ループ開始
     print(f"\n全サンプル数: {len(X)}")
@@ -188,34 +192,37 @@ def learning_lgbm_test(
             ]
         )
         # 予測と確率
-        y_pred = clf.predict(X_test)
+        # A. 予測確率(OOF)の保存
         y_prob = clf.predict_proba(X_test)
-
-        # 予測結果をデータフレームに保存
         df_fold_probs = pd.DataFrame(y_prob, index=X_test.index, columns=labels)
-
-        # 正解ラベルも横に並べておく
         df_fold_probs['actual_regime'] = y_test
+        oof_probs_list.append(df_fold_probs)
+
+        # B. SHAP値(OOF-SHAP)の計算と全クラス保存
+        explainer = shap.TreeExplainer(clf)
+        shap_values = explainer.shap_values(X_test)
+
+        # shap_valuesは多クラスの場合、リスト形式 [class0_array, class1_array, ...] で返る
+        for i, label in enumerate(labels):
+            # 各クラスのSHAP値をDataFrame化して辞書に格納
+            df_fold_shap = pd.DataFrame(shap_values[i], index=X_test.index, columns=X.columns)
+            oof_shap_dict[label].append(df_fold_shap)
+
+        # C. Fold情報の表示
+        y_pred = clf.predict(X_test)
+        acc = balanced_accuracy_score(y_test, y_pred)
+        print(f"Fold {fold} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()} | Acc: {acc:.4f}")
+        print(f" => Balanced Acc: {acc:.4f} (Best Iter: {best_iter})")
+
+        # D. 重要度(Gain)の記録
+        imp = pd.Series(clf.feature_importances_, index=X.columns)
+        all_importances.append(imp)
 
         # extendを使うことで、各Foldの検証結果が順番
         all_y_test.extend(y_test)
         all_y_pred.extend(y_pred)
         all_y_probs.extend(y_prob)
-        oof_probs_list.append(df_fold_probs)
-        # ------------------------------
 
-        # Foldごとの Accuracyとbest_iter
-        # balanced_accuracy_scoreで正解ラベルに偏りがあるときでも、公平に判定
-        acc = balanced_accuracy_score(y_test, y_pred)
-        best_iter = clf.best_iteration_
-
-        # Accuracyとbest_iterの結果表示
-        print(f"Fold {fold} | Train: {X_train.index[0].date()} ~ {X_train.index[-1].date()} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()}")
-        print(f" => Balanced Acc: {acc:.4f} (Best Iter: {best_iter})")
-
-        # 各フォールドの重要度を記録（修正ポイント）
-        imp = pd.Series(clf.feature_importances_, index=X.columns)
-        all_importances.append(imp)
         fold += 1
 
     # 5. 総合結果レポートの表示
@@ -241,7 +248,13 @@ def learning_lgbm_test(
     # 8. 全テストフォールドの予測を結合
     df_oof_all = pd.concat(oof_probs_list).sort_index()
 
-    return df_oof_all
+    # クラス別SHAP DataFrameの統合
+    final_shap_dfs = {
+        label: pd.concat(list_df).sort_index() 
+        for label, list_df in oof_shap_dict.items()
+    }
+
+    return df_oof_all, final_shap_dfs
 
 def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):
     print("\n=======================================================")
@@ -435,52 +448,53 @@ def generate_oof_predictions(X, y, model_params):
 
     print("\n--- 検証完了 ---")
     return df_oof_all
+
 ############################################################
 # SHAP -　LightBGMの予測に対し、その理由となる特徴量を示す（AIの理由）
 ############################################################
 
-def explain_latest_prediction(clf, df_ready):
-    # 1. 最新のデータ（今日）を抽出
-    X = df_ready.drop(columns=['regime'])
-    latest_x = X.tail(1)
+def learning_get_shap_df(model, X, start=None, end=None, class_idx=None, rolling=None, use_abs=False):
 
-    # 2. SHAP Explainerの初期化
-    explainer = shap.TreeExplainer(clf)
+    # --- SHAP計算 ---
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X)
 
-    # 3. SHAP値の計算
-    # ※ ここでマルチクラスの場合、[サンプル, 特徴量, クラス] という3次元配列で返ることがあります
-    shap_values = explainer.shap_values(latest_x)
-
-    # 4. 予測されたレジュームのインデックスを取得 (1〜5 を 0〜4 に変換)
-    pred_regime = int(clf.predict(latest_x)[0])
-    pred_idx = pred_regime - 1
-
-    # --- SHAPの戻り値形式の自動判別 ---
+    # --- 多クラス対応（重要修正） ---
     if isinstance(shap_values, list):
-        # 形式A: クラスごとにリスト化されている場合 [class][sample, feature]
-        current_shap = shap_values[pred_idx][0]
-    elif isinstance(shap_values, np.ndarray):
-        if shap_values.ndim == 3:
-            # 形式B: 3次元配列の場合 [sample, feature, class]
-            # 最新のSHAP/LightGBMではこの形式が多いです
-            # サンプルは1つだけ（0番目）なので、そこから特定のクラス（pred_idx）を抽出
-            current_shap = shap_values[0, :, pred_idx]
-        else:
-            # 形式C: 2次元配列（バイナリ分類と誤認されている場合など）
-            current_shap = shap_values[0]
+        if class_idx is None:
+            raise ValueError("多クラスモデルです。class_idxを指定してください。")
+        shap_array = shap_values[class_idx]
+
+    elif hasattr(shap_values, "shape") and len(shap_values.shape) == 3:
+        if class_idx is None:
+            raise ValueError("多クラスモデルです。class_idxを指定してください。")
+        shap_array = shap_values[:, :, class_idx]
+
     else:
-        # 万が一 Explanation オブジェクトが返ってきた場合
-        current_shap = shap_values.values[0, :, pred_idx]
+        shap_array = shap_values
 
-    # 5. 特徴量名と貢献度を紐付け
-    importance_df = pd.DataFrame({
-        'feature': X.columns,
-        'contribution': current_shap
-    }).sort_values(by='contribution', ascending=False)
+    # --- DataFrame化 ---
+    shap_df = pd.DataFrame(
+        shap_array,
+        index=X.index,
+        columns=X.columns
+    )
 
-    return importance_df, pred_regime
+    # --- 期間スライス ---
+    if start is not None or end is not None:
+        shap_df = shap_df.loc[start:end]
 
-def explain_prediction(clf, df_ready, target_date=None, label_cols=['regime', 'driver']):
+    # --- 絶対値オプション ---
+    if use_abs:
+        shap_df = shap_df.abs()
+
+    # --- rolling平均 ---
+    if rolling is not None:
+        shap_df = shap_df.rolling(rolling).mean()
+
+    return shap_df
+
+def learning_get_shap_date(clf, df_ready, target_date=None, label_cols=['regime', 'driver']):
     """
     指定した日（デフォルトは最新）の予測根拠をSHAPで解剖する汎用関数
     """

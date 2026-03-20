@@ -17,6 +17,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 
+# 教師ラベル
 def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     """
     Driver Profiler v2.0 ラベル検証用可視化（プロフェッショナル・デザイン版）
@@ -231,7 +232,7 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
 
     fig.show()
 
-# Driver Profilerの可視化
+# Driverモデル確率
 def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
     # 1. データの準備
     X = df_ready.drop(columns=['actual_regime'])
@@ -354,16 +355,26 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
     fig.update_xaxes(gridcolor='#222', rangeslider_visible=False)
 
     fig.show(config=dict(displayModeBar=False))
-    
+
     # 解析用に出力データフレームの列を整理して返す
     return df_probs[['actual_regime', 'dominant_regime']]
 
 
 ########################################################
-# Market Navigator
+# Regime
 ########################################################
 
-# Regime Prismの可視化
+
+
+
+
+
+
+
+
+
+
+
 
 
 

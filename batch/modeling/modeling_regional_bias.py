@@ -3,7 +3,7 @@
 ########################################################
 from batch.modeling.learning import(
     learning_lgbm_test,
-    explain_prediction
+    learning_get_shap_date
     )
 from batch.modeling.visualize import(
     plot_regional_bias_trajectory,

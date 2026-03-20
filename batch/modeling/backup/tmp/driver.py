@@ -4,7 +4,7 @@
 from batch.modeling.learning import(
     learning_lgbm_test,
     learning_lgbm_final,
-    explain_prediction,
+    learning_get_shap_date,
     )
 from batch.modeling.visualize import (
     plot_driver_label

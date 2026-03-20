@@ -4,11 +4,13 @@
 from batch.modeling.learning import(
     learning_lgbm_test,
     learning_lgbm_final,
-    explain_prediction,
+    learning_get_shap_df,
+    learning_get_shap_date
     )
 from batch.modeling.visualize import (
     plot_driver_soft_label,
-    plot_driver_trajectory
+    plot_driver_trajectory,
+    plot_index
     )
 
 import pandas as pd
@@ -88,13 +90,13 @@ def get_driver_model_beta(df_index, df_sp500):
 
     df_driver = df_features.join(df_label["driver"])
 
-    #driver_clf, df_driver_trajectory = learning_lgbm_final(
-    #    df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
-    #    n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
-    #    reg_alpha=0.3, reg_lambda=0.3,
+    """driver_clf, df_driver_trajectory = learning_lgbm_final(
+        df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
+        n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
+        reg_alpha=0.3, reg_lambda=0.3,)"""
 
     print(f"特徴量のリスト: {df_features.columns}")
-    df_oof_all = learning_lgbm_test(
+    df_oof_all, df_shap = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
@@ -102,11 +104,14 @@ def get_driver_model_beta(df_index, df_sp500):
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )
-    plot_driver_trajectory(
+
+    # 分析、可視化
+    """_ = plot_driver_trajectory(
         df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],
-        start_date="2013-01-01", end_date="2018-01-01"
-        )
+        start_date="2010-01-01", end_date="2018-01-01"
+        )"""
+
 
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
