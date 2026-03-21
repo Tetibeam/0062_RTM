@@ -285,14 +285,6 @@ def learning_lgbm_test(
         for label, list_df in oof_shap_dict.items()
     }
 
-    threshold = 0.6
-    df_oof_all['driver_pred_07'] = (df_oof_all['1:Credit'] > threshold).astype(int)
-    print(f"=== 閾値 {threshold} における評価結果 ===")
-    print(classification_report(df_oof_all['actual_regime'], df_oof_all['driver_pred_07']))
-
-    cm_07 = confusion_matrix(df_oof_all['actual_regime'], df_oof_all['driver_pred_07'])
-    print("=== 混同行列 ===")
-    print(cm_07)
     return df_oof_all, final_shap_dfs
 
 def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):

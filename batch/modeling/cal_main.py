@@ -5,6 +5,7 @@ from batch.modeling.dsr import get_dsr_model_beta
 from batch.modeling.get_index import get_index_by_asset_class
 from batch.modeling.bond_driver import get_bond_driver_beta
 from batch.modeling.credit_driver import get_credit_driver_beta
+from batch.modeling.driver import get_driver_beta
 
 import pandas as pd
 import joblib
@@ -125,7 +126,8 @@ def cal_main():
     #df_index = get_index_for_learning(months=360)
 
     # --- Macro学習モデルの作成 ---
-    df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
+    df_driver_prob = get_driver_beta(df_index, df_sp500)
+    #df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
     #df_bond_driver_prob = get_bond_driver_beta((df_index, df_sp500))
     #df_gli_prob = get_gli_model_beta(df_index)
     #df_dsr_prob = get_dsr_model_beta(df_index)

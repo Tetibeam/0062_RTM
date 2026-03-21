@@ -410,7 +410,7 @@ def _make_label(df_daily, smear_days=5, threshold=0.4):
         return scores
 
     # スコア（確信度）の算出
-    df['score'] = calculate_decay_score(raw_credit_filtered, smear_days)
+    df['score'] = calculate_decay_score(raw_credit, smear_days)
 
     # --- Step 5: ターゲットと重みの確定 ---
     # ターゲット：スコアが閾値を超えたら「1（Credit）」
