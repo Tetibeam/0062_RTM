@@ -30,7 +30,7 @@ def get_credit_driver_beta(df_index, df_sp500):
     # --- 前処理（特徴量） ---
     df_features = _featuring_all(df_daily, df_sp500)
 
-    features_refined = [
+    """features_refined = [
         'VIX_z252',
         'VVIX_z252',
         'MOVE_z252',
@@ -75,27 +75,27 @@ def get_credit_driver_beta(df_index, df_sp500):
         #"tlt_hy_diff_z252",
         #"oil_ret_z252"
         ]
-    df_features = df_features[features_refined]
+    df_features = df_features[features_refined]"""
 
     # --- 学習モデル生成 ---
     # サンプルフェイト
-    df_label['sample_weight'] = 1.0
+    """df_label['sample_weight'] = 1.0
 
     mask_credit = (df_label['driver'] == 1)
     df_label.loc[mask_credit, 'sample_weight'] = df_label['credit_score']
     mask_bond = (df_label['driver'] == 2)
     df_label.loc[mask_bond, 'sample_weight'] = df_label['bond_score']
     mask_bond = (df_label['driver'] == 3)
-    df_label.loc[mask_bond, 'sample_weight'] = 0.8
+    df_label.loc[mask_bond, 'sample_weight'] = 0.8"""
 
-    df_driver = df_features.join(df_label["driver"])
+    #df_driver = df_features.join(df_label["driver"])
 
     """driver_clf, df_driver_trajectory = learning_lgbm_final(
         df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
-    print(f"特徴量のリスト: {df_features.columns}")
+    """print(f"特徴量のリスト: {df_features.columns}")
     df_oof_all, df_shap = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
@@ -103,7 +103,7 @@ def get_credit_driver_beta(df_index, df_sp500):
         class_weight="balanced",
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
-        )
+        )"""
 
     # 分析、可視化
     """_ = plot_driver_trajectory(
@@ -111,7 +111,7 @@ def get_credit_driver_beta(df_index, df_sp500):
         ["1:Credit", "2:Bond", "3:Mix"],
         start_date="2021-10-01", end_date="2023-01-01"
         )"""
-    periods = [
+    """periods = [
         ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
         ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
         ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
@@ -126,7 +126,7 @@ def get_credit_driver_beta(df_index, df_sp500):
         print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
         print(df_oof_all.loc[start:end].mean().round(2))
         print(f"\n{top10_shap}")
-        print(f"\nVIX_z252の平均値: {VIX_z252}")
+        print(f"\nVIX_z252の平均値: {VIX_z252}")"""
 
 
     #return driver_clf, df_driver_trajectory, df_driver
@@ -364,7 +364,7 @@ def _featuring_sector_var(df, window=5):
 ########################################################
 # 教師ラベル作成 - カンニングラベル
 ########################################################
-def _make_label(df_daily, smear_days=5, thereshold=0.4):
+def _make_label(df_daily, smear_days=5, threshold=0.4):
 
     # マスターカレンダー
     master_index = df_daily["^GSPC"].dropna().index
@@ -373,7 +373,7 @@ def _make_label(df_daily, smear_days=5, thereshold=0.4):
     # 1. 指標の計算
     hy_spread = df_daily["BAMLH0A0HYM2"].dropna()
     sp500 = df_daily["^GSPC"].dropna()
-    vix = df_daily["^VIX"].dropna().reindex(master_index, method='ffill')
+    vix = df_daily["VIXCLS"].dropna().reindex(master_index, method='ffill')
 
     # ボラティリティ計算
     hy_diff_vol = hy_spread.diff().rolling(60, min_periods=20).std().reindex(master_index, method='ffill')
@@ -386,18 +386,18 @@ def _make_label(df_daily, smear_days=5, thereshold=0.4):
     # 2. Raw Flag（生のフラグ）の算出
     # 基本条件：HYスプレッドが統計的に有意に拡大している
     is_hy_expanding = df['next_20d_diff_hy'] > (2.0 * hy_diff_vol * np.sqrt(20))
-    
+
     # 優位性条件：S&P500の下落率に対して、スプレッドの拡大の方が相対的に深刻（ショック局面）
     is_credit_dominant = (df['next_20d_diff_hy'] / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5)
 
     raw_credit = is_hy_expanding & is_credit_dominant
-    
+
     # --- Step 3: Censorship（検閲ロジック） ---
     # 2013/2017年対策：株価が強く（25日線の上）、かつVIXが低い（平穏）なら、
     # スプレッドが拡大していてもそれは「真の危機」ではないとみなしてフラグを折る。
     sp500_sma = sp500.rolling(25).mean().reindex(master_index, method='ffill')
     is_market_calm = (sp500 > sp500_sma) & (vix < 20)
-    
+
     # 市場が平穏な中でのスプレッド拡大は「ノイズ」として除外
     raw_credit_filtered = raw_credit & (~is_market_calm)
 
@@ -414,22 +414,23 @@ def _make_label(df_daily, smear_days=5, thereshold=0.4):
         return scores
 
     # スコア（確信度）の算出
-    df['credit_score'] = calculate_decay_score(raw_credit_filtered, smear_days)
+    df['score'] = calculate_decay_score(raw_credit_filtered, smear_days)
 
     # --- Step 5: ターゲットと重みの確定 ---
     # ターゲット：スコアが閾値を超えたら「1（Credit）」
-    df['target'] = (df['credit_score'] > threshold).astype(int)
+    df['driver'] = (df['score'] > threshold).astype(int)
 
     # 学習の重み：スコアそのものを重みにすることで、イベント直前の学習を強化
     # 平時(0)の重みは1.0、Credit(1)の重みはスコア（0.4〜1.0）
     # ※不均衡調整が必要な場合はここで調整
     df['sample_weight'] = 1.0
-    df.loc[df['target'] == 1, 'sample_weight'] = df['credit_score']
+    df.loc[df['driver'] == 1, 'sample_weight'] = df['score']
 
     # 不要な列を整理
-    result = df[['target', 'sample_weight', 'credit_score']]
+    result = df[['driver', 'sample_weight', 'score']]
 
-    print(f"Credit Sentinel Label Created. Event Ratio: {result['target'].mean():.2%}")
+    #print(f"Credit Sentinel Label Created. Event Ratio: {result['driver'].mean():.2%}")
+    #_analysis_label(df, df_daily)
 
     return result.dropna()
 
@@ -441,7 +442,6 @@ def _analysis_label(df, df_daily):
 
     market_summary = df.groupby('driver').agg({
         'next_20d_ret_sp500': ['mean', 'std', 'min', 'max'],
-        'next_20d_ret_tlt': ['mean', 'std'],
         'next_20d_diff_hy': ['mean']
     }).round(4)
     print(market_summary)
@@ -464,7 +464,7 @@ def _analysis_label(df, df_daily):
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)
-    plot_driver_soft_label(df, df_daily, start_date="2024-01-01", end_date="2026-02-01")
+    plot_driver_soft_label(df, df_daily, target="Credit", start_date="2024-01-01", end_date="2026-01-01")
 
 ########################################################
 # 実装確認・デバッグ

@@ -129,7 +129,7 @@ def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     print(plot_df[["driver","price","next_20d_ret_sp500", "next_20d_ret_tlt", "next_20d_diff_hy"]])
     fig.show(config=dict(displayModeBar=False))
 
-def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
+def plot_driver_soft_label(df_result, df_daily, target, start_date=None, end_date=None):
     """
     ソフト・ラベル（指数減衰）の挙動を確認するための解剖用可視化
     """
@@ -151,9 +151,8 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
 
     # カラー設定
     colors = {
-        1.0: 'rgba(255, 69, 0, 0.8)',   # Credit: Orange Red
-        2.0: 'rgba(30, 144, 255, 0.8)',  # Bond: Dodger Blue
-        3.0: 'rgba(169, 169, 169, 0.5)'   # Neutral: Gray
+        0: 'rgba(30, 144, 255, 0.8)',   # Mix: Dodger Blue
+        1: 'rgba(255, 69, 0, 0.8)',  # target: Orange Red
     }
 
     # --- 上段: 背景ハイライト (Regime Background) ---
@@ -165,7 +164,7 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
 
     for _, group in plot_df.groupby('group'):
         d_val = group['driver'].iloc[0]
-        bg_color = colors[d_val].replace('0.8', '0.1').replace('0.5', '0.05')
+        bg_color = colors[d_val].replace('0.8', '0.1')
 
         fig.add_shape(
             type="rect", xref="x1", yref="y1",
@@ -182,7 +181,7 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     ), row=1, col=1)
 
     # カテゴリマーカー（下部のリボン）
-    for val, name in {1.0: 'Credit', 2.0: 'Bond'}.items():
+    for val, name in {0: 'Mix', 1: f'{target}'}.items():
         mask = plot_df['driver'] == val
         fig.add_trace(go.Scatter(
             x=plot_df.index[mask], y=[y_min * 1.01] * mask.sum(),
@@ -192,19 +191,12 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
         ), row=1, col=1)
 
     # --- 下段: ソフトスコア (The "Inside" of Smearing) ---
-    # Credit Score (予兆の強さ)
+    # Score (予兆の強さ)
     fig.add_trace(go.Scatter(
-        x=plot_df.index, y=plot_df['credit_score'],
-        name="Credit Prob (Decay)", 
+        x=plot_df.index, y=plot_df['score'],
+        name=f"{target} Prob (Decay)",
         line=dict(color=colors[1.0], width=2.5),
         fill='tozeroy', fillcolor=colors[1.0].replace('0.8', '0.15'),
-    ),row=2, col=1)
-
-    # Bond Score (予兆の強さ)
-    fig.add_trace(go.Scatter(
-        x=plot_df.index, y=plot_df['bond_score'],
-        name="Bond Prob (Decay)", 
-        line=dict(color=colors[2.0], width=2.5, dash='dot'),
     ),row=2, col=1)
 
     # 閾値ライン (ラベルが確定する境界線)
@@ -228,6 +220,7 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="Soft Score", range=[0, 1.1], row=2, col=1)
 
+    pd.set_option('display.max_rows', None)
     print(plot_df)
 
     fig.show()
