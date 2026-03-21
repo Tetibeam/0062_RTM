@@ -586,8 +586,6 @@ def learning_get_shap_date(clf, df_ready, target_date=None, label_cols=['regime'
 
     return importance_df, pred_class, display_date
 
-
-
 ############################################################
 # Ridge回帰、Lasso回帰 -　複数の説明変数からフィッティングで答えを導き出す
 ############################################################

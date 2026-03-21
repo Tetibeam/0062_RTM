@@ -96,7 +96,7 @@ def get_driver_beta(df_index, df_sp500):
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
     print(f"特徴量のリスト: {df_features.columns}")
-    df_oof_all, df_shap = learning_lgbm_test(
+    """df_oof_all, df_shap = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
@@ -104,6 +104,18 @@ def get_driver_beta(df_index, df_sp500):
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )
+    df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
+    df_shap["1:Credit"].to_parquet("diver_shap_credit.parquet", engine="pyarrow")
+    df_shap["2:Bond"].to_parquet("diver_shap_bond.parquet", engine="pyarrow")
+    df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")"""
+
+    df_oof_all = pd.read_parquet("diver_oof.parquet", engine="pyarrow")
+    df_shap = {
+        "1:Credit":pd.read_parquet("diver_shap_credit.parquet", engine="pyarrow"),
+        "2:Bond":pd.read_parquet("diver_shap_bond.parquet", engine="pyarrow"),
+        "3:Mix":pd.read_parquet("diver_shap_mix.parquet", engine="pyarrow")
+    }
+    # 可視化
     """_ = plot_driver_trajectory(
         df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],
@@ -113,30 +125,25 @@ def get_driver_beta(df_index, df_sp500):
     # --- 学習モデルリファイン --
     df_prob = _apply_probability_refinement(df_oof_all, df_shap, df_features)
 
+    # 可視化
     """_ = plot_driver_trajectory(
         df_prob, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],
         start_date="2010-01-01", end_date="2026-01-01"
         )"""
 
+    # --- 精度確認 ---
+    df_prob = df_prob[["1:Credit", "2:Bond", "3:Mix"]]
+    df_prob['dominant_regime'] = df_prob.idxmax(axis=1).str.split(':').str[0].astype(int)
+    teacher = df_driver["driver"]
+    ai = df_prob["dominant_regime"]
+    teacher, ai = teacher.align(ai, join="inner")
+    from sklearn.metrics import classification_report,confusion_matrix
+    print(classification_report(teacher, ai))
+    print(confusion_matrix(teacher, ai))
+    
     # --- 一時分析 ---
-
-    """periods = [
-        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
-        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
-        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
-        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
-    ]
-    for start, end in periods:
-        label="1:Credit"
-        shap = df_shap[label].loc[start:end]
-        top10_shap = shap.mean().sort_values(ascending=False).head(5)
-        VIX_z252 = df_driver.loc[start:end, "VIX_z252"].mean()
-
-        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
-        print(df_oof_all.loc[start:end].mean().round(2))
-        print(f"\n{top10_shap}")
-        print(f"\nVIX_z252の平均値: {VIX_z252}")"""
+    #_chk_miss_credit_mix(df_oof_all,df_shap,df_driver)
 
 
     #return driver_clf, df_driver_trajectory, df_driver
@@ -499,7 +506,7 @@ def _apply_probability_refinement(df_prob, df_shap, df_features):
     # 修正関数のリスト（今後、新しい修正モードが増えたらここに追加）
     refiners = [
         _refine_mode_interest_afterglow, # モードA: 金利の残像
-        _refine_mode_bond_vol_noise      # モードB: 債券ボラの過剰反応
+        #_refine_mode_bond_vol_noise      # モードB: 債券ボラの過剰反応
     ]
 
     for refiner in refiners:
@@ -508,22 +515,21 @@ def _apply_probability_refinement(df_prob, df_shap, df_features):
     return refined_prob
 
 def _refine_mode_interest_afterglow(df_prob, df_shap, df_features):
-    """
-    Mode A: 金利水準(z252)が高いだけで、VIXが低い場合の誤診を修正
-    """
+
     VIX_SAFE_LIMIT = -0.5
     TP_SHAP_THRESHOLD = 0.35
-    label = "1:Credit"
+
+    shap = df_shap["1:Credit"]
 
     # 1. 必要な中間変数を一括計算
-    total_shap = df_shap[label].abs().sum(axis=1)
+    total_shap = shap.abs().sum(axis=1)
     # ゼロ除算を避けるために一応対策
-    tp_ratio = df_shap['Term_Premium_z252'] / total_shap.replace(0, np.inf)
+    tp_ratio = shap['Term_Premium_z252'] / total_shap.replace(0, np.inf)
     vix_z = df_features['VIX_z252']
 
     # 2. 条件に合致するインデックスを特定する「マスク」を作成
     mask = (
-        (df_prob[label] >= 0.3) &
+        (df_prob["1:Credit"] >= 0.3) &
         (tp_ratio > TP_SHAP_THRESHOLD) &
         (vix_z < VIX_SAFE_LIMIT)
     )
@@ -540,29 +546,47 @@ def _refine_mode_interest_afterglow(df_prob, df_shap, df_features):
         df_prob.loc[mask, '1:Credit'] -= delta
         df_prob.loc[mask, '3:Mix'] += delta
 
+    print(f"Mode A (Interest Afterglow) applied to: {mask.sum()} samples")
+
     return df_prob
 
 def _refine_mode_bond_vol_noise(df_prob, df_shap, df_features):
 
     VIX_NEUTRAL_LIMIT = 0.5
     VOV_SHAP_THRESHOLD = 0.15
+    
+    shap = df_shap["1:Credit"]
 
-    for idx in df_prob.index:
-        p_credit = df_prob.loc[idx, '1:Credit']
-        if p_credit < 0.3: continue
+    # 1. 必要な中間変数を一括計算
+    total_shap = shap.abs().sum(axis=1)
+    # MOVE_vovが判定に与えた影響のシェアを算出
+    vov_ratio = shap['MOVE_vov'].abs() / total_shap.replace(0, np.inf)
+    vix_z = df_features['VIX_z252']
 
-        vix_z = df_features.loc[idx, 'VIX_z252']
-        total_shap = df_shap.loc[idx].abs().sum()
-        vov_ratio = df_shap.loc[idx, 'MOVE_vov'] / total_shap
+    # 2. 条件に合致する「マスク」を作成
+    # ・Credit確率が一定以上
+    # ・債券ボラの寄与が閾値超え
+    # ・VIXがパニック圏外（0.5以下）
+    mask = (
+        (df_prob['1:Credit'] >= 0.3) & 
+        (vov_ratio > VOV_SHAP_THRESHOLD) & 
+        (vix_z < VIX_NEUTRAL_LIMIT)
+    )
 
-        # 条件判定：債券ボラSHAPが大きく、VIXがパニック圏外
-        if vov_ratio > VOV_SHAP_THRESHOLD and vix_z < VIX_NEUTRAL_LIMIT:
-            # 寄与率に応じてマイルドに確率を移送
-            penalty = min(0.8, vov_ratio * 1.5) 
+    # 3. マスクされた行に対してのみ、一括で確率を移送
+    if mask.any():
+        # ペナルティ係数を計算 (Mode Bは最大0.8程度に抑える設定)
+        penalty = (vov_ratio[mask] * 1.5).clip(upper=0.8)
+        
+        # 移動量（デルタ）を算出
+        delta = df_prob.loc[mask, '1:Credit'] * penalty
 
-            delta = p_credit * penalty
-            df_prob.loc[idx, '1:Credit'] -= delta
-            df_prob.loc[idx, '2:Bond'] += delta
+        # 確率の再分配（Mode Bは債券要因なので 2:Bond へ移送）
+        df_prob.loc[mask, '1:Credit'] -= delta
+        df_prob.loc[mask, '2:Bond'] += delta
+
+    # デバッグ用に修正件数を出力
+    print(f"Mode B (Bond Vol Noise) applied to: {mask.sum()} samples")
 
     return df_prob
 
@@ -581,3 +605,21 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("")
     print("--- データが終わっている日付 ---")
     print(df_e)
+
+def _chk_miss_credit_mix(df_oof_all,df_shap,df_driver):
+    periods = [
+        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
+        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
+        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
+        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
+    ]
+    for start, end in periods:
+        label="1:Credit"
+        shap = df_shap[label].loc[start:end]
+        top10_shap = shap.mean().sort_values(ascending=False).head(5)
+        VIX_z252 = df_driver.loc[start:end, "VIX_z252"].mean()
+
+        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
+        print(df_oof_all.loc[start:end].mean().round(2))
+        print(f"\n{top10_shap}")
+        print(f"\nVIX_z252の平均値: {VIX_z252}")
