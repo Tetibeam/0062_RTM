@@ -240,7 +240,7 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
     df_probs = pd.DataFrame(probs, index=X_latest.index, columns=labels)
 
     # 最も確率が高いレジュームを特定（強調表示用）
-    df_probs['dominant_regime'] = df_probs.idxmax(axis=1)
+    df_probs['dominant_regime'] = df_probs.iat[:,:2].idxmax(axis=1)
 
     # ★追加: マッピング用の辞書を作成し、返り値のデータフレームにも正解を記録
     regime_dict = {float(i+1): label for i, label in enumerate(labels)}

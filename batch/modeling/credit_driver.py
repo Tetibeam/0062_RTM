@@ -107,24 +107,6 @@ def get_credit_driver_beta(df_index, df_sp500):
         ["0:Safe", "1:Credit"],
         start_date="2021-10-01", end_date="2023-01-01"
         )"""
-    """periods = [
-        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
-        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
-        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
-        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
-    ]
-    for start, end in periods:
-        label="1:Credit"
-        shap = df_shap[label].loc[start:end]
-        top10_shap = shap.mean().sort_values(ascending=False).head(5)
-        VIX_z21 = df_driver.loc[start:end, "VIX_z21"].mean()
-
-        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z21の平均値")
-        print(df_oof_all.loc[start:end].mean().round(2))
-        print(f"\n{top10_shap}")
-        print(f"\nVIX_z21の平均値: {VIX_z21}")"""
-
-
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
 
