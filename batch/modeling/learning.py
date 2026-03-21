@@ -126,7 +126,7 @@ def learning_lgbm_test(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None,
+    sample_weight=None, objective="multiclass",
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -165,6 +165,8 @@ def learning_lgbm_test(
 
         # モデル設定
         clf = lgb.LGBMClassifier(
+            objective=objective,
+            #num_class=len(labels),
             n_estimators=n_estimators,
             learning_rate=learning_rate,
             #max_depth=4,
@@ -243,12 +245,29 @@ def learning_lgbm_test(
     # 6．学習曲線の表示
     if learning_curve:
         from batch.modeling.visualize import plot_index
-        train_loss = evals_result['train']['multi_logloss']
-        valid_loss = evals_result['valid']['multi_logloss']
+
+        # 1. 学習データのメトリクスキーを特定
+        train_metrics = evals_result['train']
+        train_key = 'binary_logloss' if 'binary_logloss' in train_metrics else 'multi_logloss'
+        train_loss = train_metrics[train_key]
+
+        # 2. 検証データのキーを特定 ('valid' か 'valid_0' のどちらかにある場合が多い)
+        valid_label = 'valid' if 'valid' in evals_result else 'valid_0'
+
+        if valid_label in evals_result:
+            valid_metrics = evals_result[valid_label]
+            valid_key = 'binary_logloss' if 'binary_logloss' in valid_metrics else 'multi_logloss'
+            valid_loss = valid_metrics[valid_key]
+        else:
+            # 万が一検証データがない場合のフォールバック
+            valid_loss = [None] * len(train_loss)
+
+        # 3. データフレーム化してプロット
         plot_df = pd.DataFrame({
             'Train Loss (Learning)': train_loss,
             'Valid Loss (Generalization)': valid_loss
         })
+
         plot_index(plot_df, x_label="counts")
 
     # 7. 閾値探索
@@ -266,6 +285,14 @@ def learning_lgbm_test(
         for label, list_df in oof_shap_dict.items()
     }
 
+    threshold = 0.6
+    df_oof_all['driver_pred_07'] = (df_oof_all['1:Credit'] > threshold).astype(int)
+    print(f"=== 閾値 {threshold} における評価結果 ===")
+    print(classification_report(df_oof_all['actual_regime'], df_oof_all['driver_pred_07']))
+
+    cm_07 = confusion_matrix(df_oof_all['actual_regime'], df_oof_all['driver_pred_07'])
+    print("=== 混同行列 ===")
+    print(cm_07)
     return df_oof_all, final_shap_dfs
 
 def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):
