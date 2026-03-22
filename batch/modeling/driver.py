@@ -88,7 +88,7 @@ def get_driver_beta(df_index, df_sp500):
     mask_bond = (df_label['driver'] == 3)
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
-    df_driver = df_features.join(df_label["driver"])
+    df_driver = df_features.join(df_label[["driver","next_20d_ret_sp500"]])
 
     """driver_clf, df_driver_trajectory = learning_lgbm_final(
         df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
@@ -96,7 +96,7 @@ def get_driver_beta(df_index, df_sp500):
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
     print(f"特徴量のリスト: {df_features.columns}")
-    """df_oof_all, df_shap = learning_lgbm_test(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
@@ -104,17 +104,19 @@ def get_driver_beta(df_index, df_sp500):
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )
-    df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
+
+    #ファイル保存とファイル読み込み
+    """df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
     df_shap["1:Credit"].to_parquet("diver_shap_credit.parquet", engine="pyarrow")
     df_shap["2:Bond"].to_parquet("diver_shap_bond.parquet", engine="pyarrow")
-    df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")"""
+    df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")
 
     df_oof_all = pd.read_parquet("diver_oof.parquet", engine="pyarrow")
     df_shap = {
         "1:Credit":pd.read_parquet("diver_shap_credit.parquet", engine="pyarrow"),
         "2:Bond":pd.read_parquet("diver_shap_bond.parquet", engine="pyarrow"),
         "3:Mix":pd.read_parquet("diver_shap_mix.parquet", engine="pyarrow")
-    }
+    }"""
     # 可視化
     """_ = plot_driver_trajectory(
         df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
@@ -123,7 +125,7 @@ def get_driver_beta(df_index, df_sp500):
         )"""
 
     # --- 学習モデルリファイン --
-    df_prob = _apply_probability_refinement(df_oof_all, df_shap, df_features)
+    """df_prob = _apply_probability_refinement(df_oof_all, df_shap, df_features)"""
 
     # 可視化
     """_ = plot_driver_trajectory(
@@ -133,14 +135,14 @@ def get_driver_beta(df_index, df_sp500):
         )"""
 
     # --- 精度確認 ---
-    df_prob = df_prob[["1:Credit", "2:Bond", "3:Mix"]]
+    """df_prob = df_prob[["1:Credit", "2:Bond", "3:Mix"]]
     df_prob['dominant_regime'] = df_prob.idxmax(axis=1).str.split(':').str[0].astype(int)
     teacher = df_driver["driver"]
     ai = df_prob["dominant_regime"]
     teacher, ai = teacher.align(ai, join="inner")
     from sklearn.metrics import classification_report,confusion_matrix
     print(classification_report(teacher, ai))
-    print(confusion_matrix(teacher, ai))
+    print(confusion_matrix(teacher, ai))"""
     
     # --- 一時分析 ---
     #_chk_miss_credit_mix(df_oof_all,df_shap,df_driver)

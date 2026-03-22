@@ -131,11 +131,13 @@ def learning_lgbm_test(
     learning_curve=False,
     # カスタム閾値の探索
     study_signal_filter=False,
+    return_col='next_20d_ret_sp500',
     ):
     # 1. 前処理：データの準備
-    df_ready = df_ready.dropna(subset=target_col)
-    X = df_ready.drop(columns=target_col)
+    df_ready = df_ready.dropna(subset=[target_col, return_col])
+    X = df_ready.drop(columns=[target_col, return_col])
     y = df_ready[target_col]
+    returns_all = df_ready[return_col]
 
     # 2. TimeSeriesSplitの設定
     # gap を指定することで、TrainとTestの間に空白を作り、未来リーク（カンニング）を完全に防ぐ
@@ -148,9 +150,10 @@ def learning_lgbm_test(
     all_y_pred = []      # 精度検証用の「予測ラベル」を集約
     evals_result = {}    # 学習曲線描画用のスコア履歴(Loss)を記録
     oof_probs_list = []  # OOF
+    all_ev_list = []     # フォールドごとの期待値結果を格納
 
     # クラスごとにSHAP値のリストを格納する辞書
-    # 構造: {"1:Credit": [df_fold1, df_fold2...], "2:Bond": [...], ...}
+    # 構造例: {"1:Credit": [df_fold1, df_fold2...], "2:Bond": [...], ...}
     oof_shap_dict = {label: [] for label in labels}
 
     # 4. 学習ループ開始
@@ -162,6 +165,8 @@ def learning_lgbm_test(
         # データ分割
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
+        ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
         clf = lgb.LGBMClassifier(
@@ -193,42 +198,71 @@ def learning_lgbm_test(
                 lgb.record_evaluation(evals_result)
             ]
         )
-        # 予測と確率
-        # A. 予測確率(OOF)の保存
+
+        # 1. クラスIDからラベル名へのマッピングを作成
+        class_id_to_label = {int(l.split(':')[0]): l for l in labels}
+
+        # 2. 予測確率の取得
         y_prob = clf.predict_proba(X_test)
-        df_fold_probs = pd.DataFrame(y_prob, index=X_test.index, columns=labels)
+        actual_classes = clf.classes_ # 実際に学習されたクラスID (例: [1, 3])
+        actual_labels = [class_id_to_label[c] for c in actual_classes]
+
+        # 3. 確率DataFrameの保存（全クラス揃っていない可能性を考慮）
+        df_fold_probs = pd.DataFrame(y_prob, index=X_test.index, columns=actual_labels)
         df_fold_probs['actual_regime'] = y_test
         oof_probs_list.append(df_fold_probs)
 
-        # B. SHAP値(OOF-SHAP)の計算と全クラス保存
+        # 4. 重みの算出 (actual_classesの数でループ)
+        weights = {}
+        for i, class_id in enumerate(actual_classes):
+            avg_ret = ret_train[y_train == class_id].mean()
+            weights[i] = avg_ret if not np.isnan(avg_ret) else 0.0
+        #print("重みの出力")
+        #print(weights)
+
+        # 5. 期待値 (Expected Value) の計算 (y_probの列数に合わせて回す)
+        ev_fold = np.zeros(len(y_prob))
+        for i in range(len(actual_classes)):
+            ev_fold += y_prob[:, i] * weights[i]
+        #print("期待値の出力")
+        #print(ev_fold)
+
+        # 6. 期待値データの保存
+        y_pred = clf.predict(X_test)
+        df_ev_fold = pd.DataFrame({
+            'expected_value': ev_fold,
+            'actual_return': ret_test.values,
+            'predict_label': y_pred
+        }, index=X_test.index)
+        #print("期待値データの出力")
+        #print(df_ev_fold)
+        all_ev_list.append(df_ev_fold)
+
+        # 7. SHAP値の計算 (存在するクラス分だけ安全に処理)
         explainer = shap.TreeExplainer(clf)
         shap_values = explainer.shap_values(X_test)
 
-        # shap_valuesは多クラスの場合、リスト形式 [class0_array, class1_array, ...] で返る
-        for i, label in enumerate(labels):
-            # 1. 戻り値がリスト形式の場合（古いSHAPや一部の環境）
+        for i, class_id in enumerate(actual_classes):
+            target_label = class_id_to_label[class_id]
+
+            # SHAP値の抽出（多クラス対応）
             if isinstance(shap_values, list):
                 target_shap = shap_values[i]
-            # 2. 戻り値が3次元配列の場合 (サンプル, 特徴量, クラス)
             elif hasattr(shap_values, "ndim") and shap_values.ndim == 3:
-                # 最後の次元（クラス）をスライスして (サンプル, 特徴量) を取り出す
                 target_shap = shap_values[:, :, i]
-            # 3. それ以外（Explanationオブジェクトや単一クラスなど）
             else:
                 target_shap = shap_values
 
-            # 取り出した行列をDataFrame化
             df_fold_shap = pd.DataFrame(target_shap, index=X_test.index, columns=X.columns)
-            oof_shap_dict[label].append(df_fold_shap)
+            oof_shap_dict[target_label].append(df_fold_shap)
 
-        # C. Fold情報の表示
-        y_pred = clf.predict(X_test)
+        # Fold情報の表示
         acc = balanced_accuracy_score(y_test, y_pred)
         best_iter = clf.best_iteration_
         print(f"Fold {fold} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()} | Acc: {acc:.4f}")
         print(f" => Balanced Acc: {acc:.4f} (Best Iter: {best_iter})")
 
-        # D. 重要度(Gain)の記録
+        # 重要度(Gain)の記録
         imp = pd.Series(clf.feature_importances_, index=X.columns)
         all_importances.append(imp)
 
@@ -239,10 +273,7 @@ def learning_lgbm_test(
 
         fold += 1
 
-    # 5. 総合結果レポートの表示
-    report_lgbm_total_result(all_y_test, all_y_pred, all_importances)
-
-    # 6．学習曲線の表示
+    # 5. 学習曲線の表示
     if learning_curve:
         from batch.modeling.visualize import plot_index
 
@@ -270,22 +301,40 @@ def learning_lgbm_test(
 
         plot_index(plot_df, x_label="counts")
 
-    # 7. 閾値探索
-    if study_signal_filter:
-        print(f"Total Test Samples: {len(all_y_test)}")
-        print(classification_report(all_y_test, all_y_pred))
-        search_optimal_thresholds(np.array(all_y_test), np.array(all_y_probs))
-
-    # 8. 全テストフォールドの予測を結合
+    # 6-1. 全テストフォールドの予測を結合
     df_oof_all = pd.concat(oof_probs_list).sort_index()
 
-    # クラス別SHAP DataFrameの統合
+    # 6-2. クラス別SHAP DataFrameの統合
     final_shap_dfs = {
         label: pd.concat(list_df).sort_index() 
         for label, list_df in oof_shap_dict.items()
     }
 
-    return df_oof_all, final_shap_dfs
+    # 6-3. 期待値データの結合
+    df_oof_ev = pd.concat(all_ev_list).sort_index()
+
+    # 7. 閾値探索
+    df_oof_all_filled = df_oof_all.reindex(columns=labels).fillna(0.0)
+    if study_signal_filter:
+        print(f"Total Test Samples: {len(all_y_test)}")
+        print(classification_report(all_y_test, all_y_pred))
+        search_optimal_thresholds(np.array(all_y_test), df_oof_all_filled[labels].values)
+
+    # 8. 総合結果レポートの表示
+    report_lgbm_total_result(all_y_test, all_y_pred, all_importances)
+
+    # 9. 期待値ベースの評価レポートを表示
+    print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
+    df_oof_ev['ev_rank'] = pd.qcut(
+        df_oof_ev['expected_value'],
+        5,
+        labels=['Very High Risk', 'High Risk', 'Medium', 'Low Risk', 'Very Low Risk'],
+        duplicates='drop'  # 重複する境界線を統合してエラーを防ぐ
+        )
+    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean', 'count'])
+    print(ev_summary)
+
+    return df_oof_all, final_shap_dfs, df_oof_ev
 
 def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):
     print("\n=======================================================")
