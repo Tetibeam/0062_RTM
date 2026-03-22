@@ -107,7 +107,6 @@ def get_credit_driver_beta(df_index, df_sp500):
         ["0:Safe", "1:Credit"],
         start_date="20252-10-01", end_date="2023-01-01"
         )"""
-<<<<<<< HEAD
     """periods = [
         ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
         ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
@@ -126,8 +125,6 @@ def get_credit_driver_beta(df_index, df_sp500):
         print(f"\nVIX_z252の平均値: {VIX_z252}")"""
 
 
-=======
->>>>>>> f6ac2f50c7de4485c5f26138f61f15ea282020a6
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
 

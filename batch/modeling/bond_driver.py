@@ -31,49 +31,49 @@ def get_bond_driver_beta(df_index, df_sp500):
     df_features = _featuring_all(df_daily, df_sp500)
 
     features_refined = [
-        'VIX_z252',
-        'VVIX_z252',
+        #'VIX_z252',
+        #'VVIX_z252',
         'MOVE_z252',
         #'VIX_diff5_zscore',
         #'MOVE_diff5_zscore',
-        #'MOVE_VIX_ratio_zscore',###
+        'MOVE_VIX_ratio_zscore',###
         #'VIX_gap_zscore',
         #'VIX_rv_zscore',
-        "MOVE_vov",###########
+        #"MOVE_vov",###########
         #"MOVE_accel",
         
         #'HY_diff5_zscore',
-        'hy_z252',
+        #'hy_z252',
         #'TED_spread_z252',
         #'TED_diff5_zscore',
-        'SOFR_vol_spike',
+        #'SOFR_vol_spike',
         'Term_Premium_z252',
         'Credit_Equity_Divergence',
         #'Term_Premium_diff5',
         "Term_Premium_diff5_z252",
 
-        'DFII10_diff5_zscore',
+        #'DFII10_diff5_zscore',
         #'DFII10_z252',
         #'Curve_10Y2Y_z252', #1
         #'Curve_10Y3M_z252',
         #'T10YIE_diff5_zscore',
-        #'Real_Nominal_ratio_zscore',
+        'Real_Nominal_ratio_zscore',
         #'Curve_flattening_speed_zscore',
 
         #'DXY_diff5_zscore',
         #'DXY_z252',
         #'Stock_Bond_Corr_20d',
-        'Stock_Bond_Corr_zscore',
+        #'Stock_Bond_Corr_zscore',
         #"Gold_zscore",
         'Equity_Gold_Ratio_zscore',
-        'Flight_to_Safety_zscore',
+        #'Flight_to_Safety_zscore',
         #'SP500_Ret_Z',
         #"tlt_z252",
-        #"tlt_ret_z252",
+        "tlt_ret_z252",
         #"tlt_diff_z252",
-        "tlt_hy_ratio_z252",
-        #"tlt_hy_diff_z252",
-        #"oil_ret_z252"
+        #"tlt_hy_ratio_z252",
+        "tlt_hy_diff_z252",
+        "oil_ret_z252"
         ]
     df_features = df_features[features_refined]
 
@@ -82,11 +82,7 @@ def get_bond_driver_beta(df_index, df_sp500):
     df_label['sample_weight'] = 1.0
 
     mask_credit = (df_label['driver'] == 1)
-    df_label.loc[mask_credit, 'sample_weight'] = df_label['credit_score']
-    mask_bond = (df_label['driver'] == 2)
-    df_label.loc[mask_bond, 'sample_weight'] = df_label['bond_score']
-    mask_bond = (df_label['driver'] == 3)
-    df_label.loc[mask_bond, 'sample_weight'] = 0.8
+    df_label.loc[mask_credit, 'sample_weight'] = df_label['score']
 
     df_driver = df_features.join(df_label["driver"])
 
@@ -97,12 +93,12 @@ def get_bond_driver_beta(df_index, df_sp500):
 
     print(f"特徴量のリスト: {df_features.columns}")
     df_oof_all, df_shap = learning_lgbm_test(
-        df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
+        df_driver, "driver", labels=["0:Mix", "1:Bond"],
         n_splits=5, gap =30,
-        n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
-        class_weight="balanced",
+        n_estimators=2500,learning_rate=0.0005,num_leaves=40, min_data_in_leaf=70,
+        class_weight="balanced",objective="binary",
         sample_weight=df_label["sample_weight"],
-        reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
+        reg_alpha=1, reg_lambda=1, learning_curve=True,
         )
 
     # 分析、可視化
@@ -111,23 +107,6 @@ def get_bond_driver_beta(df_index, df_sp500):
         ["1:Credit", "2:Bond", "3:Mix"],
         start_date="2021-10-01", end_date="2023-01-01"
         )"""
-    periods = [
-        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
-        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
-        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
-        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
-    ]
-    for start, end in periods:
-        label="1:Credit"
-        shap = df_shap[label].loc[start:end]
-        top10_shap = shap.mean().sort_values(ascending=False).head(5)
-        VIX_z252 = df_driver.loc[start:end, "VIX_z252"].mean()
-
-        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
-        print(df_oof_all.loc[start:end].mean().round(2))
-        print(f"\n{top10_shap}")
-        print(f"\nVIX_z252の平均値: {VIX_z252}")
-
 
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
@@ -372,33 +351,31 @@ def _make_label(df_daily, smear_days=5):
 
     # 指標の生成
     tlt_ret = df_daily["TLT"].pct_change()
-    tlt_vol = tlt_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+    tlt_vol = tlt_ret.rolling(60, min_periods=20).std().reindex(master_index, method='ffill')
 
     sp500_ret = df_daily['^GSPC'].pct_change()
-    sp500_vol = sp500_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+    sp500_vol = sp500_ret.rolling(60, min_periods=20).std().reindex(master_index, method='ffill')
 
     hy_diff = df_daily["BAMLH0A0HYM2"].diff()
-    hy_diff_vol = hy_diff.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+    hy_diff_vol = hy_diff.rolling(60, min_periods=20).std().reindex(master_index, method='ffill')
 
     for col, asset_name in zip(["^GSPC", "TLT"], ["sp500", "tlt"]):
-        # NAを落として、その資産の純粋な営業日だけで未来20日を計算
         asset_clean = df_daily[col].dropna()
         future_ret = asset_clean.pct_change(20).shift(-20)
         df[f'next_20d_ret_{asset_name}'] = future_ret.reindex(master_index, method="ffill")
 
-    # HYスプレッドは「差分(diff)」で計算する
     hy_clean = df_daily["BAMLH0A0HYM2"].dropna()
-    future_diff = hy_clean.diff(20).shift(-20) # 20日後に何ポイント拡大したか
+    future_diff = hy_clean.diff(20).shift(-20)
     df['next_20d_diff_hy'] = future_diff.reindex(master_index, method="ffill")
 
     # --- Step 1: 生のフラグ（Raw Flags）を立てる ---
-    # Credit: HYスプレッドの拡大（※絶対値ではなく拡大側にバイアスをかけるのが戦略的）
+    # Credit（比較用）
     raw_credit = (
-        (df['next_20d_diff_hy'] > (2.0 * hy_diff_vol * np.sqrt(20))) & # 拡大のみ
+        (df['next_20d_diff_hy'] > (2.0 * hy_diff_vol * np.sqrt(20))) & 
         ((df['next_20d_diff_hy'] / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
     )
 
-    # Bond: TLTの激しい動き
+    # Bond（今回のターゲット）
     raw_bond = (
         (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol * np.sqrt(20))) &
         ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
@@ -421,48 +398,24 @@ def _make_label(df_daily, smear_days=5):
 
     # スコア（確信度 0.0 ~ 1.0）を算出
     df['credit_score'] = calculate_decay_score(raw_credit, smear_days)
-    df['bond_score'] = calculate_decay_score(raw_bond, smear_days)
+    df['score'] = calculate_decay_score(raw_bond, smear_days)
 
-    # --- Step 3: スコアに基づく動的ラベル付与 ---
-    # 単なる0/1ではなく、閾値（例: 0.5）を超えた期間をレジュームとして認定
-    # これにより「あまりに遠い予兆」を無理に学習することを防ぐ
+    # --- Step 3: Bond専用 2値ラベル付与 ---
     threshold = 0.4  
+    df["driver"] = 0  # デフォルトは 0 (Non-Bond)
 
-    df["driver"] = 3 # Neutral
+    # 「Bondスコアが閾値を超え」かつ「Creditスコアよりも高い」場合を 1 とする
+    # これにより、純粋な金利要因（Bond Gravity）を分離して学習させる
+    is_bond_dominant = (df['score'] > threshold) & (df['score'] >= df['credit_score'])
 
-    # 1. まず、閾値を超えている場所を特定
-    is_bond_candidate = df['bond_score'] > threshold
-    is_credit_candidate = df['credit_score'] > threshold
+    df.loc[is_bond_dominant, 'driver'] = 1
 
-    # 基本はスコアが高い方を採用（勝者総取り）
-    df.loc[is_bond_candidate, 'driver'] = 2
-    df.loc[is_credit_candidate & (df['credit_score'] >= df['bond_score']), 'driver'] = 1
-    df.loc[is_bond_candidate & (df['bond_score'] > df['credit_score']), 'driver'] = 2
-
-    """
-    df["driver"] = 3 # Neutral
-    df["driver_name"] = "Neutral"
-
-    # 優先度低
-    significant_bond_move = df['next_20d_ret_tlt'].abs() > (1.35 * tlt_vol * np.sqrt(20))
-    bond_dominance = (df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5)
-    is_bond_move = significant_bond_move & bond_dominance
-    df.loc[is_bond_move, 'driver'] = 2
-    df.loc[is_bond_move, 'driver_name'] = "Bond"
-
-    # 優先度高
-    significant_credit_move = df['next_20d_diff_hy'].abs() > (2.0 * hy_diff_vol * np.sqrt(20))
-    credit_dominance = (df['next_20d_diff_hy'].abs() / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5)
-
-    is_credit_move = significant_credit_move & credit_dominance
-    df.loc[is_credit_move, 'driver'] = 1
-    df.loc[is_credit_move, 'driver_name'] = "Credit"
-
-    """
     df = df.dropna()
     #check_nan_time(df)
-
-    print("\nDriver教師ラベルの期間: ",df.index[0].date(), df.index[-1].date())
+    
+    print(f"\nBond専用モデル 教師ラベル生成完了")
+    print(f"期間: {df.index[0].date()} ~ {df.index[-1].date()}")
+    print(f"ラベル分布:\n{df['driver'].value_counts(normalize=True)}")
 
     #_analysis_label(df, df_daily)
 
@@ -499,7 +452,7 @@ def _analysis_label(df, df_daily):
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)
-    plot_driver_soft_label(df, df_daily, start_date="2024-01-01", end_date="2026-02-01")
+    plot_driver_soft_label(df, df_daily, "bond", start_date="2020-01-01", end_date="2026-02-01")
 
 ########################################################
 # 実装確認・デバッグ
