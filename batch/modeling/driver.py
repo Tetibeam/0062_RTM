@@ -96,22 +96,47 @@ def get_driver_beta(df_index, df_sp500):
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
     print(f"特徴量のリスト: {df_features.columns}")
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test(
+    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
         class_weight="balanced",
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
-        )
-    import matplotlib.pyplot as plt
+        )"""
+
+    #ファイル保存とファイル読み込み
+    """df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
+    df_shap["1:Credit"].to_parquet("diver_shap_credit.parquet", engine="pyarrow")
+    df_shap["2:Bond"].to_parquet("diver_shap_bond.parquet", engine="pyarrow")
+    df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")
+    df_oof_ev.to_parquet("diver_oof_ev.parquet", engine="pyarrow")"""
+
+
+    df_oof_all = pd.read_parquet("diver_oof.parquet", engine="pyarrow")
+    df_shap = {
+        "1:Credit":pd.read_parquet("diver_shap_credit.parquet", engine="pyarrow"),
+        "2:Bond":pd.read_parquet("diver_shap_bond.parquet", engine="pyarrow"),
+        "3:Mix":pd.read_parquet("diver_shap_mix.parquet", engine="pyarrow")
+    }
+    df_oof_ev = pd.read_parquet("diver_oof_ev.parquet", engine="pyarrow")
+
+
+    # --- 一時分析 ---
+    critical_df = df_oof_ev[df_oof_ev['ev_rank'] == 'CRITICAL'].copy()
+    rebound_df = critical_df[critical_df['actual_return'] > 0]
+    hit_df = critical_df[critical_df['actual_return'] <= 0]
+    print(critical_df)
+    
+    #_chk_miss_credit_mix(df_oof_all,df_shap,df_driver)
+
+    """import matplotlib.pyplot as plt
     import seaborn as sns
 
     # 1. 基本統計量の確認（平均、最小、最大、四分位数）
     print("=== risk_sum の基本統計量 ===")
     print(df_oof_ev['risk_sum'].describe())
 
-    # 2. 分布の可視化
     plt.figure(figsize=(10, 6))
     sns.histplot(df_oof_ev['risk_sum'], bins=50, kde=True, color='royalblue')
     plt.title('Distribution of Risk Sum (Credit + Bond Probability)')
@@ -120,20 +145,8 @@ def get_driver_beta(df_index, df_sp500):
     plt.grid(axis='y', alpha=0.3)
     plt.axvline(x=0.5, color='red', linestyle='--', label='Threshold 0.5')
     plt.legend()
-    plt.show()
+    plt.show()"""
 
-    #ファイル保存とファイル読み込み
-    """df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
-    df_shap["1:Credit"].to_parquet("diver_shap_credit.parquet", engine="pyarrow")
-    df_shap["2:Bond"].to_parquet("diver_shap_bond.parquet", engine="pyarrow")
-    df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")
-
-    df_oof_all = pd.read_parquet("diver_oof.parquet", engine="pyarrow")
-    df_shap = {
-        "1:Credit":pd.read_parquet("diver_shap_credit.parquet", engine="pyarrow"),
-        "2:Bond":pd.read_parquet("diver_shap_bond.parquet", engine="pyarrow"),
-        "3:Mix":pd.read_parquet("diver_shap_mix.parquet", engine="pyarrow")
-    }"""
     # 可視化
     """_ = plot_driver_trajectory(
         df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
@@ -160,9 +173,7 @@ def get_driver_beta(df_index, df_sp500):
     from sklearn.metrics import classification_report,confusion_matrix
     print(classification_report(teacher, ai))
     print(confusion_matrix(teacher, ai))"""
-    
-    # --- 一時分析 ---
-    #_chk_miss_credit_mix(df_oof_all,df_shap,df_driver)
+
 
 
     #return driver_clf, df_driver_trajectory, df_driver

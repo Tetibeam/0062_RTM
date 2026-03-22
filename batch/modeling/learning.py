@@ -227,7 +227,7 @@ def learning_lgbm_test(
         for i, class_id in enumerate(actual_classes):
             ev_fold += y_prob[:, i] * weights[i]
             if float(class_id) in [1.0, 2.0]:
-                risk_prob_sum += y_prob[:, i]
+                risk_prob_sum += y_prob[:, i] # Bond+Creditの足し算
         #print("期待値の出力")
         #print(ev_fold)
 
@@ -236,7 +236,7 @@ def learning_lgbm_test(
         df_ev_fold = pd.DataFrame({
             'expected_value': ev_fold,
             'actual_return': ret_test.values,
-            'risk_sum': risk_prob_sum,         # 新設
+            'risk_sum': risk_prob_sum,         # # Bond+Creditの足し算
             'predict_label': y_pred
         }, index=X_test.index)
         #print("期待値データの出力")
@@ -330,9 +330,10 @@ def learning_lgbm_test(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-    bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 1.0だと最大値が漏れる可能性があるので少し余裕を
 
-    df_oof_ev['ev_rank'] = pd.cut( # ← ここが 'cut' になっているか確認！
+    bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
+
+    df_oof_ev['ev_rank'] = pd.cut(
         df_oof_ev['risk_sum'],
         bins=bins,
         labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
