@@ -224,9 +224,9 @@ def learning_lgbm_test(
         ev_fold = np.zeros(len(y_prob))
         risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
 
-        for i in range(len(actual_classes)):
+        for i, class_id in enumerate(actual_classes):
             ev_fold += y_prob[:, i] * weights[i]
-            if class_id in [1.0, 2.0]:
+            if float(class_id) in [1.0, 2.0]:
                 risk_prob_sum += y_prob[:, i]
         #print("期待値の出力")
         #print(ev_fold)
@@ -330,14 +330,14 @@ def learning_lgbm_test(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-    risk_ranks = df_oof_ev['risk_sum'].rank(method='first')
-    df_oof_ev['ev_rank'] = pd.qcut(
-        #df_oof_ev['expected_value'],
-        risk_ranks,
-        5,
-        labels=['Very High Risk', 'High Risk', 'Medium', 'Low Risk', 'Very Low Risk'],
-        duplicates='drop'  # 重複する境界線を統合してエラーを防ぐ
-        )
+    bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 1.0だと最大値が漏れる可能性があるので少し余裕を
+
+    df_oof_ev['ev_rank'] = pd.cut( # ← ここが 'cut' になっているか確認！
+        df_oof_ev['risk_sum'],
+        bins=bins,
+        labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
+        include_lowest=True
+    )
     ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
     print(ev_summary)
 
