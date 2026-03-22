@@ -104,6 +104,8 @@ def get_driver_beta(df_index, df_sp500):
         sample_weight=df_label["sample_weight"],
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )
+    print("=== risk_sum の基本統計量 ===")
+    print(df_oof_ev['risk_sum'].describe())
 
     #ファイル保存とファイル読み込み
     """df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")

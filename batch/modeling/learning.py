@@ -222,8 +222,12 @@ def learning_lgbm_test(
 
         # 5. 期待値 (Expected Value) の計算 (y_probの列数に合わせて回す)
         ev_fold = np.zeros(len(y_prob))
+        risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
+
         for i in range(len(actual_classes)):
             ev_fold += y_prob[:, i] * weights[i]
+            if class_id in [1.0, 2.0]:
+                risk_prob_sum += y_prob[:, i]
         #print("期待値の出力")
         #print(ev_fold)
 
@@ -232,6 +236,7 @@ def learning_lgbm_test(
         df_ev_fold = pd.DataFrame({
             'expected_value': ev_fold,
             'actual_return': ret_test.values,
+            'risk_sum': risk_prob_sum,         # 新設
             'predict_label': y_pred
         }, index=X_test.index)
         #print("期待値データの出力")
@@ -325,13 +330,15 @@ def learning_lgbm_test(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
+    risk_ranks = df_oof_ev['risk_sum'].rank(method='first')
     df_oof_ev['ev_rank'] = pd.qcut(
-        df_oof_ev['expected_value'],
+        #df_oof_ev['expected_value'],
+        risk_ranks,
         5,
         labels=['Very High Risk', 'High Risk', 'Medium', 'Low Risk', 'Very Low Risk'],
         duplicates='drop'  # 重複する境界線を統合してエラーを防ぐ
         )
-    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean', 'count'])
+    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
     print(ev_summary)
 
     return df_oof_all, final_shap_dfs, df_oof_ev

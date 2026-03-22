@@ -34,17 +34,23 @@ def get_credit_driver_beta(df_index, df_sp500):
         #'VIX_z252',
         'VIX_z21',
         #'VVIX_z252',
+        #'VVIX_z21',
         #'MOVE_z252',
+        'MOVE_z21',
         #'VIX_diff5_z252',
         #'MOVE_diff5_z252',
-        #'MOVE_VIX_ratio_z252',
+        'MOVE_VIX_ratio_z252',
+        #'MOVE_VIX_ratio_z60',
         #'VIX_gap_z252',
         #'VIX_rv_z252',
         "MOVE_vov",
         #"MOVE_accel",
 
         'HY_diff5_z252',
+        #'HY_diff5_z21',
+        'HY_diff5',
         #'hy_z252',
+        #'hy_z21',
         #'TED_spread_z252',
         #'TED_diff5_z252',
         #'SOFR_vol_spike',
@@ -58,27 +64,36 @@ def get_credit_driver_beta(df_index, df_sp500):
         #'DFII10_diff5_z252',#
         #'DFII10_z252',#
         'Curve_10Y2Y_z252', #
-        #'Curve_10Y2Y_z60', #
+        "Curve_10Y2Y_diff5",
+        #'Curve_10Y2Y_z126', #
         #'Curve_10Y3M_z252',
         #'T10YIE_diff5_z252',
         'Real_Nominal_ratio_z252',###
+        #'Real_Nominal_ratio_z126',###
         #'Curve_flattening_speed_z252',
 
-        'DXY_diff5_z252',
+        #'DXY_diff5_z252',
+        'DXY_diff5_z21',
         #'DXY_z252',
         #'Stock_Bond_Corr_20d',
         #'Stock_Bond_Corr_z252',
         #"Gold_zscore",
         #'Equity_Gold_Ratio_z252',#
         #'Flight_to_Safety_z252',
-        #'SP500_Ret_z252',
+        'SP500_Ret_z21',
+        "SP500_Ret_diff5",
+        "SP500_Ret_z5",
         #"tlt_z252",
         #"tlt_ret_z252",
         #"tlt_diff_z252",
         "tlt_hy_ratio_z252",
         #"tlt_hy_ratio_z60",
         "tlt_hy_diff_z252",
+        #"tlt_hy_diff_z60",
         #"oil_ret_z252"
+        
+        "MOVE_vov_SP500_Ret_z5",
+        "Interaction_Earning_Safety"
         ]
     df_features = df_features[features_refined]
 
@@ -100,10 +115,10 @@ def get_credit_driver_beta(df_index, df_sp500):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test(
         df_driver, "driver", labels=["0:Safe", "1:Credit"],
         n_splits=5, gap =30,
-        n_estimators=3000,learning_rate=0.0005,num_leaves=40, min_data_in_leaf=70,
+        n_estimators=3000,learning_rate=0.001,num_leaves=50, min_data_in_leaf=70,
         class_weight="balanced",objective="binary",
         sample_weight=df_label["sample_weight"],
-        reg_alpha=1, reg_lambda=1, learning_curve=True,
+        reg_alpha=0.1, reg_lambda=0.1, learning_curve=True,
         )
 
     # 分析、可視化
@@ -157,25 +172,29 @@ def _vol_feats(df, feats, master_index):
     vix = df['VIXCLS'].dropna()
     vvix = df["VVIX"].dropna()
     move = df["^MOVE"].dropna()
+    sp500 = df["^GSPC"].dropna()
 
     # 異常性
     feats["VIX_z252"] = _featuring_z_score(vix, window=252).reindex(master_index, method="ffill")
     feats["VIX_z21"] = _featuring_z_score(vix, window=21).reindex(master_index, method="ffill")
     feats["VVIX_z252"] = _featuring_z_score(vvix, window=252).reindex(master_index, method="ffill")
+    feats["VVIX_z21"] = _featuring_z_score(vvix, window=21).reindex(master_index, method="ffill")
     feats["MOVE_z252"] = _featuring_z_score(move, window=252).reindex(master_index, method="ffill")
+    feats["MOVE_z21"] = _featuring_z_score(move, window=21).reindex(master_index, method="ffill")
 
     # 加速
     vix_diff = vix.diff(5)
     move_diff = move.diff(5)
-    feats['VIX_diff5_zscore'] = _featuring_z_score(vix_diff, window=252).reindex(master_index, method="ffill")
-    feats['MOVE_diff5_zscore'] = _featuring_z_score(move_diff, window=252).reindex(master_index, method="ffill")
+    feats['VIX_diff5_z252'] = _featuring_z_score(vix_diff, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_diff5_z252'] = _featuring_z_score(move_diff, window=252).reindex(master_index, method="ffill")
     feats['MOVE_accel'] = feats['MOVE_z252'].diff(1).diff(5).reindex(master_index, method="ffill")
 
     # 格差
     ratio = move / vix
     ratio = ratio.ffill()
     #feats['MOVE_VIX_ratio'] = ratio.reindex(master_index, method="ffill")
-    feats['MOVE_VIX_ratio_zscore'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_VIX_ratio_z252'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+    feats['MOVE_VIX_ratio_z60'] = _featuring_z_score(ratio, window=60).reindex(master_index, method="ffill")
 
     # VIXの期間構造(VIX3Mの代用)
     vix_gap = vix / vix.rolling(window=60).mean()
@@ -183,9 +202,15 @@ def _vol_feats(df, feats, master_index):
 
     # ボラのボラ
     vix_rv = vix.pct_change().rolling(20).std()
-    feats['VIX_rv_zscore'] = _featuring_z_score(vix_rv, window=252).reindex(master_index, method="ffill")
+    feats['VIX_rv_z252'] = _featuring_z_score(vix_rv, window=252).reindex(master_index, method="ffill")
     move_z252 = _featuring_z_score(move, window=252).reindex(master_index, method="ffill")
     feats['MOVE_vov'] = move_z252.diff().rolling(20).std().reindex(master_index, method="ffill")
+    stability_score = 1 - (feats['MOVE_vov'].rolling(252).rank(pct=True))
+    SP500_Ret_z21 = _featuring_z_score(sp500.pct_change(), window=21).reindex(master_index, method="ffill")
+    feats['Interaction_Earning_Safety'] = stability_score * SP500_Ret_z21
+    feats['Interaction_Earning_Safety'] = feats['Interaction_Earning_Safety'].fillna(0)
+    SP500_Ret_z5 = _featuring_z_score(sp500.pct_change(), window=5).reindex(master_index, method="ffill")
+    feats["MOVE_vov_SP500_Ret_z5"] = ((1 - stability_score) * SP500_Ret_z5).fillna(0)
     return feats
 
 def _credit_liq_feats(df, feats, master_index):
@@ -200,7 +225,12 @@ def _credit_liq_feats(df, feats, master_index):
     # クレジットの加速
     hy_diff = hy.diff(5)
     feats['HY_diff5_z252'] = _featuring_z_score(hy_diff, window=252).reindex(master_index, method="ffill")
+    feats['HY_diff5_z21'] = _featuring_z_score(hy_diff, window=21).reindex(master_index, method="ffill")
+    feats['HY_diff5'] = hy_diff.reindex(master_index, method="ffill")
+    
     feats["hy_z252"] = _featuring_z_score(hy, window=252).reindex(master_index, method="ffill")
+    feats["hy_z21"] = _featuring_z_score(hy, window=21).reindex(master_index, method="ffill")
+
 
     # 歴史的パニックの同期 (2008年対策)
     #feats['TED_spread_level'] = tedrate.reindex(master_index, method="ffill")
@@ -244,7 +274,9 @@ def _macro_gravity_feats(df, feats, master_index):
     curve10y2y = dgs10 - dgs2
     curve10y3m = dgs10 - dgs3mo
     feats['Curve_10Y2Y_z252'] = _featuring_z_score(curve10y2y, window=252).reindex(master_index, method="ffill")
-    feats['Curve_10Y2Y_z60'] = _featuring_z_score(curve10y2y, window=60).reindex(master_index, method="ffill")
+    feats['Curve_10Y2Y_z126'] = _featuring_z_score(curve10y2y, window=126).reindex(master_index, method="ffill")
+    feats['Curve_10Y2Y_diff5'] = curve10y2y.diff(5).reindex(master_index, method="ffill")
+    
     feats['Curve_10Y3M_z252'] = _featuring_z_score(curve10y3m, window=252).reindex(master_index, method="ffill")
 
     # インフレ期待の加速
@@ -254,6 +286,7 @@ def _macro_gravity_feats(df, feats, master_index):
     # 金利上昇の「質」の分解
     real_nominal_ratio = dfii10 / dgs10
     feats['Real_Nominal_ratio_z252'] = _featuring_z_score(real_nominal_ratio, window=252).reindex(master_index, method="ffill")
+    feats['Real_Nominal_ratio_z126'] = _featuring_z_score(real_nominal_ratio, window=126).reindex(master_index, method="ffill")
 
     # カーブの「フラット化」速度
     flattening_speed = curve10y2y.diff(20)
@@ -273,6 +306,7 @@ def _momentum_flow_feats(df, feats, master_index):
     # ドルの引力
     dxy_diff = dxy.diff(5)
     feats['DXY_diff5_z252'] = _featuring_z_score(dxy_diff, window=252).reindex(master_index, method="ffill")
+    feats['DXY_diff5_z21'] = _featuring_z_score(dxy_diff, window=21).reindex(master_index, method="ffill")
     feats['DXY_z252'] = _featuring_z_score(dxy, window=252).reindex(master_index, method="ffill")
 
     # アセット相関の変調
@@ -293,7 +327,9 @@ def _momentum_flow_feats(df, feats, master_index):
     feats['Flight_to_Safety_z252'] = _featuring_z_score(fts_index, window=252).reindex(master_index, method="ffill")
 
     # 市場のオーバーシュート
-    feats['SP500_Ret_z252'] = _featuring_z_score(returns_sp.rolling(20).sum(), window=252).reindex(master_index, method="ffill")
+    feats['SP500_Ret_z21'] = _featuring_z_score(returns_sp.rolling(20).sum(), window=21).reindex(master_index, method="ffill")
+    feats['SP500_Ret_diff5'] = returns_sp.diff(5).reindex(master_index, method="ffill")
+    feats['SP500_Ret_z5'] = _featuring_z_score(returns_sp.rolling(20).sum(), window=5).reindex(master_index, method="ffill")
 
     feats['tlt_z252'] = _featuring_z_score(tlt, window=252).reindex(master_index, method="ffill")
     feats['tlt_ret_z252'] = _featuring_z_score(tlt.pct_change(), window=252).reindex(master_index, method="ffill")
@@ -313,8 +349,8 @@ def _momentum_flow_feats(df, feats, master_index):
 
 def _featuring_z_score(df, window):
 
-    m = df.rolling(window=window, min_periods=max(10, window//5)).mean()
-    s = df.rolling(window=window, min_periods=max(10, window//5)).std()
+    m = df.rolling(window=window, min_periods=max(5, window//5)).mean()
+    s = df.rolling(window=window, min_periods=max(5, window//5)).std()
 
     z = (df - m) / (s + 1e-9)# ゼロ除算防止
 
