@@ -88,7 +88,7 @@ def get_driver_beta(df_index, df_sp500):
     mask_bond = (df_label['driver'] == 3)
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
-    df_driver = df_features.join(df_label[["driver","next_20d_ret_sp500"]])
+    df_driver = df_features.join(df_label["driver"])
 
     """driver_clf, df_driver_trajectory = learning_lgbm_final(
         df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
@@ -122,10 +122,14 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_ev = pd.read_parquet("diver_oof_ev.parquet", engine="pyarrow")
 
     # --- 一時分析 ---
+    df_driver = df_features.join(df_label["next_20d_ret_sp500"])
     #_da_miss_credit_mix(df_oof_all,df_shap,df_driver)
 
     #_da_CRITICAL(df_oof_all, df_oof_ev, df_shap)
     #_da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver)
+    _da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver)
+
+    #
 
     # --- フィルター ---
     #df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
@@ -605,6 +609,46 @@ def _da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver):
     comparison['diff_mean'] = comparison['mean_Target(21d)'] - comparison['mean_Rebound(37d)']
     print("=== 的中(21日) vs リバウンド(37日) 特徴量比較レポート ===")
     print(comparison.sort_values('diff_mean', key=abs, ascending=False))
+
+def _da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver):
+    df_oof_ev = df_oof_ev.join(df_driver, how='left')
+    # 1. High Risk群（382日）を抽出
+    df_hr = df_oof_ev[df_oof_ev['ev_rank'] == 'High Risk'].copy()
+
+    # 2. 20日後のリターン（教師ラベルの元データ）に基づいて「お宝」と「ゴミ」に分割
+    # ※ next_20d_ret_sp500 などのリターンカラムを使用
+    mask_otakara = df_hr['next_20d_ret_sp500'] > 0
+    mask_gomi    = df_hr['next_20d_ret_sp500'] <= 0
+
+    # 3. 比較する特徴量の厳選セット
+    features_to_analyze = [
+        'VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
+        'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
+        'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
+        'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
+        'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'
+        ]
+
+    # 4. 統計量の算出
+    stats_otakara = df_hr.loc[mask_otakara, features_to_analyze].describe().T
+    stats_gomi    = df_hr.loc[mask_gomi, features_to_analyze].describe().T
+
+    # 5. 比較レポートの作成
+    hr_analysis = pd.DataFrame({
+        'mean_Otakara(Win)': stats_otakara['mean'],
+        'mean_Gomi(Loss)': stats_gomi['mean'],
+        'median_Otakara': stats_otakara['50%'],
+        'median_Gomi': stats_gomi['50%']
+    })
+
+    # 差分（お宝 - ゴミ）を計算。この値が大きいほど、その指標は「買い時」を見分ける武器になる
+    hr_analysis['diff_mean'] = hr_analysis['mean_Otakara(Win)'] - hr_analysis['mean_Gomi(Loss)']
+
+    print(f"=== High Riskバケツ（n=382）内部解剖レポート ===")
+    print(f"お宝(リターン正): {mask_otakara.sum()} 日")
+    print(f"ゴミ(リターン負): {mask_gomi.sum()} 日")
+    print("-" * 50)
+    print(hr_analysis.sort_values('diff_mean', key=abs, ascending=False))
 ########################################################
 # 結果・確認
 ########################################################
