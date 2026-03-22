@@ -127,12 +127,13 @@ def get_driver_beta(df_index, df_sp500):
 
     #_da_CRITICAL(df_oof_all, df_oof_ev, df_shap)
     #_da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver)
-    _da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver)
+    #_da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver)
 
     #
 
     # --- フィルター ---
-    #df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
+    df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
+    df_oof_ev, df_oof_all = _high_risk_reselection_filter(df_oof_ev, df_driver, df_oof_all)
 
     # --- 結果を確認 ---
     #_chk_ev_hist(df_oof_ev)
@@ -140,7 +141,7 @@ def get_driver_beta(df_index, df_sp500):
     _chk_ev(df_oof_ev)
 
     # --- バックテスト ---
-    #_back_test(df_daily, df_oof_ev)
+    _back_test(df_daily, df_oof_ev)
     """_ = plot_driver_trajectory(
         df_prob, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],
@@ -533,6 +534,42 @@ def _divergence_filter(df_oof_ev, df_driver, df_oof_all):
 
     return df_oof_ev, df_oof_all
 
+def _high_risk_reselection_filter(df_oof_ev, df_driver, df_oof_all):
+    
+    df_oof_ev = df_oof_ev.join(df_driver[[
+    'Term_Premium_z252',
+    'Credit_Equity_Divergence',
+    'Equity_Gold_Ratio_zscore'
+    ]], how='left')
+    
+    df_oof_ev['ev_rank'] = df_oof_ev['ev_rank'].astype(str)
+    
+    # High Risk のなかから「お宝（Win）」を特定する条件
+    # 1. 期間プレミアムが健全（崩壊していない）
+    # 2. 株がクレジットを無視して暴走していない（同期している）
+    # 3. 株/金比率に一定の生命力が残っている
+    
+    mask = (
+        (df_oof_ev['ev_rank'] == 'High Risk') & 
+        (df_oof_ev['Term_Premium_z252'] > -0.2) &        # 金利構造の健全性
+        (df_oof_ev['Credit_Equity_Divergence'] < 0.1) &   # 株の強欲さがない
+        (df_oof_ev['Equity_Gold_Ratio_zscore'] > 0.8)     # 相対的な強さ
+    )
+    
+    # 救済：これらを Neutral (市場参加) に格下げ
+    df_oof_ev.loc[mask, 'ev_rank'] = "Neutral"
+    df_oof_ev = df_oof_ev.drop(columns=[
+        'Term_Premium_z252', 'Credit_Equity_Divergence', 'Equity_Gold_Ratio_zscore'])
+    
+    # 確率の修正
+    df_oof_all.loc[mask, '1:Credit'] = 0.25  # Creditリスクを中程度に抑制
+    df_oof_all.loc[mask, '2:Bond'] = 0.25  # Bondリスクを中程度に抑制
+    df_oof_all.loc[mask, '3:Mix'] = 0.50  # Neutral確率を50%確保
+    df_oof_ev.loc[mask, 'risk_sum'] = 0.50
+    print(f"High Risk から救済されたお宝: {mask.sum()} 日")
+    
+    return df_oof_ev, df_oof_all
+
 ########################################################
 # 実装確認・デバッグ
 ########################################################
@@ -649,6 +686,7 @@ def _da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver):
     print(f"ゴミ(リターン負): {mask_gomi.sum()} 日")
     print("-" * 50)
     print(hr_analysis.sort_values('diff_mean', key=abs, ascending=False))
+
 ########################################################
 # 結果・確認
 ########################################################
@@ -697,7 +735,7 @@ def _back_test(df_daily, df_oof_ev):
     df_bt = df_oof_ev.join(sp500_ret, how='left').sort_index().copy()
 
     # --- 重要：シグナルの1日ラグ（Execution Lag） ---
-    lag = 5
+    lag = 10
 
     # 前日の終値で出た判定（ev_rank）を、今日のリターン（sp500_ret）に適用する
     df_bt['signal'] = df_bt['ev_rank'].shift(lag)
@@ -711,6 +749,8 @@ def _back_test(df_daily, df_oof_ev):
         0.0,
         df_bt['sp500_ret']
     )
+    # イメージ：100%避難せず、リスクの高さに応じて「アクセルを緩める」
+    # df_bt['return_strategy'] = (1 - df_bt['signal_prob']) * df_bt['sp500_ret']
 
     # 3. 累積リターンの計算
     df_bt['cum_benchmark'] = (1 + df_bt['sp500_ret'].fillna(0)).cumprod()
