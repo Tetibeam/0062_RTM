@@ -105,13 +105,14 @@ def get_driver_beta(df_index, df_sp500):
         reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )"""
 
-    #ファイル保存とファイル読み込み
+     # --- ファイル保存 ---
     """df_oof_all.to_parquet("diver_oof.parquet", engine="pyarrow")
     df_shap["1:Credit"].to_parquet("diver_shap_credit.parquet", engine="pyarrow")
     df_shap["2:Bond"].to_parquet("diver_shap_bond.parquet", engine="pyarrow")
     df_shap["3:Mix"].to_parquet("diver_shap_mix.parquet", engine="pyarrow")
     df_oof_ev.to_parquet("diver_oof_ev.parquet", engine="pyarrow")"""
 
+    # --- ファイル読み込み ---
     df_oof_all = pd.read_parquet("diver_oof.parquet", engine="pyarrow")
     df_shap = {
         "1:Credit":pd.read_parquet("diver_shap_credit.parquet", engine="pyarrow"),
@@ -120,103 +121,27 @@ def get_driver_beta(df_index, df_sp500):
     }
     df_oof_ev = pd.read_parquet("diver_oof_ev.parquet", engine="pyarrow")
 
-
     # --- 一時分析 ---
     #_da_miss_credit_mix(df_oof_all,df_shap,df_driver)
 
     #_da_CRITICAL(df_oof_all, df_oof_ev, df_shap)
+    #_da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver)
 
-    df_oof_ev = df_oof_ev.join(df_driver['Credit_Equity_Divergence'], how='left')
-    df_oof_ev['ev_rank'] = df_oof_ev['ev_rank'].astype(str)
-    mask = (df_oof_ev['ev_rank'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] <= 1.0)
-    df_oof_ev.loc[mask, 'ev_rank'] = "Neutral"
-    #_chk_ev(df_oof_ev)
-    index = mask
-    #pd.set_option('display.max_columns', None)
-    #pd.set_option('display.max_rows', None)
-    #print(df_shap["1:Credit"].loc[index])
-    
-    import matplotlib.pyplot as plt
+    # --- フィルター ---
+    #df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
 
-    # 1. 日付順に並び替える
-    sp500_ret = df_daily["^GSPC"].pct_change().dropna().rename("sp500_ret")
-    df_oof_ev = df_oof_ev.join(sp500_ret, how='left')
-    df_bt = df_oof_ev.sort_index().copy()
+    # --- 結果を確認 ---
+    #_chk_ev_hist(df_oof_ev)
+    #_chk_accuracy(df_oof_all)
+    _chk_ev(df_oof_ev)
 
-    # 2. ベンチマーク（Buy & Hold）の日次リターン
-    df_bt['return_benchmark'] = sp500_ret
-
-    # 3. RTM戦略（防御特化）の日次リターン
-    # モデルが「CRITICAL」または「High Risk」と判定した日はポジションを0（現金）にする
-    danger_ranks = ['CRITICAL', 'High Risk']
-    df_bt['return_strategy'] = np.where(
-        df_bt['ev_rank'].isin(danger_ranks), 
-        0.0,                        # 危険な日はノーポジ（現金退避）
-        df_bt['sp500_ret']   # 安全な日は市場の1日リターンに乗る
-    )
-
-    # 4. 累積リターン（資産カーブ）の計算
-    # 欠損値(NaN)を0で埋めてから複利計算
-    df_bt['cum_benchmark'] = (1 + df_bt['sp500_ret'].fillna(0)).cumprod()
-    df_bt['cum_strategy']  = (1 + df_bt['return_strategy'].fillna(0)).cumprod()
-
-    # 5. グラフの描画
-    plt.figure(figsize=(12, 6))
-    plt.plot(df_bt.index, df_bt['cum_benchmark'], label='Buy & Hold', color='gray', alpha=0.7)
-    plt.plot(df_bt.index, df_bt['cum_strategy'], label='RTM Strategy (Defense)', color='red', linewidth=2)
-
-    plt.title('Cumulative Return: RTM Strategy vs Buy & Hold (Daily Compounding)')
-    plt.xlabel('Date')
-    plt.ylabel('Cumulative Growth (1.0 = Initial Capital)')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-    # --- パフォーマンスの確認 ---
-    print("=== パフォーマンス比較（最終結果） ===")
-    print(f"Buy & Hold 最終資産 : {df_bt['cum_benchmark'].iloc[-1]:.2f} 倍")
-    print(f"RTM Strategy 最終資産: {df_bt['cum_strategy'].iloc[-1]:.2f} 倍")
-    
-    
-    
-    rescue_mask = (df_oof_ev['ev_rank_raw'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] > 1.0)
-
-    # 2. 確率の書き換え
-    # risk_sum を 0.5 (Neutralのド真ん中) に着地させる
-    df_oof_ev.loc[rescue_mask, 'prob_1.0'] = 0.25  # Creditリスクを中程度に抑制
-    df_oof_ev.loc[rescue_mask, 'prob_2.0'] = 0.25  # Bondリスクを中程度に抑制
-    df_oof_ev.loc[rescue_mask, 'prob_3.0'] = 0.50  # Neutral確率を50%確保
-
-    # 3. risk_sum の更新
-    df_oof_ev.loc[rescue_mask, 'risk_sum'] = 0.50
-    
-    
-    
-    
-    
-    
-    
-
-    # 可視化
-    """_ = plot_driver_trajectory(
-        df_oof_all, df_daily["^GSPC"].pct_change().dropna(),
-        ["1:Credit", "2:Bond", "3:Mix"],
-        start_date="2010-01-01", end_date="2026-01-01"
-        )"""
-
-    # --- 学習モデルリファイン --
-    """df_prob = _apply_probability_refinement(df_oof_all, df_shap, df_features)"""
-
-    # 可視化
+    # --- バックテスト ---
+    #_back_test(df_daily, df_oof_ev)
     """_ = plot_driver_trajectory(
         df_prob, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],
         start_date="2010-01-01", end_date="2026-01-01"
         )"""
-
-
-
 
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
@@ -569,8 +494,223 @@ def _analysis_label(df, df_daily):
     plot_driver_soft_label(df, df_daily, start_date="2024-01-01", end_date="2026-02-01")
 
 ########################################################
-# AIの解釈修正
+# フィルタ -　AI 解釈の微修正
 ########################################################
+def _divergence_filter(df_oof_ev, df_driver, df_oof_all):
+
+    # evラベルの修正
+    df_oof_ev = df_oof_ev.join(df_driver[[
+        'Credit_Equity_Divergence',
+        'Equity_Gold_Ratio_zscore',
+        'VVIX_z252'
+        ]], how='left')
+
+    df_oof_ev['ev_rank'] = df_oof_ev['ev_rank'].astype(str)
+    #mask_rescue = (
+    #    (df_oof_ev['ev_rank'] == 'CRITICAL') &
+    #    (df_oof_ev['Credit_Equity_Divergence'] <= 1.0)
+    #)
+    mask_rescue = (
+        (df_oof_ev['ev_rank'] == 'CRITICAL') & (
+            (df_oof_ev['Equity_Gold_Ratio_zscore'] <= 0.5) | # 株が金より明らかに強い（救済）
+            (df_oof_ev['VVIX_z252'] >= 0.2)                  # オプション市場が冷静（救済）
+        )
+    )
+
+    df_oof_ev.loc[mask_rescue, 'ev_rank'] = "Neutral"
+    df_oof_ev = df_oof_ev.drop(columns=[
+        'Credit_Equity_Divergence', 'Equity_Gold_Ratio_zscore', 'VVIX_z252'])
+
+    # 確率の修正
+    df_oof_all.loc[mask_rescue, '1:Credit'] = 0.25  # Creditリスクを中程度に抑制
+    df_oof_all.loc[mask_rescue, '2:Bond'] = 0.25  # Bondリスクを中程度に抑制
+    df_oof_all.loc[mask_rescue, '3:Mix'] = 0.50  # Neutral確率を50%確保
+    df_oof_ev.loc[mask_rescue, 'risk_sum'] = 0.50
+
+    return df_oof_ev, df_oof_all
+
+########################################################
+# 実装確認・デバッグ
+########################################################
+def check_nan_time(df, date:str="2006-01-01"):
+    df_s = df.apply(pd.Series.first_valid_index)
+    df_e = df.apply(pd.Series.last_valid_index)
+    print("")
+    print("--- Nanの数 ---")
+    print(df.isna().sum())
+    print("")
+    print("--- " + date + "以降でデータが入っている最初の日付 ---")
+    print(df_s[df_s > date])
+    print("")
+    print("--- データが終わっている日付 ---")
+    print(df_e)
+
+########################################################
+# モデル分析・検証
+########################################################
+
+def _da_CRITICAL(df_oof_all, df_oof_ev, df_shap, df_driver):
+    critical_df = df_oof_ev[df_oof_ev['ev_rank'] == 'CRITICAL'].copy()
+    critical_df = critical_df.join(df_oof_all[["1:Credit","2:Bond","3:Mix"]])
+    #print(critical_df)
+
+    rebound_df = critical_df[critical_df['actual_return'] > 0]
+    hit_df = critical_df[critical_df['actual_return'] <= 0]
+
+    print(f"=== CRITICAL 58日間 の内訳分析 ===")
+    print(f"リバウンド日: {len(rebound_df)}日 / 的中日: {len(hit_df)}日")
+    print("-" * 40)
+
+    for name, target in [("リバウンド", rebound_df), ("的中", hit_df)]:
+        if not target.empty:
+            # 予測確率のカラム名はモデルの labels 指定に基づきます
+            # 一般的には 'prob_1.0', 'prob_2.0' 等
+            p_credit = target['1:Credit'].mean()
+            p_bond   = target['2:Bond'].mean()
+            print(f"【{name}】の平均確率 -> Credit: {p_credit:.3f} / Bond: {p_bond:.3f}")
+
+    # 2. どちらのレジュームが「ノイズ」を呼んでいるか？
+    if rebound_df['2:Bond'].mean() > rebound_df['1:Credit'].mean():
+        print("\n[診断] リバウンドは主に『Bond（金利急変）』由来で発生しています。")
+    else:
+        print("\n[診断] リバウンドは主に『Credit（スプレッド拡大）』由来で発生しています。")
+    # リバウンド日 (rebound_df) のインデックスを使って SHAP値を抽出
+    rebound_indices = rebound_df.index
+    rebound_shap = df_shap["1:Credit"].loc[rebound_indices]
+
+    print("\n=== リバウンドを誘発した特徴量 Top 5 (SHAP平均) ===")
+    # 各特徴量の絶対値平均（または実数平均）を算出し、リスクを押し上げた犯人を探す
+    # ※クラスごとのSHAPがある場合は、Credit/BondそれぞれのSHAPを見てください
+    print(rebound_shap.mean().sort_values(ascending=False).head(5))
+
+def _da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver):
+    df_oof_ev = df_oof_ev.join(df_driver, how='left')
+    mask_target = (df_oof_ev['ev_rank'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] <= 1.0)
+    mask_rebound = (df_oof_ev['ev_rank'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] > 1.0)
+    features = [
+        'VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
+        'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
+        'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
+        'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
+        'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'
+        ]
+    stats_target = df_oof_ev.loc[mask_target, features].describe().T
+    stats_rebound = df_oof_ev.loc[mask_rebound, features].describe().T
+    
+    comparison = stats_target[['mean', '50%']].join(
+        stats_rebound[['mean', '50%']], 
+        lsuffix='_Target(21d)', 
+        rsuffix='_Rebound(37d)'
+    )
+    comparison['diff_mean'] = comparison['mean_Target(21d)'] - comparison['mean_Rebound(37d)']
+    print("=== 的中(21日) vs リバウンド(37日) 特徴量比較レポート ===")
+    print(comparison.sort_values('diff_mean', key=abs, ascending=False))
+########################################################
+# 結果・確認
+########################################################
+def _chk_ev_hist(df_oof_ev):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    # 1. 基本統計量の確認（平均、最小、最大、四分位数）
+    print("=== risk_sum の基本統計量 ===")
+    print(df_oof_ev['risk_sum'].describe())
+
+    plt.figure(figsize=(10, 6))
+    sns.histplot(df_oof_ev['risk_sum'], bins=50, kde=True, color='royalblue')
+    plt.title('Distribution of Risk Sum (Credit + Bond Probability)')
+    plt.xlabel('Risk Sum Value')
+    plt.ylabel('Frequency')
+    plt.grid(axis='y', alpha=0.3)
+    plt.axvline(x=0.5, color='red', linestyle='--', label='Threshold 0.5')
+    plt.legend()
+    plt.show()
+
+def _chk_accuracy(df_oof_all):
+    df_prob = df_oof_all[["1:Credit", "2:Bond", "3:Mix"]]
+    df_prob['dominant_regime'] = df_prob.idxmax(axis=1).str.split(':').str[0].astype(int)
+    teacher = df_oof_all["actual_regime"]
+    ai = df_prob["dominant_regime"]
+    teacher, ai = teacher.align(ai, join="inner")
+
+    from sklearn.metrics import classification_report,confusion_matrix
+    print("\nAccuracyの結果レポート")
+    print(classification_report(teacher, ai))
+    print(confusion_matrix(teacher, ai))
+
+def _chk_ev(df_oof_ev):
+    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
+    print("\n期待値の結果レポート")
+    print(ev_summary.reindex(['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL']))
+
+########################################################
+# バックテスト
+########################################################
+def _back_test(df_daily, df_oof_ev):
+    import matplotlib.pyplot as plt
+    # 1. データ準備とラグの処理
+    sp500_ret = df_daily["^GSPC"].pct_change().dropna().rename("sp500_ret")
+    df_bt = df_oof_ev.join(sp500_ret, how='left').sort_index().copy()
+
+    # --- 重要：シグナルの1日ラグ（Execution Lag） ---
+    lag = 5
+
+    # 前日の終値で出た判定（ev_rank）を、今日のリターン（sp500_ret）に適用する
+    df_bt['signal'] = df_bt['ev_rank'].shift(lag)
+
+    # 2. 戦略リターンの計算
+    danger_ranks = ['CRITICAL', 'High Risk'] # まずはCRITICALのみ
+    
+    # 昨日のシグナルがCRITICALなら、今日のリターンは0（現金退避）
+    df_bt['return_strategy'] = np.where(
+        df_bt['signal'].isin(danger_ranks),
+        0.0,
+        df_bt['sp500_ret']
+    )
+
+    # 3. 累積リターンの計算
+    df_bt['cum_benchmark'] = (1 + df_bt['sp500_ret'].fillna(0)).cumprod()
+    df_bt['cum_strategy']  = (1 + df_bt['return_strategy'].fillna(0)).cumprod()
+
+    # 4. パフォーマンス・メトリクスの算出（ドローダウンの確認）
+    def calc_mdd(cum_series):
+        return (cum_series / cum_series.cummax() - 1).min()
+
+    mdd_bench = calc_mdd(df_bt['cum_benchmark'])
+    mdd_strat = calc_mdd(df_bt['cum_strategy'])
+
+    print(f"=== 現実的バックテスト結果 ({lag}日ラグ) ===")
+    print(f"Buy & Hold    最終: {df_bt['cum_benchmark'].iloc[-1]:.2f}倍 / MDD: {mdd_bench:.1%}")
+    print(f"RTM Strategy  最終: {df_bt['cum_strategy'].iloc[-1]:.2f}倍 / MDD: {mdd_strat:.1%}")
+
+    # 5. 可視化
+    plt.figure(figsize=(12, 6))
+    plt.plot(df_bt.index, df_bt['cum_benchmark'], label='Buy & Hold', color='gray', alpha=0.5)
+    plt.plot(df_bt.index, df_bt['cum_strategy'], label='RTM Strategy (Shield)', color='red', linewidth=2)
+    plt.title('Realistic Backtest: Signal Lag 1-day')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.show()
+
+# ------------------------------------------------------
+def _da_miss_credit_mix(df_oof_all,df_shap,df_driver):
+    periods = [
+        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
+        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
+        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
+        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
+    ]
+    for start, end in periods:
+        label="1:Credit"
+        shap = df_shap[label].loc[start:end]
+        top10_shap = shap.mean().sort_values(ascending=False).head(5)
+        VIX_z252 = df_driver.loc[start:end, "VIX_z252"].mean()
+
+        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
+        print(df_oof_all.loc[start:end].mean().round(2))
+        print(f"\n{top10_shap}")
+        print(f"\nVIX_z252の平均値: {VIX_z252}")
+
 def _apply_probability_refinement(df_prob, df_shap, df_features):
 
     refined_prob = df_prob.copy()
@@ -661,116 +801,3 @@ def _refine_mode_bond_vol_noise(df_prob, df_shap, df_features):
     print(f"Mode B (Bond Vol Noise) applied to: {mask.sum()} samples")
 
     return df_prob
-
-########################################################
-# 実装確認・デバッグ
-########################################################
-def check_nan_time(df, date:str="2006-01-01"):
-    df_s = df.apply(pd.Series.first_valid_index)
-    df_e = df.apply(pd.Series.last_valid_index)
-    print("")
-    print("--- Nanの数 ---")
-    print(df.isna().sum())
-    print("")
-    print("--- " + date + "以降でデータが入っている最初の日付 ---")
-    print(df_s[df_s > date])
-    print("")
-    print("--- データが終わっている日付 ---")
-    print(df_e)
-
-########################################################
-# 分析・検証
-########################################################
-
-def _da_CRITICAL(df_oof_all, df_oof_ev, df_shap):
-    critical_df = df_oof_ev[df_oof_ev['ev_rank'] == 'CRITICAL'].copy()
-    critical_df = critical_df.join(df_oof_all[["1:Credit","2:Bond","3:Mix"]])
-    #print(critical_df)
-
-    rebound_df = critical_df[critical_df['actual_return'] > 0]
-    hit_df = critical_df[critical_df['actual_return'] <= 0]
-
-    print(f"=== CRITICAL 58日間 の内訳分析 ===")
-    print(f"リバウンド日: {len(rebound_df)}日 / 的中日: {len(hit_df)}日")
-    print("-" * 40)
-
-    for name, target in [("リバウンド", rebound_df), ("的中", hit_df)]:
-        if not target.empty:
-            # 予測確率のカラム名はモデルの labels 指定に基づきます
-            # 一般的には 'prob_1.0', 'prob_2.0' 等
-            p_credit = target['1:Credit'].mean()
-            p_bond   = target['2:Bond'].mean()
-            print(f"【{name}】の平均確率 -> Credit: {p_credit:.3f} / Bond: {p_bond:.3f}")
-
-    # 2. どちらのレジュームが「ノイズ」を呼んでいるか？
-    if rebound_df['2:Bond'].mean() > rebound_df['1:Credit'].mean():
-        print("\n[診断] リバウンドは主に『Bond（金利急変）』由来で発生しています。")
-    else:
-        print("\n[診断] リバウンドは主に『Credit（スプレッド拡大）』由来で発生しています。")
-    # リバウンド日 (rebound_df) のインデックスを使って SHAP値を抽出
-    rebound_indices = rebound_df.index
-    rebound_shap = df_shap["1:Credit"].loc[rebound_indices]
-
-    print("\n=== リバウンドを誘発した特徴量 Top 5 (SHAP平均) ===")
-    # 各特徴量の絶対値平均（または実数平均）を算出し、リスクを押し上げた犯人を探す
-    # ※クラスごとのSHAPがある場合は、Credit/BondそれぞれのSHAPを見てください
-    print(rebound_shap.mean().sort_values(ascending=False).head(5))
-
-########################################################
-# 結果・確認
-########################################################
-def chk_ev_hist(df_oof_ev):
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    # 1. 基本統計量の確認（平均、最小、最大、四分位数）
-    print("=== risk_sum の基本統計量 ===")
-    print(df_oof_ev['risk_sum'].describe())
-
-    plt.figure(figsize=(10, 6))
-    sns.histplot(df_oof_ev['risk_sum'], bins=50, kde=True, color='royalblue')
-    plt.title('Distribution of Risk Sum (Credit + Bond Probability)')
-    plt.xlabel('Risk Sum Value')
-    plt.ylabel('Frequency')
-    plt.grid(axis='y', alpha=0.3)
-    plt.axvline(x=0.5, color='red', linestyle='--', label='Threshold 0.5')
-    plt.legend()
-    plt.show()
-
-def _chk_accuracy(df_prob):
-    df_prob = df_prob[["1:Credit", "2:Bond", "3:Mix"]]
-    df_prob['dominant_regime'] = df_prob.idxmax(axis=1).str.split(':').str[0].astype(int)
-    teacher = df_prob["actual_regime"]
-    ai = df_prob["dominant_regime"]
-    teacher, ai = teacher.align(ai, join="inner")
-
-    from sklearn.metrics import classification_report,confusion_matrix
-    print("\nAccuracyの結果レポート")
-    print(classification_report(teacher, ai))
-    print(confusion_matrix(teacher, ai))
-
-def _chk_ev(df_oof_ev):
-    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
-    print("\n期待値の結果レポート")
-    print(ev_summary.reindex(['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL']))
-
-
-
-# ------------------------------------------------------
-def _da_miss_credit_mix(df_oof_all,df_shap,df_driver):
-    periods = [
-        ("2013-05-24","2013-09-17"),("2013-10-02","2013-10-17"),
-        ("2013-12-13","2013-12-18"),("2014-01-24","2014-02-10"),
-        ("2015-03-04","2015-03-18"),("2017-01-04","2017-01-11"),
-        ("2017-01-30","2017-02-13"),("2017-09-27","2017-10-02"),
-    ]
-    for start, end in periods:
-        label="1:Credit"
-        shap = df_shap[label].loc[start:end]
-        top10_shap = shap.mean().sort_values(ascending=False).head(5)
-        VIX_z252 = df_driver.loc[start:end, "VIX_z252"].mean()
-
-        print(f"\nラベル{label}の{start}～{end}の平均確率と平均寄与度トップ5、およびVIX_z252の平均値")
-        print(df_oof_all.loc[start:end].mean().round(2))
-        print(f"\n{top10_shap}")
-        print(f"\nVIX_z252の平均値: {VIX_z252}")
