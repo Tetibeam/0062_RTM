@@ -9,7 +9,7 @@ from batch.modeling.learning import(
     )
 from batch.modeling.visualize import (
     plot_driver_soft_label,
-    plot_driver_trajectory,
+    plot_driver_diagnostic_report,
     plot_index
     )
 
@@ -123,25 +123,27 @@ def get_driver_beta(df_index, df_sp500):
 
     # --- 一時分析 ---
     df_driver = df_features.join(df_label["next_20d_ret_sp500"])
+
+    df_bt = df_oof_ev["ev_rank"].to_frame().join(df_daily["^GSPC"].pct_change().ffill().rename("sp500_ret"))
+    df_oof = df_oof_all[["1:Credit", "2:Bond", "3:Mix"]].join(df_oof_ev[["risk_sum", "expected_value"]])
+    plot_driver_diagnostic_report(df_bt, df_oof, start_date="2025-01-01", end_date="2026-02-01")
     #_da_miss_credit_mix(df_oof_all,df_shap,df_driver)
 
     #_da_CRITICAL(df_oof_all, df_oof_ev, df_shap)
     #_da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver)
     #_da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver)
 
-    #
-
     # --- フィルター ---
-    df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
-    df_oof_ev, df_oof_all = _high_risk_reselection_filter(df_oof_ev, df_driver, df_oof_all)
+    #df_oof_ev, df_oof_all = _divergence_filter(df_oof_ev, df_driver, df_oof_all)
+    #df_oof_ev, df_oof_all = _high_risk_reselection_filter(df_oof_ev, df_driver, df_oof_all)
 
     # --- 結果を確認 ---
     #_chk_ev_hist(df_oof_ev)
     #_chk_accuracy(df_oof_all)
-    _chk_ev(df_oof_ev)
+    #_chk_ev(df_oof_ev)
 
     # --- バックテスト ---
-    _back_test(df_daily, df_oof_ev)
+    #_back_test(df_daily, df_oof_ev)
     """_ = plot_driver_trajectory(
         df_prob, df_daily["^GSPC"].pct_change().dropna(),
         ["1:Credit", "2:Bond", "3:Mix"],

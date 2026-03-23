@@ -352,6 +352,136 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
     # 解析用に出力データフレームの列を整理して返す
     return df_probs[['actual_regime', 'dominant_regime']]
 
+def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
+
+    # 1. 表示期間のデータ抽出
+    df_plot = df_bt.loc[start_date:end_date].copy()
+    df_probs = df_oof.loc[start_date:end_date].copy()
+
+    # 理論的期待値をプロット用DFに統合（df_oofに格納されている想定）
+    if 'expected_value' in df_probs.columns:
+        df_plot['expected_value'] = df_probs['expected_value']
+    else:
+        # 万が一無い場合のフォールバック（検証用）
+        print("Warning: 'expected_value' column not found in df_oof.")
+        df_plot['expected_value'] = 0
+
+    # 20日リターンの累積ではなく、価格推移を表示用に使用
+    df_plot['cum_bench'] = (1 + df_plot['sp500_ret']).cumprod()
+
+    # 2. カラーパレットの定義
+    rank_colors = {
+        'Safe': 'rgba(0, 250, 154, 0.15)',      # 緑
+        'Neutral': 'rgba(30, 144, 255, 0.1)',   # 青
+        'Caution': 'rgba(255, 215, 0, 0.15)',   # 黄
+        'High Risk': 'rgba(255, 140, 0, 0.2)',  # 橙
+        'CRITICAL': 'rgba(255, 0, 0, 0.25)'     # 赤
+    }
+
+    driver_labels = ['1:Credit', '2:Bond', '3:Mix']
+    driver_colors = ['rgba(178, 34, 34, 0.8)', 'rgba(255, 0, 255, 0.8)', 'rgba(100, 100, 100, 0.6)']
+    driver_names = ['Credit (Danger)', 'Bond (Instability)', 'Mix/Neutral']
+
+    # 3. サブプロットの設定
+    fig = make_subplots(
+        rows=3, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.33, 0.33, 0.34],
+        subplot_titles=(
+            "<b>1. MARKET CONTEXT: S&P500 & ev_rank</b>", 
+            "<b>2. MACRO GRAVITY: Theoretical Expected Value (EV)</b>", 
+            "<b>3. DRIVER PROBABILITIES: Multi-Layer Gravity</b>"
+        )
+    )
+
+    # 背景シェイプ作成関数
+    def add_rank_bg(fig, target_row, y_range):
+        df_plot['rank_change'] = df_plot['ev_rank'] != df_plot['ev_rank'].shift()
+        df_plot['rank_group'] = df_plot['rank_change'].cumsum()
+
+        for _, group in df_plot.groupby('rank_group'):
+            start_dt = group.index[0]
+            end_dt = group.index[-1]
+            rank = group['ev_rank'].iloc[0]
+            if rank in rank_colors:
+                fig.add_shape(
+                    type="rect", xref="x", yref=f"y{target_row}",
+                    x0=start_dt, x1=end_dt, y0=y_range[0], y1=y_range[1],
+                    fillcolor=rank_colors[rank], line_width=0, layer="below", row=target_row, col=1
+                )
+
+    # --- 上段: S&P500価格 ---
+    fig.add_trace(go.Scatter(
+        x=df_plot.index, y=df_plot['cum_bench'], 
+        name="S&P500", line=dict(color='#E0E0E0', width=1.5)
+    ), row=1, col=1)
+    add_rank_bg(fig, 1, [df_plot['cum_bench'].min()*0.9, df_plot['cum_bench'].max()*1.1])
+
+    # --- 中段: 理論的期待値 (Expected Value) ---
+    fig.add_trace(go.Scatter(
+        x=df_plot.index, y=df_plot['expected_value'], 
+        name="Theoretical EV", 
+        line=dict(color='#FFD700', width=2), # 重力を表す「金（重金属）」の色
+        hovertemplate='%{y:.4f}'
+    ), row=2, col=1)
+
+    # ゼロライン（基準線）を追加
+    fig.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.3)", row=2, col=1)
+
+    # 背景のy軸範囲をEVのレンジに合わせる
+    ev_min = df_plot['expected_value'].min()
+    ev_max = df_plot['expected_value'].max()
+    padding = (ev_max - ev_min) * 0.1
+    add_rank_bg(fig, 2, [ev_min - padding, ev_max + padding])
+
+    # --- 下段: Driver確率（スタックエリア） ---
+    for i, (col, name) in enumerate(zip(driver_labels, driver_names)):
+        fig.add_trace(go.Scatter(
+            x=df_probs.index, y=df_probs[col],
+            name=name, stackgroup='one',
+            line=dict(width=0), fillcolor=driver_colors[i],
+            hovertemplate='%{y:.1%}'
+        ), row=3, col=1)
+
+    # 下段背景（Dominant Driver）
+    df_probs['dominant'] = df_probs[driver_labels].idxmax(axis=1)
+    df_probs['dom_change'] = df_probs['dominant'] != df_probs['dominant'].shift()
+    df_probs['dom_group'] = df_probs['dom_change'].cumsum()
+    for _, group in df_probs.groupby('dom_group'):
+        dom = group['dominant'].iloc[0]
+        color_idx = driver_labels.index(dom)
+        bg_color = driver_colors[color_idx].replace('0.8', '0.05').replace('0.6', '0.05')
+        fig.add_shape(
+            type="rect", xref="x", yref="y3",
+            x0=group.index[0], x1=group.index[-1], y0=0, y1=1,
+            fillcolor=bg_color, line_width=0, layer="below", row=3, col=1
+        )
+
+    # --- レイアウト調整 ---
+    fig.update_layout(
+        #template="plotly_dark",
+        title=dict(
+            text=f"<b>DRIVER PROFILER DIAGNOSTIC REPORT (EV Focus)</b><br><span style='font-size:12px; color:#A0A0A0;'>Analysis Period: {start_date} to {end_date}</span>",
+            x=0.05, y=0.97
+        ),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor='#0a0a0a',
+        paper_bgcolor='#0a0a0a',
+        margin=dict(l=10,r=10,t=80,b=10,pad=10)
+    )
+
+    fig.update_yaxes(gridcolor='#222', zeroline=False)
+    fig.update_yaxes(title=dict(text="Macro Gravity (EV)"), tickformat=".2f", row=2, col=1)
+    fig.update_yaxes(title=dict(text="Probabilities"), tickformat=".0%", range=[0, 1], row=3, col=1)
+    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False, tickfont=dict(size=12),)
+
+    fig.show(config=dict(displayModeBar=False))
+
+
+
+
 
 ########################################################
 # Regime
