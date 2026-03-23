@@ -122,15 +122,15 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_ev = pd.read_parquet("diver_oof_ev.parquet", engine="pyarrow")
 
     # --- 一時分析 ---
-    df_driver = df_features.join(df_label["next_20d_ret_sp500"])
+    #df_bt = df_oof_ev["ev_rank"].to_frame().join(df_daily["^GSPC"].pct_change().ffill().rename("sp500_ret"))
+    #df_oof = df_oof_all[["1:Credit", "2:Bond", "3:Mix"]].join(df_oof_ev[["risk_sum", "expected_value"]])
+    #plot_driver_diagnostic_report(df_bt, df_oof, start_date="2008-01-01", end_date="2026-02-01")
 
-    df_bt = df_oof_ev["ev_rank"].to_frame().join(df_daily["^GSPC"].pct_change().ffill().rename("sp500_ret"))
-    df_oof = df_oof_all[["1:Credit", "2:Bond", "3:Mix"]].join(df_oof_ev[["risk_sum", "expected_value"]])
-    plot_driver_diagnostic_report(df_bt, df_oof, start_date="2025-01-01", end_date="2026-02-01")
+    df_driver = df_features.join(df_label["next_20d_ret_sp500"])
     #_da_miss_credit_mix(df_oof_all,df_shap,df_driver)
 
-    #_da_CRITICAL(df_oof_all, df_oof_ev, df_shap)
-    #_da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver)
+    _da_CRITICAL_shap(df_oof_all, df_oof_ev, df_shap, df_driver)
+    #_da_CRITICAL_filter(df_oof_all, df_oof_ev, df_shap, df_driver)
     #_da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver)
 
     # --- フィルター ---
@@ -592,41 +592,81 @@ def check_nan_time(df, date:str="2006-01-01"):
 # モデル分析・検証
 ########################################################
 
-def _da_CRITICAL(df_oof_all, df_oof_ev, df_shap, df_driver):
+def _da_CRITICAL_shap(df_oof_all, df_oof_ev, df_shap, df_driver):
+    # ------------ 1. 分類 -------------
+    # 特徴量列を追加
+    df_oof_ev = df_oof_ev.join(df_driver, how='left')
+
+    # CRITICALのみ
     critical_df = df_oof_ev[df_oof_ev['ev_rank'] == 'CRITICAL'].copy()
     critical_df = critical_df.join(df_oof_all[["1:Credit","2:Bond","3:Mix"]])
     #print(critical_df)
 
+    # 反発と下落に分ける
     rebound_df = critical_df[critical_df['actual_return'] > 0]
     hit_df = critical_df[critical_df['actual_return'] <= 0]
 
-    print(f"=== CRITICAL 58日間 の内訳分析 ===")
-    print(f"リバウンド日: {len(rebound_df)}日 / 的中日: {len(hit_df)}日")
-    print("-" * 40)
+    # 反発の中でも周辺のrisk_sumが低い期間を抽出 = AIのミス
+    pd.set_option('display.max_rows', None)
+    print(rebound_df)
+    print(hit_df)
+    rebound_df = rebound_df.loc["2023-10-01":"2023-10-31"]
+    print("反発の中でも周辺のrisk_sumが低くマクロが壊れていない可能性が高い期間は、2023-10-01-2023-10-31")
 
+    # ------------ 2. 犯人 -------------
+    # 反発と下落でそれぞれCreditとBondの確率平均を出す
     for name, target in [("リバウンド", rebound_df), ("的中", hit_df)]:
         if not target.empty:
-            # 予測確率のカラム名はモデルの labels 指定に基づきます
-            # 一般的には 'prob_1.0', 'prob_2.0' 等
             p_credit = target['1:Credit'].mean()
             p_bond   = target['2:Bond'].mean()
             print(f"【{name}】の平均確率 -> Credit: {p_credit:.3f} / Bond: {p_bond:.3f}")
 
     # 2. どちらのレジュームが「ノイズ」を呼んでいるか？
     if rebound_df['2:Bond'].mean() > rebound_df['1:Credit'].mean():
-        print("\n[診断] リバウンドは主に『Bond（金利急変）』由来で発生しています。")
+        print("\n[診断] 反発は主に『Bond（金利急変）』由来で発生しています。")
     else:
-        print("\n[診断] リバウンドは主に『Credit（スプレッド拡大）』由来で発生しています。")
-    # リバウンド日 (rebound_df) のインデックスを使って SHAP値を抽出
+        print("\n[診断] 反発は主に『Credit（スプレッド拡大）』由来で発生しています。")
+
+    # ------------ 3. SHAP -------------
     rebound_indices = rebound_df.index
     rebound_shap = df_shap["1:Credit"].loc[rebound_indices]
+    hit_indices = hit_df.index
+    hit_shap = df_shap["1:Credit"].loc[hit_indices]
 
-    print("\n=== リバウンドを誘発した特徴量 Top 5 (SHAP平均) ===")
-    # 各特徴量の絶対値平均（または実数平均）を算出し、リスクを押し上げた犯人を探す
-    # ※クラスごとのSHAPがある場合は、Credit/BondそれぞれのSHAPを見てください
+    print("\n=== 反発を誘発した特徴量 Top 5 (SHAP平均) ===")
     print(rebound_shap.mean().sort_values(ascending=False).head(5))
+    print("\n=== 下落を誘発した特徴量 Top 5 (SHAP平均) ===")
+    print(hit_shap.mean().sort_values(ascending=False).head(5))
 
-def _da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver):
+    # ------------ 4. 特徴量 -------------
+    features_to_analyze = [
+        'VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
+        'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
+        'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
+        'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
+        'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'
+        ]
+    stats_rebound = critical_df.loc[rebound_indices, features_to_analyze].describe().T
+    stats_hit    = critical_df.loc[hit_indices, features_to_analyze].describe().T
+
+    analysis = pd.DataFrame({
+        'mean_hit (Win)': stats_hit['mean'],
+        'mean_rebound(Loss)': stats_rebound['mean'],
+        'median_hit': stats_hit['50%'],
+        'median_rebound': stats_rebound['50%']
+    })
+
+    # 差分を計算。この値が大きいほど、その指標は見分ける武器になる
+    analysis['diff_mean'] = analysis['mean_hit (Win)'] - analysis['mean_rebound(Loss)']
+
+    print(f"=== CRITICAL内部解剖レポート ===")
+    print(f"下落(リターン正): {len(hit_indices)} 日")
+    print(f"反発(リターン負): {len(rebound_indices)} 日")
+    print("-" * 50)
+    print(analysis.sort_values('diff_mean', key=abs, ascending=False))
+
+def _da_CRITICAL_filter(df_oof_all, df_oof_ev, df_shap, df_driver):
+
     df_oof_ev = df_oof_ev.join(df_driver, how='left')
     mask_target = (df_oof_ev['ev_rank'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] <= 1.0)
     mask_rebound = (df_oof_ev['ev_rank'] == 'CRITICAL') & (df_oof_ev['Credit_Equity_Divergence'] > 1.0)
@@ -650,44 +690,7 @@ def _da_CRITICAL_detail(df_oof_all, df_oof_ev, df_shap, df_driver):
     print(comparison.sort_values('diff_mean', key=abs, ascending=False))
 
 def _da_High_Risk(df_oof_all, df_oof_ev, df_shap, df_driver):
-    df_oof_ev = df_oof_ev.join(df_driver, how='left')
-    # 1. High Risk群（382日）を抽出
-    df_hr = df_oof_ev[df_oof_ev['ev_rank'] == 'High Risk'].copy()
-
-    # 2. 20日後のリターン（教師ラベルの元データ）に基づいて「お宝」と「ゴミ」に分割
-    # ※ next_20d_ret_sp500 などのリターンカラムを使用
-    mask_otakara = df_hr['next_20d_ret_sp500'] > 0
-    mask_gomi    = df_hr['next_20d_ret_sp500'] <= 0
-
-    # 3. 比較する特徴量の厳選セット
-    features_to_analyze = [
-        'VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
-        'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
-        'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
-        'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
-        'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'
-        ]
-
-    # 4. 統計量の算出
-    stats_otakara = df_hr.loc[mask_otakara, features_to_analyze].describe().T
-    stats_gomi    = df_hr.loc[mask_gomi, features_to_analyze].describe().T
-
-    # 5. 比較レポートの作成
-    hr_analysis = pd.DataFrame({
-        'mean_Otakara(Win)': stats_otakara['mean'],
-        'mean_Gomi(Loss)': stats_gomi['mean'],
-        'median_Otakara': stats_otakara['50%'],
-        'median_Gomi': stats_gomi['50%']
-    })
-
-    # 差分（お宝 - ゴミ）を計算。この値が大きいほど、その指標は「買い時」を見分ける武器になる
-    hr_analysis['diff_mean'] = hr_analysis['mean_Otakara(Win)'] - hr_analysis['mean_Gomi(Loss)']
-
-    print(f"=== High Riskバケツ（n=382）内部解剖レポート ===")
-    print(f"お宝(リターン正): {mask_otakara.sum()} 日")
-    print(f"ゴミ(リターン負): {mask_gomi.sum()} 日")
-    print("-" * 50)
-    print(hr_analysis.sort_values('diff_mean', key=abs, ascending=False))
+    pass
 
 ########################################################
 # 結果・確認

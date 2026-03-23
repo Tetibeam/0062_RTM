@@ -352,6 +352,7 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
     # 解析用に出力データフレームの列を整理して返す
     return df_probs[['actual_regime', 'dominant_regime']]
 
+# Driverモデル期待値＆確率
 def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
 
     # 1. 表示期間のデータ抽出
@@ -371,9 +372,9 @@ def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_da
 
     # 2. カラーパレットの定義
     rank_colors = {
-        'Safe': 'rgba(0, 250, 154, 0.15)',      # 緑
-        'Neutral': 'rgba(30, 144, 255, 0.1)',   # 青
-        'Caution': 'rgba(255, 215, 0, 0.15)',   # 黄
+        #'Safe': 'rgba(0, 250, 154, 0.15)',      # 緑
+        #'Neutral': 'rgba(30, 144, 255, 0.1)',   # 青
+        #'Caution': 'rgba(255, 215, 0, 0.15)',   # 黄
         'High Risk': 'rgba(255, 140, 0, 0.2)',  # 橙
         'CRITICAL': 'rgba(255, 0, 0, 0.25)'     # 赤
     }
