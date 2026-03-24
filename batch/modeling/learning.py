@@ -331,8 +331,8 @@ def learning_lgbm_test(
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
 
-    bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
-
+    #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
+    bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
     df_oof_ev['ev_rank'] = pd.cut(
         df_oof_ev['risk_sum'],
         bins=bins,
