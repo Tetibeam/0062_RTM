@@ -1,8 +1,186 @@
-・2013/5/24-9/17
-・2013/10/2-17
-・2013/12/13-18
-・2014/1/24-2/10
-・2015/3/4-18
-・2017/1/4-11
-・2017/1/30-2/13
-・2017/9/27-10/2
+現状
+
+Driver教師ラベルの期間:  2005-01-03 2026-02-23
+        Count  Percentage (%)
+driver
+3        3890           73.15
+2         798           15.01
+1         630           11.85
+       next_20d_ret_sp500                         next_20d_ret_tlt         next_20d_diff_hy
+                     mean     std     min     max             mean     std             mean
+driver
+1                 -0.0517  0.0580 -0.3094  0.0734           0.0260  0.0441           1.1642
+2                  0.0016  0.0385 -0.1516  0.1928          -0.0027  0.0628          -0.0472
+3                  0.0185  0.0344 -0.1564  0.2349          -0.0028  0.0271          -0.1810
+平均継続日数:
+driver
+1    10.5
+2     7.5
+3    29.5
+Name: duration, dtype: float64
+遷移マトリクス（行：現在 -> 列：次）:
+driver   1.0   2.0   3.0
+driver
+1       0.90  0.02  0.07
+2       0.03  0.87  0.11
+3       0.01  0.02  0.97
+
+特徴量のリスト: Index(['VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
+       'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
+       'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
+       'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
+       'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'],
+      dtype='str')
+
+全サンプル数: 5268
+
+=== TimeSeriesSplit ===
+
+Fold 1 | Test: 2008-09-10 ~ 2012-03-05 | Acc: 0.3630
+ => Balanced Acc: 0.3630 (Best Iter: 19)
+Fold 2 | Test: 2012-03-06 ~ 2015-08-31 | Acc: 0.4644
+ => Balanced Acc: 0.4644 (Best Iter: 518)
+Fold 3 | Test: 2015-09-01 ~ 2019-02-27 | Acc: 0.4480
+ => Balanced Acc: 0.4480 (Best Iter: 955)
+Fold 4 | Test: 2019-02-28 ~ 2022-08-22 | Acc: 0.3865
+ => Balanced Acc: 0.3865 (Best Iter: 564)
+Fold 5 | Test: 2022-08-23 ~ 2026-02-23 | Acc: 0.4361
+ => Balanced Acc: 0.4361 (Best Iter: 2516)
+
+=======================================================
+=== 学習結果 (Overall CV Performance) ===
+              precision    recall  f1-score   support
+
+         1.0       0.19      0.42      0.26       462
+         2.0       0.19      0.36      0.25       661
+         3.0       0.79      0.50      0.61      3267
+
+    accuracy                           0.47      4390
+   macro avg       0.39      0.43      0.37      4390
+weighted avg       0.63      0.47      0.52      4390
+
+
+=== 全フォールド総合の混同行列 ===
+[[ 195  101  166]
+ [ 142  239  280]
+ [ 703  922 1642]]
+
+===  Top 50 Features (CV Average Gain) ===
+Term_Premium_z252           146492.563340
+MOVE_vov                    128718.179374
+tlt_hy_ratio_z252           105910.398504
+Equity_Gold_Ratio_zscore    104413.603438
+MOVE_z252                    89941.957311
+hy_z252                      80368.058165
+Stock_Bond_Corr_zscore       74950.411146
+VVIX_z252                    69867.598608
+Credit_Equity_Divergence     57229.232997
+Term_Premium_diff5_z252      48329.711263
+VIX_z252                     37949.370650
+SOFR_vol_spike               26304.547580
+DFII10_diff5_zscore          13917.723785
+Flight_to_Safety_zscore       2862.075863
+dtype: float64
+
+=== 期待値ベース評価レポート (Expected Value Analysis) ===
+               mean    median  count
+ev_rank
+Safe       0.017124  0.018843    314
+Neutral    0.010835  0.016245   1249
+Caution    0.007942  0.015539   2398
+High Risk  0.003669  0.006756    383
+CRITICAL   0.016376  0.001138     46
+
+--------------------------------------------------------
+改良版（特徴量同じ）
+
+Driver教師ラベルの期間:  2005-01-03 2026-02-23
+        Count  Percentage (%)
+driver
+3        3954           74.35
+2         808           15.19
+1         556           10.46
+       next_20d_ret_sp500                         next_20d_ret_tlt         next_20d_diff_hy
+                     mean     std     min     max             mean     std             mean
+driver
+1                 -0.0602  0.0563 -0.3094  0.0288           0.0258  0.0438           1.2261
+2                  0.0018  0.0384 -0.1516  0.1928          -0.0016  0.0642          -0.0225
+3                  0.0183  0.0342 -0.1564  0.2349          -0.0024  0.0271          -0.1699
+平均継続日数:
+driver
+1     9.9
+2     7.5
+3    30.9
+Name: duration, dtype: float64
+遷移マトリクス（行：現在 -> 列：次）:
+driver   1.0   2.0   3.0
+driver
+1       0.90  0.03  0.08
+2       0.03  0.87  0.11
+3       0.01  0.02  0.97
+
+特徴量のリスト: Index(['VIX_z252', 'VVIX_z252', 'MOVE_z252', 'MOVE_vov', 'hy_z252',
+       'SOFR_vol_spike', 'Term_Premium_z252', 'Credit_Equity_Divergence',
+       'Term_Premium_diff5_z252', 'DFII10_diff5_zscore',
+       'Stock_Bond_Corr_zscore', 'Equity_Gold_Ratio_zscore',
+       'Flight_to_Safety_zscore', 'tlt_hy_ratio_z252'],
+      dtype='str')
+
+全サンプル数: 5268
+
+=== TimeSeriesSplit ===
+
+Fold 1 | Test: 2008-09-10 ~ 2012-03-05 | Acc: 0.3396
+ => Balanced Acc: 0.3396 (Best Iter: 199)
+Fold 2 | Test: 2012-03-06 ~ 2015-08-31 | Acc: 0.4131
+ => Balanced Acc: 0.4131 (Best Iter: 1210)
+Fold 3 | Test: 2015-09-01 ~ 2019-02-27 | Acc: 0.4755
+ => Balanced Acc: 0.4755 (Best Iter: 811)
+Fold 4 | Test: 2019-02-28 ~ 2022-08-22 | Acc: 0.3811
+ => Balanced Acc: 0.3811 (Best Iter: 1812)
+Fold 5 | Test: 2022-08-23 ~ 2026-02-23 | Acc: 0.3930
+ => Balanced Acc: 0.3930 (Best Iter: 810)
+
+=======================================================
+=== 学習結果 (Overall CV Performance) ===
+              precision    recall  f1-score   support
+
+         1.0       0.16      0.41      0.23       411
+         2.0       0.19      0.30      0.23       671
+         3.0       0.79      0.54      0.64      3308
+
+    accuracy                           0.49      4390
+   macro avg       0.38      0.42      0.37      4390
+weighted avg       0.64      0.49      0.54      4390
+
+
+=== 全フォールド総合の混同行列 ===
+[[ 167   69  175]
+ [ 162  203  306]
+ [ 737  797 1774]]
+
+===  Top 50 Features (CV Average Gain) ===
+Term_Premium_z252           171366.389952
+MOVE_vov                    119324.249384
+tlt_hy_ratio_z252           111132.427492
+Equity_Gold_Ratio_zscore    103746.910237
+hy_z252                      98167.711319
+Stock_Bond_Corr_zscore       87683.353038
+MOVE_z252                    82597.753355
+VVIX_z252                    68319.773324
+Credit_Equity_Divergence     47508.407274
+Term_Premium_diff5_z252      42480.460278
+VIX_z252                     40646.849495
+SOFR_vol_spike               15943.869327
+DFII10_diff5_zscore          15666.998240
+Flight_to_Safety_zscore       1061.155029
+dtype: float64
+
+=== 期待値ベース評価レポート (Expected Value Analysis) ===
+               mean    median  count
+ev_rank
+Safe       0.011722  0.015427    416
+Neutral    0.010289  0.015638   1462
+Caution    0.008407  0.016188   2111
+High Risk  0.009625  0.007897    346
+CRITICAL  -0.016016 -0.004325     55

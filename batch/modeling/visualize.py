@@ -129,18 +129,20 @@ def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     print(plot_df[["driver","price","next_20d_ret_sp500", "next_20d_ret_tlt", "next_20d_diff_hy"]])
     fig.show(config=dict(displayModeBar=False))
 
-def plot_driver_soft_label(df_result, df_daily, target, start_date=None, end_date=None):
+def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     """
-    ソフト・ラベル（指数減衰）の挙動を確認するための解剖用可視化
+    3つのラベル（Credit, Bond, Mix）の挙動と、
+    それぞれの指数減衰スコアの推移を可視化する解剖用関数
     """
     # 1. データのフィルタリング
     plot_df = df_result.copy()
     if start_date: plot_df = plot_df.loc[start_date:]
     if end_date: plot_df = plot_df.loc[:end_date]
 
+    # S&P500価格の再インデックス
     plot_df['price'] = df_daily['^GSPC'].reindex(plot_df.index)
 
-    # 2. サブプロットの構築 (上段: 市場コンテキスト, 下段: 減衰スコアの推移)
+    # 2. サブプロットの構築
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
@@ -149,11 +151,14 @@ def plot_driver_soft_label(df_result, df_daily, target, start_date=None, end_dat
         subplot_titles=("MARKET CONTEXT & REGIME HIGHLIGHTS", "SOFT LABEL PRECURSORS (DECAY SCORES)")
     )
 
-    # カラー設定
+    # カラーパレット設定 (1:Credit=赤系, 2:Bond=紫系, 3:Mix=青系)
     colors = {
-        0: 'rgba(30, 144, 255, 0.8)',   # Mix: Dodger Blue
-        1: 'rgba(255, 69, 0, 0.8)',  # target: Orange Red
+        1: 'rgba(255, 69, 0, 0.8)',   # Credit: Orange Red
+        2: 'rgba(186, 85, 211, 0.8)', # Bond: Medium Orchid
+        3: 'rgba(30, 144, 255, 0.8)'   # Mix: Dodger Blue
     }
+    
+    label_names = {1: '1:Credit', 2: '2:Bond', 3: '3:Mix'}
 
     # --- 上段: 背景ハイライト (Regime Background) ---
     y_min, y_max = plot_df['price'].min() * 0.95, plot_df['price'].max() * 1.05
@@ -164,7 +169,8 @@ def plot_driver_soft_label(df_result, df_daily, target, start_date=None, end_dat
 
     for _, group in plot_df.groupby('group'):
         d_val = group['driver'].iloc[0]
-        bg_color = colors[d_val].replace('0.8', '0.1')
+        # 定義外のIDが来た場合のフォールバック
+        bg_color = colors.get(d_val, 'rgba(200, 200, 200, 0.1)').replace('0.8', '0.12')
 
         fig.add_shape(
             type="rect", xref="x1", yref="y1",
@@ -181,50 +187,59 @@ def plot_driver_soft_label(df_result, df_daily, target, start_date=None, end_dat
     ), row=1, col=1)
 
     # カテゴリマーカー（下部のリボン）
-    for val, name in {0: 'Mix', 1: f'{target}'}.items():
+    for val, name in label_names.items():
         mask = plot_df['driver'] == val
+        if mask.any():
+            fig.add_trace(go.Scatter(
+                x=plot_df.index[mask], y=[y_min * 1.01] * mask.sum(),
+                mode='markers', name=name,
+                marker=dict(color=colors[val], symbol='square', size=8),
+                legendgroup=name
+            ), row=1, col=1)
+
+    # --- 下段: ソフトスコア (Smearingの内部可視化) ---
+    # Credit Scoreの描画
+    if 'credit_score' in plot_df.columns:
         fig.add_trace(go.Scatter(
-            x=plot_df.index[mask], y=[y_min * 1.01] * mask.sum(),
-            mode='markers', name=name,
-            marker=dict(color=colors[val], symbol='square', size=10),
-            legendgroup=name
-        ), row=1, col=1)
+            x=plot_df.index, y=plot_df['credit_score'],
+            name="Credit Score",
+            line=dict(color=colors[1], width=2),
+            fill='tozeroy', fillcolor=colors[1].replace('0.8', '0.1'),
+        ), row=2, col=1)
 
-    # --- 下段: ソフトスコア (The "Inside" of Smearing) ---
-    # Score (予兆の強さ)
-    fig.add_trace(go.Scatter(
-        x=plot_df.index, y=plot_df['score'],
-        name=f"{target} Prob (Decay)",
-        line=dict(color=colors[1.0], width=2.5),
-        fill='tozeroy', fillcolor=colors[1.0].replace('0.8', '0.15'),
-    ),row=2, col=1)
+    # Bond Scoreの描画
+    if 'bond_score' in plot_df.columns:
+        fig.add_trace(go.Scatter(
+            x=plot_df.index, y=plot_df['bond_score'],
+            name="Bond Score",
+            line=dict(color=colors[2], width=2),
+            fill='tozeroy', fillcolor=colors[2].replace('0.8', '0.1'),
+        ), row=2, col=1)
 
-    # 閾値ライン (ラベルが確定する境界線)
-    fig.add_hline(y=0.4, line_dash="dash", line_color="#555", 
+    # 判定閾値ライン (0.4)
+    fig.add_hline(y=0.4, line_dash="dash", line_color="#777", 
                   annotation_text="Decision Threshold (0.4)", row=2, col=1)
 
     # --- レイアウト設定 ---
     fig.update_layout(
-        template="plotly_dark",
         title=dict(
-            text=f"<b>DRIVER PROFILER v2.0 VERIFICATION</b><br><span style='font-size:12px; color:#A0A0A0;'>Labeling Engine: Volatility-Adjusted (2-Sigma) Thresholds</span>",
+            text=f"<b>DRIVER PROFILER DIAGNOSTIC: 3-LABEL SYSTEM</b><br><span style='font-size:12px; color:#A0A0A0;'>Regime Priority: Credit > Bond > Mix</span>",
             x=0.05, y=0.96
         ),
         plot_bgcolor='#0a0a0a',
         paper_bgcolor='#0a0a0a',
-        margin=dict(l=50, r=50, t=100, b=50),
+        margin=dict(l=50, r=50, t=120, b=50),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         hovermode="x unified"
     )
 
-    fig.update_yaxes(title_text="Price", row=1, col=1)
-    fig.update_yaxes(title_text="Soft Score", range=[0, 1.1], row=2, col=1)
-
-    pd.set_option('display.max_rows', None)
-    print(plot_df)
-
+    fig.update_yaxes(title_text="Price Index", row=1, col=1)
+    fig.update_yaxes(title_text="Smear Score", range=[0, 1.1], row=2, col=1)
+    
     fig.show()
 
+# 使用例:
+# plot_driver_soft_label(df_label_results, df_daily, start_date="2020-01-01")
 # Driverモデル確率
 def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
     # 1. データの準備
