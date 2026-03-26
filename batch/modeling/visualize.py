@@ -238,8 +238,6 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     
     fig.show()
 
-# 使用例:
-# plot_driver_soft_label(df_label_results, df_daily, start_date="2020-01-01")
 # Driverモデル確率
 def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
     # 1. データの準備
@@ -369,34 +367,28 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
 
 # Driverモデル期待値＆確率
 def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
-
     # 1. 表示期間のデータ抽出
     df_plot = df_bt.loc[start_date:end_date].copy()
     df_probs = df_oof.loc[start_date:end_date].copy()
 
-    # 理論的期待値をプロット用DFに統合（df_oofに格納されている想定）
-    if 'expected_value' in df_probs.columns:
-        df_plot['expected_value'] = df_probs['expected_value']
-    else:
-        # 万が一無い場合のフォールバック（検証用）
-        print("Warning: 'expected_value' column not found in df_oof.")
-        df_plot['expected_value'] = 0
-
-    # 20日リターンの累積ではなく、価格推移を表示用に使用
+    # Net Macro Stress の計算
+    df_plot['net_stress'] = (df_probs['1:Credit'] + df_probs['2:Bond']) - df_probs['3:Mix']
     df_plot['cum_bench'] = (1 + df_plot['sp500_ret']).cumprod()
 
-    # 2. カラーパレットの定義
-    rank_colors = {
-        #'Safe': 'rgba(0, 250, 154, 0.15)',      # 緑
-        #'Neutral': 'rgba(30, 144, 255, 0.1)',   # 青
-        #'Caution': 'rgba(255, 215, 0, 0.15)',   # 黄
-        'High Risk': 'rgba(255, 140, 0, 0.2)',  # 橙
-        'CRITICAL': 'rgba(255, 0, 0, 0.25)'     # 赤
-    }
-
+    # 2. カラーパレットの定義（高コントラスト版）
+    # 黒背景に映えるAppleシステムカラーに近い配色
+    driver_colors = [
+        'rgba(255, 69, 58, 0.8)',  # Credit: システムレッド（警告）
+        'rgba(255, 159, 10, 0.8)', # Bond: システムアンバー（注意）
+        'rgba(10, 132, 255, 0.7)'  # Mix: システムブルー（巡航）
+    ]
     driver_labels = ['1:Credit', '2:Bond', '3:Mix']
-    driver_colors = ['rgba(178, 34, 34, 0.8)', 'rgba(255, 0, 255, 0.8)', 'rgba(100, 100, 100, 0.6)']
     driver_names = ['Credit (Danger)', 'Bond (Instability)', 'Mix/Neutral']
+
+    rank_colors = {
+        'High Risk': 'rgba(255, 140, 0, 0.25)',
+        'CRITICAL': 'rgba(255, 0, 0, 0.3)'
+    }
 
     # 3. サブプロットの設定
     fig = make_subplots(
@@ -406,80 +398,78 @@ def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_da
         row_heights=[0.33, 0.33, 0.34],
         subplot_titles=(
             "<b>1. MARKET CONTEXT: S&P500 & ev_rank</b>", 
-            "<b>2. MACRO GRAVITY: Theoretical Expected Value (EV)</b>", 
-            "<b>3. DRIVER PROBABILITIES: Multi-Layer Gravity</b>"
+            "<b>2. REGIME DYNAMICS: Net Macro Stress Index</b>", 
+            "<b>3. DRIVER PROBABILITIES: Probability Composition</b>"
         )
     )
 
-    # 背景シェイプ作成関数
+    # 背景シェイプ関数 (ev_rank用)
     def add_rank_bg(fig, target_row, y_range):
         df_plot['rank_change'] = df_plot['ev_rank'] != df_plot['ev_rank'].shift()
         df_plot['rank_group'] = df_plot['rank_change'].cumsum()
-
         for _, group in df_plot.groupby('rank_group'):
-            start_dt = group.index[0]
-            end_dt = group.index[-1]
             rank = group['ev_rank'].iloc[0]
             if rank in rank_colors:
                 fig.add_shape(
                     type="rect", xref="x", yref=f"y{target_row}",
-                    x0=start_dt, x1=end_dt, y0=y_range[0], y1=y_range[1],
+                    x0=group.index[0], x1=group.index[-1], y0=y_range[0], y1=y_range[1],
                     fillcolor=rank_colors[rank], line_width=0, layer="below", row=target_row, col=1
                 )
 
-    # --- 上段: S&P500価格 ---
+    # 背景シェイプ関数 (Dominant Driver用) - 視認性を上げた設定
+    def add_driver_bg(fig, target_row, y_range):
+        dominant = df_probs[driver_labels].idxmax(axis=1)
+        df_probs['dom_change'] = dominant != dominant.shift()
+        df_probs['dom_group'] = df_probs['dom_change'].cumsum()
+
+        # 視認性を確保するためのアルファ値
+        bg_alpha = {'1:Credit': '0.22', '2:Bond': '0.18', '3:Mix': '0.12'}
+
+        for _, group in df_probs.groupby('dom_group'):
+            start_dt = group.index[0]
+            dom_label = df_probs.loc[start_dt, driver_labels].idxmax()
+            color_idx = driver_labels.index(dom_label)
+            alpha = bg_alpha.get(dom_label, '0.1')
+            bg_color = driver_colors[color_idx].replace('0.8', alpha).replace('0.7', alpha)
+
+            fig.add_shape(
+                type="rect", xref="x", yref=f"y{target_row}",
+                x0=start_dt, x1=group.index[-1], y0=y_range[0], y1=y_range[1],
+                fillcolor=bg_color, line_width=0, layer="below", row=target_row, col=1
+            )
+
+    # --- 上段: 価格推移 ---
     fig.add_trace(go.Scatter(
         x=df_plot.index, y=df_plot['cum_bench'], 
-        name="S&P500", line=dict(color='#E0E0E0', width=1.5)
+        name="S&P500", line=dict(color='#FFFFFF', width=1.5)
     ), row=1, col=1)
     add_rank_bg(fig, 1, [df_plot['cum_bench'].min()*0.9, df_plot['cum_bench'].max()*1.1])
 
-    # --- 中段: 理論的期待値 (Expected Value) ---
+    # --- 中段: Net Stress (背景あり) ---
     fig.add_trace(go.Scatter(
-        x=df_plot.index, y=df_plot['expected_value'], 
-        name="Theoretical EV", 
-        line=dict(color='#FFD700', width=2), # 重力を表す「金（重金属）」の色
-        hovertemplate='%{y:.4f}'
+        x=df_plot.index, y=df_plot['net_stress'], 
+        name="Net Stress", 
+        line=dict(color='#00FFFF', width=2.5), # 蛍光シアンで視認性確保
+        hovertemplate='Stress: %{y:.2f}'
     ), row=2, col=1)
+    fig.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.5)", row=2, col=1)
+    add_driver_bg(fig, 2, [-1.1, 1.1])
 
-    # ゼロライン（基準線）を追加
-    fig.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.3)", row=2, col=1)
-
-    # 背景のy軸範囲をEVのレンジに合わせる
-    ev_min = df_plot['expected_value'].min()
-    ev_max = df_plot['expected_value'].max()
-    padding = (ev_max - ev_min) * 0.1
-    add_rank_bg(fig, 2, [ev_min - padding, ev_max + padding])
-
-    # --- 下段: Driver確率（スタックエリア） ---
+    # --- 下段: 確率推移 (背景なし) ---
     for i, (col, name) in enumerate(zip(driver_labels, driver_names)):
         fig.add_trace(go.Scatter(
             x=df_probs.index, y=df_probs[col],
             name=name, stackgroup='one',
-            line=dict(width=0), fillcolor=driver_colors[i],
+            line=dict(width=0.5, color='rgba(255,255,255,0.2)'), # 境界線を薄く入れる
+            fillcolor=driver_colors[i],
             hovertemplate='%{y:.1%}'
         ), row=3, col=1)
 
-    # 下段背景（Dominant Driver）
-    df_probs['dominant'] = df_probs[driver_labels].idxmax(axis=1)
-    df_probs['dom_change'] = df_probs['dominant'] != df_probs['dominant'].shift()
-    df_probs['dom_group'] = df_probs['dom_change'].cumsum()
-    for _, group in df_probs.groupby('dom_group'):
-        dom = group['dominant'].iloc[0]
-        color_idx = driver_labels.index(dom)
-        bg_color = driver_colors[color_idx].replace('0.8', '0.05').replace('0.6', '0.05')
-        fig.add_shape(
-            type="rect", xref="x", yref="y3",
-            x0=group.index[0], x1=group.index[-1], y0=0, y1=1,
-            fillcolor=bg_color, line_width=0, layer="below", row=3, col=1
-        )
-
     # --- レイアウト調整 ---
     fig.update_layout(
-        #template="plotly_dark",
         title=dict(
-            text=f"<b>DRIVER PROFILER DIAGNOSTIC REPORT (EV Focus)</b><br><span style='font-size:12px; color:#A0A0A0;'>Analysis Period: {start_date} to {end_date}</span>",
-            x=0.05, y=0.97
+            text=f"<b>DRIVER PROFILER DIAGNOSTIC REPORT</b>",
+            x=0.05, y=0.97, font=dict(size=20, color='#FFFFFF')
         ),
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -489,14 +479,10 @@ def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_da
     )
 
     fig.update_yaxes(gridcolor='#222', zeroline=False)
-    fig.update_yaxes(title=dict(text="Macro Gravity (EV)"), tickformat=".2f", row=2, col=1)
-    fig.update_yaxes(title=dict(text="Probabilities"), tickformat=".0%", range=[0, 1], row=3, col=1)
-    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False, tickfont=dict(size=12),)
+    fig.update_yaxes(title=dict(text="Net Stress Index"), range=[-1.1, 1.1], row=2, col=1)
+    fig.update_yaxes(title=dict(text="Probabilities"), range=[0, 1], row=3, col=1)
 
     fig.show(config=dict(displayModeBar=False))
-
-
-
 
 
 ########################################################
@@ -601,7 +587,6 @@ def plot_regional_bias_trajectory(df_features, compass_clf, nikkei_price, sp500_
 
     # --- レイアウト ---
     fig.update_layout(
-        template="plotly_dark",
         title=dict(
             text=f"<b>REGIONAL BIAS COMPASS</b><br><span style='font-size:12px; color:#A0A0A0;'>Signal Thresholds: Overdrive >= {threshold_c1:.0%}, Fragile >= {threshold_c2:.0%}</span>",
             x=0.05, y=0.95

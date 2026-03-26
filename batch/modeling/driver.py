@@ -104,12 +104,12 @@ def get_driver_beta(df_index, df_sp500):
         n_estimators=2500,learning_rate=0.001,num_leaves=50, min_data_in_leaf=90,
         class_weight="balanced",
         sample_weight=df_label["sample_weight"],
-        reg_alpha=0.3, reg_lambda=0.3, learning_curve=True,
+        reg_alpha=0.3, reg_lambda=0.3, learning_curve=False,
         )
 
      # --- ファイル保存 ---
 
-    df_oof_all.to_parquet("driver_oof.parquet", engine="pyarrow")
+    """df_oof_all.to_parquet("driver_oof.parquet", engine="pyarrow")
     df_shap["1:Credit"].to_parquet("driver_shap_credit.parquet", engine="pyarrow")
     df_shap["2:Bond"].to_parquet("driver_shap_bond.parquet", engine="pyarrow")
     df_shap["3:Mix"].to_parquet("driver_shap_mix.parquet", engine="pyarrow")
@@ -117,12 +117,10 @@ def get_driver_beta(df_index, df_sp500):
     df_daily.to_parquet("driver_daily.parquet", engine="pyarrow")
     df_driver.to_parquet("driver_driver.parquet", engine="pyarrow")
     df_features.to_parquet("driver_features.parquet", engine="pyarrow")
-    df_label.to_parquet("driver_label.parquet", engine="pyarrow")
+    df_label.to_parquet("driver_label.parquet", engine="pyarrow")"""
 
-    _chk_ev_hist(df_oof_ev)
-    df_bt = df_oof_ev["ev_rank"].to_frame().join(df_daily["^GSPC"].pct_change().ffill().rename("sp500_ret"))
-    df_oof = df_oof_all[["1:Credit", "2:Bond", "3:Mix"]].join(df_oof_ev[["risk_sum", "expected_value"]])
-    plot_driver_diagnostic_report(df_bt, df_oof, start_date="2012-01-01", end_date="2026-02-01")
+    #_chk_ev_hist(df_oof_ev)
+ 
 
     #return driver_clf, df_driver_trajectory, df_driver
     #return df_oof_all
