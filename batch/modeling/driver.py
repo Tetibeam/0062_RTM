@@ -570,13 +570,13 @@ def _chk_ev_hist(df_oof_ev):
     import seaborn as sns
 
     # 1. 基本統計量の確認（平均、最小、最大、四分位数）
-    print("=== risk_sum の基本統計量 ===")
-    print(df_oof_ev['risk_sum'].describe())
+    print("=== risk_score の基本統計量 ===")
+    print(df_oof_ev['risk_score'].describe())
 
     plt.figure(figsize=(10, 6))
-    sns.histplot(df_oof_ev['risk_sum'], bins=50, kde=True, color='royalblue')
-    plt.title('Distribution of Risk Sum (Credit + Bond Probability)')
-    plt.xlabel('Risk Sum Value')
+    sns.histplot(df_oof_ev['risk_score'], bins=50, kde=True, color='royalblue')
+    plt.title('Distribution of Risk Sum (Credit + 0.5*Bond Probability)')
+    plt.xlabel('Risk Score')
     plt.ylabel('Frequency')
     plt.grid(axis='y', alpha=0.3)
     plt.axvline(x=0.5, color='red', linestyle='--', label='Threshold 0.5')

@@ -133,30 +133,37 @@ def learning_lgbm_test_driver(
         oof_probs_list.append(df_fold_probs)
 
         # 4. 重みの算出 (actual_classesの数でループ)
-        weights = {}
-        for i, class_id in enumerate(actual_classes):
-            avg_ret = ret_train[y_train == class_id].mean()
-            weights[i] = avg_ret if not np.isnan(avg_ret) else 0.0
+        #weights = {}
+        #for i, class_id in enumerate(actual_classes):
+        #    avg_ret = ret_train[y_train == class_id].mean()
+        #    weights[i] = avg_ret if not np.isnan(avg_ret) else 0.0
         #print("重みの出力")
         #print(weights)
 
         # 5. 期待値 (Expected Value) の計算 (y_probの列数に合わせて回す)
-        ev_fold = np.zeros(len(y_prob))
-        risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
+        #ev_fold = np.zeros(len(y_prob))
+        #risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
+        risk_score = np.zeros(len(y_prob))
+
 
         for i, class_id in enumerate(actual_classes):
-            ev_fold += y_prob[:, i] * weights[i]
+            #ev_fold += y_prob[:, i] * weights[i]
             if float(class_id) in [1.0, 2.0]:
-                risk_prob_sum += y_prob[:, i] # Bond+Creditの足し算
+                #risk_prob_sum += y_prob[:, i] # Bond+Creditの足し算
+                if float(class_id) == 1.0:
+                    risk_score += y_prob[:, i] * 1.0
+                elif float(class_id) == 2.0:
+                    risk_score += y_prob[:, i] * 0.5
         #print("期待値の出力")
         #print(ev_fold)
 
         # 6. 期待値データの保存
         y_pred = clf.predict(X_test)
         df_ev_fold = pd.DataFrame({
-            'expected_value': ev_fold,
+            #'expected_value': ev_fold,
             'actual_return': ret_test.values,
-            'risk_sum': risk_prob_sum,         # # Bond+Creditの足し算
+            #'risk_sum': risk_prob_sum,
+            "risk_score":risk_score,
             'predict_label': y_pred
         }, index=X_test.index)
         #print("期待値データの出力")
@@ -252,9 +259,11 @@ def learning_lgbm_test_driver(
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
 
     #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
-    bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
+    #bins = [0, 0.5, 0.63, 0.75, 0.85, 1.1]
+    bins = [0, 0.2, 0.4, 0.6, 0.8, 1.1]
     df_oof_ev['ev_rank'] = pd.cut(
-        df_oof_ev['risk_sum'],
+        df_oof_ev['risk_score'],
+        #df_oof_ev['risk_sum'],
         bins=bins,
         labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
         include_lowest=True
