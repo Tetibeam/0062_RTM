@@ -4,11 +4,21 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
-from sklearn.metrics import precision_recall_curve, f1_score
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.metrics import (
+    classification_report,
+    roc_auc_score,
+    confusion_matrix,
+    balanced_accuracy_score,
+    accuracy_score,
+    r2_score,
+    precision_recall_curve,
+    f1_score
+)
+
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import balanced_accuracy_score, r2_score
 from sklearn.linear_model import Ridge, Lasso
+from sklearn.linear_model import LogisticRegression
 
 from statsmodels.tsa.statespace.dynamic_factor_mq import DynamicFactorMQ
 import statsmodels.api as sm
@@ -85,7 +95,7 @@ def learning_lgbm_test_driver(
         # データ分割
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
+        #ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
         ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
@@ -394,18 +404,16 @@ def learning_lgbm_test(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None, objective="multiclass",
+    sample_weight=None, objective="multiclass",max_depth=10,min_child_samples=5,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
     study_signal_filter=False,
-    return_col='next_20d_ret_sp500',
     ):
     # 1. 前処理：データの準備
-    df_ready = df_ready.dropna(subset=[target_col, return_col])
-    X = df_ready.drop(columns=[target_col, return_col])
+    df_ready = df_ready.dropna(subset=[target_col])
+    X = df_ready.drop(columns=[target_col])
     y = df_ready[target_col]
-    returns_all = df_ready[return_col]
 
     # 2. TimeSeriesSplitの設定
     # gap を指定することで、TrainとTestの間に空白を作り、未来リーク（カンニング）を完全に防ぐ
@@ -433,8 +441,6 @@ def learning_lgbm_test(
         # データ分割
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
-        ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
         clf = lgb.LGBMClassifier(
@@ -442,9 +448,10 @@ def learning_lgbm_test(
             #num_class=len(labels),
             n_estimators=n_estimators,
             learning_rate=learning_rate,
-            #max_depth=4,
+            max_depth=max_depth,
             num_leaves=num_leaves,
             min_data_in_leaf=min_data_in_leaf,
+            min_child_samples=min_child_samples,
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
@@ -480,31 +487,10 @@ def learning_lgbm_test(
         df_fold_probs['actual_regime'] = y_test
         oof_probs_list.append(df_fold_probs)
 
-        # 4. 重みの算出 (actual_classesの数でループ)
-        weights = {}
-        for i, class_id in enumerate(actual_classes):
-            avg_ret = ret_train[y_train == class_id].mean()
-            weights[i] = avg_ret if not np.isnan(avg_ret) else 0.0
-        #print("重みの出力")
-        #print(weights)
-
-        # 5. 期待値 (Expected Value) の計算 (y_probの列数に合わせて回す)
-        ev_fold = np.zeros(len(y_prob))
-        risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
-
-        for i, class_id in enumerate(actual_classes):
-            ev_fold += y_prob[:, i] * weights[i]
-            if float(class_id) in [1.0, 2.0]:
-                risk_prob_sum += y_prob[:, i] # Bond+Creditの足し算
-        #print("期待値の出力")
-        #print(ev_fold)
-
         # 6. 期待値データの保存
         y_pred = clf.predict(X_test)
         df_ev_fold = pd.DataFrame({
-            'expected_value': ev_fold,
-            'actual_return': ret_test.values,
-            'risk_sum': risk_prob_sum,         # # Bond+Creditの足し算
+        # # Bond+Creditの足し算
             'predict_label': y_pred
         }, index=X_test.index)
         #print("期待値データの出力")
@@ -600,20 +586,98 @@ def learning_lgbm_test(
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
 
     #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
-    bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
-    df_oof_ev['ev_rank'] = pd.cut(
-        df_oof_ev['risk_sum'],
-        bins=bins,
-        labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
-        include_lowest=True
-    )
-    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
-    print(ev_summary)
+    #bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
+    #df_oof_ev['ev_rank'] = pd.cut(
+    #    df_oof_ev['risk_sum'],
+    #    bins=bins,
+    #    labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
+    #    include_lowest=True
+    #)
+    #ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
+    #print(ev_summary)
 
     return df_oof_all, final_shap_dfs, df_oof_ev
 
+def learning_logistic_lasso_test(
+    df_ready, target_col, labels,
+    n_splits=3, gap=3,
+    C=0.5,
+    class_weight="balanced"
+    ):
+    
+    df_ready = df_ready.dropna(subset=[target_col])
+    X = df_ready.drop(columns=[target_col])
+    y = df_ready[target_col]
 
+    tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
+    all_coefs = []
+    all_y_probs = []
+    all_y_test = []
+    all_y_pred = []
+
+    print(f"\n全サンプル数: {len(X)}")
+    print("=== Logistic Regression (Lasso + OvR) TimeSeriesSplit ===\n")
+
+    fold = 1
+    for train_index, test_index in tscv.split(X):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        # OneVsRestClassifier でラップすることで liblinear での L1 多クラス分類を可能にする
+        clf = OneVsRestClassifier(
+            LogisticRegression(
+                penalty='l1',
+                C=C,
+                solver='liblinear',
+                class_weight=class_weight,
+                random_state=42
+            )
+        )
+
+        clf.fit(X_train_scaled, y_train)
+
+        y_pred = clf.predict(X_test_scaled)
+        y_prob = clf.predict_proba(X_test_scaled)
+        
+        acc = accuracy_score(y_test, y_pred)
+        b_acc = balanced_accuracy_score(y_test, y_pred)
+        print(f"Fold {fold} | Test: {X_test.index[0]} ~ {X_test.index[-1]} | Acc: {acc:.4f} | B-Acc: {b_acc:.4f}")
+
+        # OneVsRestClassifier の場合、各推論器（estimators_）から係数を取得
+        # 各推論器の coef_ は (1, n_features) の形状なので [0] で取得
+        coef_list = [est.coef_[0] for est in clf.estimators_]
+        
+        # クラス名と特徴量名を紐付けたDataFrameを作成
+        fold_coefs = pd.DataFrame(
+            coef_list, 
+            columns=X.columns, 
+            index=[labels[c] for c in clf.classes_]
+        )
+        all_coefs.append(fold_coefs)
+
+        all_y_test.extend(y_test)
+        all_y_pred.extend(y_pred)
+        all_y_probs.append(y_prob)
+
+        fold += 1
+
+    print("\n" + "="*55)
+    print("=== 学習結果 (Overall CV Performance) ===")
+    print(classification_report(all_y_test, all_y_pred, target_names=list(labels.values())))
+
+    print("\n=== 全フォールド総合の混同行列 ===")
+    print(confusion_matrix(all_y_test, all_y_pred))
+
+    mean_coefs = pd.concat(all_coefs).groupby(level=0).mean()
+    print("\n=== 特徴量係数 (Coefficients - Lasso Selection) ===")
+    print(mean_coefs)
+
+    return mean_coefs, all_y_probs, all_y_test
 
 
 

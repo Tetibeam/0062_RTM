@@ -17,6 +17,7 @@ from batch.modeling.learning import (
     lag_analysis,
     learning_dfa,
     learning_lgbm_test,
+    learning_logistic_lasso_test
     )
 import pandas as pd
 import numpy as np
@@ -81,21 +82,26 @@ def get_gli_model_beta(df_index):
     X = _make_featuring(factor_a, factor_b, factor_c, factor_d)
     # --- 学習 ---
     df_master = pd.concat([X, y], axis=1).dropna()
+    #print(df_master)
     #plot_index(df_master)
-    #learning_regime_lgbm_test(df_master, "gli_label")
-    #gli_clf, df_trajectory = learning_gli_final(df_master, "gli_label")
 
-    df_oof_all = learning_lgbm_test(
-        df_master, target_col="gli_label",labels=["STALL", "CRUISE", "LIFT"],
-        n_splits=3, gap=3,
-        n_estimators=300,learning_rate=0.01,num_leaves=20, min_data_in_leaf=15,
-        reg_alpha=0.5, reg_lambda=0.5,
+    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test(
+        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+        n_splits=2, gap=1,
+        n_estimators=100,learning_rate=0.05,num_leaves=3, min_data_in_leaf=15,
+        reg_alpha=10, reg_lambda=10, max_depth=2,min_child_samples= 5,
         learning_curve=True,
+    )"""
+    learning_logistic_lasso_test(
+        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+        n_splits=3, gap=1,
+        C=0.5, class_weight="balanced",
     )
+
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
 
-    return df_oof_all
+    #return df_oof_all
 
 def _aggregation(df):
 
@@ -413,13 +419,28 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 # 学習の変数
 ########################################################
 def _make_label_gli(df_gli):
+
+    df = df_gli.copy()
+    y_diff = df.diff()
+    target = y_diff.shift(-1).dropna()
+    #print(target.describe())
+    # 統計データから算出した閾値
+    lower_threshold = -1.099750  # 下位25% (Down)
+    upper_threshold = 1.181250   # 上位25% (Up)
+    labels = pd.cut(
+        target,
+        bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
+        labels=[1, 2, 3]
+    ).rename("gli_label")
+    #print(labels)
+    return labels
+
     # 線形月次変換
-    gli_monthly = df_gli.resample('ME').first().interpolate(method='linear')
+    """gli_monthly = df_gli.resample('ME').first().interpolate(method='linear')
 
     # カンニングラベル
     y_diff = gli_monthly.diff(3)
     target = y_diff.shift(-3)
-    #print(target_continuous.describe())
 
     # 統計データから算出した閾値
     lower_threshold = -0.911  # 下位25% (Down)
@@ -432,7 +453,7 @@ def _make_label_gli(df_gli):
     ).rename("gli_label")
     #print(labels)
 
-    return labels
+    return labels"""
 
 def _make_featuring(factor_a, factor_b, factor_c, factor_d):
 
