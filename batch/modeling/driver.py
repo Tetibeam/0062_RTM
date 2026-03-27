@@ -2,15 +2,10 @@
 # 市場レジュームモデリング
 ########################################################
 from batch.modeling.learning import(
-    learning_lgbm_test,
-    learning_lgbm_final,
-    learning_get_shap_df,
-    learning_get_shap_date
+    learning_lgbm_test_driver,
     )
 from batch.modeling.visualize import (
     plot_driver_soft_label,
-    plot_driver_diagnostic_report,
-    plot_index
     )
 
 import pandas as pd
@@ -98,7 +93,7 @@ def get_driver_beta(df_index, df_sp500):
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
     print(f"特徴量のリスト: {df_features.columns}")
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
         n_estimators=2500,learning_rate=0.001,num_leaves=50, min_data_in_leaf=90,

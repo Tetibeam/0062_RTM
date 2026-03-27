@@ -21,87 +21,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 ############################################################
-# DFA - 複数の特徴量から共通因子を導き出す
-############################################################
-# DFA フレームワーク（テスト、本番一体）
-def learning_dfa(df, factors=1, factor_orders=1, target_col=None, target_is_positive=True, output_name="output"):
-    # 1. 標準化
-    scaler = StandardScaler()
-    scaled_values = scaler.fit_transform(df)
-    X_scaled = pd.DataFrame(scaled_values, index=df.index, columns=df.columns)
-
-    # 2. DFA実行
-    model = DynamicFactorMQ(X_scaled, factors=factors, factor_orders=factor_orders)
-    # toleranceを 1e-4 に緩和して収束エラーを回避
-    results = model.fit(maxiter=1000, tolerance=1e-4, disp=False)
-
-    # 3. 因子の抽出
-    factor_values = results.states.filtered.iloc[:, 0].values
-
-    # 4. 符号の調整（賢い向き合わせロジック）
-    is_inverted = False
-    if target_col is not None:
-        loading_params = results.params[
-            (results.params.index.str.contains('loading')) & 
-            (results.params.index.str.contains(target_col))
-        ]
-
-        if not loading_params.empty:
-            loading_value = loading_params.iloc[0]
-
-            # パターンA：ターゲットが「上がると景気に良い」指標の場合（CP, 雇用など）
-            if target_is_positive:
-                # 因子もターゲットと同じ方向（正の相関）を向いてほしい
-                if loading_value < 0:
-                    factor_values = -factor_values
-                    is_inverted = True
-                    print(f"INFO: Factor inverted. Made to move WITH {target_col} (Original loading: {loading_value:.4f})")
-                else:
-                    print(f"INFO: Factor remains. Already moving WITH {target_col} (Loading: {loading_value:.4f})")
-
-            # パターンB：ターゲットが「上がると景気に悪い」指標の場合（VIX, 失業率など）
-            else:
-                # 因子はターゲットと逆の方向（負の相関）を向いてほしい（ストレス低下＝因子プラス）
-                if loading_value > 0:
-                    factor_values = -factor_values
-                    is_inverted = True
-                    print(f"INFO: Factor inverted. Made to move OPPOSITE to {target_col} (Original loading: {loading_value:.4f})")
-                else:
-                    print(f"INFO: Factor remains. Already moving OPPOSITE to {target_col} (Loading: {loading_value:.4f})")
-        else:
-            print(f"WARNING: Loading for {target_col} not found.")
-
-    # 5. 結果の格納
-    res_series = pd.Series(factor_values, index=df.index, name=output_name)
-
-    return res_series, results, is_inverted
-
-# フォーキャスト
-def learning_forecast(results, forecast_steps=12):
-    forecast_res = results.get_forecast(steps=forecast_steps)
-    forecast_mean = forecast_res.predicted_mean
-    forecast_ci = forecast_res.conf_int()
-    return forecast_mean, forecast_ci
-
-# ラグ相関分析
-def lag_analysis(df, target_col="", max_lag=8):
-    lag_results = {}
-    features = [c for c in df.columns if c != target_col]
-
-    for col in features:
-        corrs = []
-        for l in range(max_lag + 1):
-            # 指標をl期分「過去」にずらしてDSRとの相関を見る
-            # feature(t-l) と DSR(t) の相関
-            c = df[target_col].corr(df[col].shift(l))
-            corrs.append(c)
-        lag_results[col] = corrs
-    df_result = pd.DataFrame(lag_results)
-
-    return df_result
-
-############################################################
-# Light GBM for dev.-　AIが複数の特徴量から多くのルールを見つけ答えを予測する
+# Driver Profiler - LGBM
 ############################################################
 """
 LGBM 開発用の関数（TimeSeriesSplit）
@@ -118,7 +38,7 @@ LGBM 開発用の関数（TimeSeriesSplit）
     ・カスタム閾値の探索（シグナル・フィルター）
 """
 
-def learning_lgbm_test(
+def learning_lgbm_test_driver(
     # 特徴量と目的変数
     df_ready, target_col, labels,
     # TimeSeriesSplitの設定値
@@ -400,6 +320,328 @@ def search_optimal_thresholds(y_true, y_probs):
             # もし詳細な混同行列が見たい場合は以下をコメントアウト解除
             # print(confusion_matrix(y_true, y_pred_custom))
             # print("-" * 40)
+
+############################################################
+# GLI - DFA /LGBM
+############################################################
+
+def learning_dfa(df, factors=1, factor_orders=1, target_col=None, target_is_positive=True, output_name="output"):
+    # 1. 標準化
+    scaler = StandardScaler()
+    scaled_values = scaler.fit_transform(df)
+    X_scaled = pd.DataFrame(scaled_values, index=df.index, columns=df.columns)
+
+    # 2. DFA実行
+    model = DynamicFactorMQ(X_scaled, factors=factors, factor_orders=factor_orders)
+    # toleranceを 1e-4 に緩和して収束エラーを回避
+    results = model.fit(maxiter=1000, tolerance=1e-4, disp=False)
+
+    # 3. 因子の抽出
+    factor_values = results.states.filtered.iloc[:, 0].values
+
+    # 4. 符号の調整（賢い向き合わせロジック）
+    is_inverted = False
+    if target_col is not None:
+        loading_params = results.params[
+            (results.params.index.str.contains('loading')) & 
+            (results.params.index.str.contains(target_col))
+        ]
+
+        if not loading_params.empty:
+            loading_value = loading_params.iloc[0]
+
+            # パターンA：ターゲットが「上がると景気に良い」指標の場合（CP, 雇用など）
+            if target_is_positive:
+                # 因子もターゲットと同じ方向（正の相関）を向いてほしい
+                if loading_value < 0:
+                    factor_values = -factor_values
+                    is_inverted = True
+                    print(f"INFO: Factor inverted. Made to move WITH {target_col} (Original loading: {loading_value:.4f})")
+                else:
+                    print(f"INFO: Factor remains. Already moving WITH {target_col} (Loading: {loading_value:.4f})")
+
+            # パターンB：ターゲットが「上がると景気に悪い」指標の場合（VIX, 失業率など）
+            else:
+                # 因子はターゲットと逆の方向（負の相関）を向いてほしい（ストレス低下＝因子プラス）
+                if loading_value > 0:
+                    factor_values = -factor_values
+                    is_inverted = True
+                    print(f"INFO: Factor inverted. Made to move OPPOSITE to {target_col} (Original loading: {loading_value:.4f})")
+                else:
+                    print(f"INFO: Factor remains. Already moving OPPOSITE to {target_col} (Loading: {loading_value:.4f})")
+        else:
+            print(f"WARNING: Loading for {target_col} not found.")
+
+    # 5. 結果の格納
+    res_series = pd.Series(factor_values, index=df.index, name=output_name)
+
+    return res_series, results, is_inverted
+
+def learning_lgbm_test(
+    # 特徴量と目的変数
+    df_ready, target_col, labels,
+    # TimeSeriesSplitの設定値
+    n_splits=3, gap=3,
+    # 学習パラメータの設定
+    n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
+    class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
+    sample_weight=None, objective="multiclass",
+    # 学習曲線の表示
+    learning_curve=False,
+    # カスタム閾値の探索
+    study_signal_filter=False,
+    return_col='next_20d_ret_sp500',
+    ):
+    # 1. 前処理：データの準備
+    df_ready = df_ready.dropna(subset=[target_col, return_col])
+    X = df_ready.drop(columns=[target_col, return_col])
+    y = df_ready[target_col]
+    returns_all = df_ready[return_col]
+
+    # 2. TimeSeriesSplitの設定
+    # gap を指定することで、TrainとTestの間に空白を作り、未来リーク（カンニング）を完全に防ぐ
+    tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+
+    # 3. 学習過程を保持するリスト
+    all_importances = [] # 各フォールドの特徴量寄与度(Gain)を保存
+    all_y_probs = []     # 後の閾値調整用に「予測確率」を保存
+    all_y_test = []      # 精度検証用の「正解ラベル」を集約
+    all_y_pred = []      # 精度検証用の「予測ラベル」を集約
+    evals_result = {}    # 学習曲線描画用のスコア履歴(Loss)を記録
+    oof_probs_list = []  # OOF
+    all_ev_list = []     # フォールドごとの期待値結果を格納
+
+    # クラスごとにSHAP値のリストを格納する辞書
+    # 構造例: {"1:Credit": [df_fold1, df_fold2...], "2:Bond": [...], ...}
+    oof_shap_dict = {label: [] for label in labels}
+
+    # 4. 学習ループ開始
+    print(f"\n全サンプル数: {len(X)}")
+    print("\n=== TimeSeriesSplit ===\n")
+
+    fold = 1
+    for train_index, test_index in tscv.split(X):
+        # データ分割
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
+        ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
+
+        # モデル設定
+        clf = lgb.LGBMClassifier(
+            objective=objective,
+            #num_class=len(labels),
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            #max_depth=4,
+            num_leaves=num_leaves,
+            min_data_in_leaf=min_data_in_leaf,
+            class_weight=class_weight,
+            reg_alpha=reg_alpha,
+            reg_lambda=reg_lambda,
+            importance_type=importance_type,
+            random_state=42,
+            verbose=-1
+        )
+
+        # 学習
+        clf.fit(
+            X_train, y_train,
+            eval_set=[(X_train, y_train), (X_test, y_test)],
+            eval_names=['train', 'valid'], # グラフのラベル名
+            eval_metric='multi_logloss',   # 評価指標を明示
+            # Early Stoppingで過学習を防ぐ
+            # evals_result に学習の軌跡（スコアの履歴）を記録
+            callbacks=[
+                lgb.early_stopping(stopping_rounds=30, verbose=False),
+                lgb.record_evaluation(evals_result)
+            ]
+        )
+
+        # 1. クラスIDからラベル名へのマッピングを作成
+        class_id_to_label = {int(l.split(':')[0]): l for l in labels}
+
+        # 2. 予測確率の取得
+        y_prob = clf.predict_proba(X_test)
+        actual_classes = clf.classes_ # 実際に学習されたクラスID (例: [1, 3])
+        actual_labels = [class_id_to_label[c] for c in actual_classes]
+
+        # 3. 確率DataFrameの保存（全クラス揃っていない可能性を考慮）
+        df_fold_probs = pd.DataFrame(y_prob, index=X_test.index, columns=actual_labels)
+        df_fold_probs['actual_regime'] = y_test
+        oof_probs_list.append(df_fold_probs)
+
+        # 4. 重みの算出 (actual_classesの数でループ)
+        weights = {}
+        for i, class_id in enumerate(actual_classes):
+            avg_ret = ret_train[y_train == class_id].mean()
+            weights[i] = avg_ret if not np.isnan(avg_ret) else 0.0
+        #print("重みの出力")
+        #print(weights)
+
+        # 5. 期待値 (Expected Value) の計算 (y_probの列数に合わせて回す)
+        ev_fold = np.zeros(len(y_prob))
+        risk_prob_sum = np.zeros(len(y_prob)) # 追加：リスク確率の合計
+
+        for i, class_id in enumerate(actual_classes):
+            ev_fold += y_prob[:, i] * weights[i]
+            if float(class_id) in [1.0, 2.0]:
+                risk_prob_sum += y_prob[:, i] # Bond+Creditの足し算
+        #print("期待値の出力")
+        #print(ev_fold)
+
+        # 6. 期待値データの保存
+        y_pred = clf.predict(X_test)
+        df_ev_fold = pd.DataFrame({
+            'expected_value': ev_fold,
+            'actual_return': ret_test.values,
+            'risk_sum': risk_prob_sum,         # # Bond+Creditの足し算
+            'predict_label': y_pred
+        }, index=X_test.index)
+        #print("期待値データの出力")
+        #print(df_ev_fold)
+        all_ev_list.append(df_ev_fold)
+
+        # 7. SHAP値の計算 (存在するクラス分だけ安全に処理)
+        explainer = shap.TreeExplainer(clf)
+        shap_values = explainer.shap_values(X_test)
+
+        for i, class_id in enumerate(actual_classes):
+            target_label = class_id_to_label[class_id]
+
+            # SHAP値の抽出（多クラス対応）
+            if isinstance(shap_values, list):
+                target_shap = shap_values[i]
+            elif hasattr(shap_values, "ndim") and shap_values.ndim == 3:
+                target_shap = shap_values[:, :, i]
+            else:
+                target_shap = shap_values
+
+            df_fold_shap = pd.DataFrame(target_shap, index=X_test.index, columns=X.columns)
+            oof_shap_dict[target_label].append(df_fold_shap)
+
+        # Fold情報の表示
+        acc = balanced_accuracy_score(y_test, y_pred)
+        best_iter = clf.best_iteration_
+        print(f"Fold {fold} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()} | Acc: {acc:.4f}")
+        print(f" => Balanced Acc: {acc:.4f} (Best Iter: {best_iter})")
+
+        # 重要度(Gain)の記録
+        imp = pd.Series(clf.feature_importances_, index=X.columns)
+        all_importances.append(imp)
+
+        # extendを使うことで、各Foldの検証結果が順番
+        all_y_test.extend(y_test)
+        all_y_pred.extend(y_pred)
+        all_y_probs.extend(y_prob)
+
+        fold += 1
+
+    # 5. 学習曲線の表示
+    if learning_curve:
+        from batch.modeling.visualize import plot_index
+
+        # 1. 学習データのメトリクスキーを特定
+        train_metrics = evals_result['train']
+        train_key = 'binary_logloss' if 'binary_logloss' in train_metrics else 'multi_logloss'
+        train_loss = train_metrics[train_key]
+
+        # 2. 検証データのキーを特定 ('valid' か 'valid_0' のどちらかにある場合が多い)
+        valid_label = 'valid' if 'valid' in evals_result else 'valid_0'
+
+        if valid_label in evals_result:
+            valid_metrics = evals_result[valid_label]
+            valid_key = 'binary_logloss' if 'binary_logloss' in valid_metrics else 'multi_logloss'
+            valid_loss = valid_metrics[valid_key]
+        else:
+            # 万が一検証データがない場合のフォールバック
+            valid_loss = [None] * len(train_loss)
+
+        # 3. データフレーム化してプロット
+        plot_df = pd.DataFrame({
+            'Train Loss (Learning)': train_loss,
+            'Valid Loss (Generalization)': valid_loss
+        })
+
+        plot_index(plot_df, x_label="counts")
+
+    # 6-1. 全テストフォールドの予測を結合
+    df_oof_all = pd.concat(oof_probs_list).sort_index()
+
+    # 6-2. クラス別SHAP DataFrameの統合
+    final_shap_dfs = {
+        label: pd.concat(list_df).sort_index() 
+        for label, list_df in oof_shap_dict.items()
+    }
+
+    # 6-3. 期待値データの結合
+    df_oof_ev = pd.concat(all_ev_list).sort_index()
+
+    # 7. 閾値探索
+    df_oof_all_filled = df_oof_all.reindex(columns=labels).fillna(0.0)
+    if study_signal_filter:
+        print(f"Total Test Samples: {len(all_y_test)}")
+        print(classification_report(all_y_test, all_y_pred))
+        search_optimal_thresholds(np.array(all_y_test), df_oof_all_filled[labels].values)
+
+    # 8. 総合結果レポートの表示
+    report_lgbm_total_result(all_y_test, all_y_pred, all_importances)
+
+    # 9. 期待値ベースの評価レポートを表示
+    print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
+
+    #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
+    bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
+    df_oof_ev['ev_rank'] = pd.cut(
+        df_oof_ev['risk_sum'],
+        bins=bins,
+        labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
+        include_lowest=True
+    )
+    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
+    print(ev_summary)
+
+    return df_oof_all, final_shap_dfs, df_oof_ev
+
+
+
+
+
+
+
+
+
+############################################################
+# DFA - 複数の特徴量から共通因子を導き出す
+############################################################
+
+# フォーキャスト
+def learning_forecast(results, forecast_steps=12):
+    forecast_res = results.get_forecast(steps=forecast_steps)
+    forecast_mean = forecast_res.predicted_mean
+    forecast_ci = forecast_res.conf_int()
+    return forecast_mean, forecast_ci
+
+# ラグ相関分析
+def lag_analysis(df, target_col="", max_lag=8):
+    lag_results = {}
+    features = [c for c in df.columns if c != target_col]
+
+    for col in features:
+        corrs = []
+        for l in range(max_lag + 1):
+            # 指標をl期分「過去」にずらしてDSRとの相関を見る
+            # feature(t-l) と DSR(t) の相関
+            c = df[target_col].corr(df[col].shift(l))
+            corrs.append(c)
+        lag_results[col] = corrs
+    df_result = pd.DataFrame(lag_results)
+
+    return df_result
+
+############################################################
+# Light GBM for dev.-　AIが複数の特徴量から多くのルールを見つけ答えを予測する
+############################################################
 
 
 ############################################################

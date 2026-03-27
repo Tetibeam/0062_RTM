@@ -7,7 +7,6 @@ from batch.modeling.learning import(
     learning_get_shap_date,
     )
 from batch.modeling.visualize import (
-    plot_driver_trajectory,
     plot_shap_explanation,
     plot_regime_label,
     plot_factor_label,

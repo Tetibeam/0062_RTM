@@ -6,17 +6,13 @@ import plotly.graph_objects as go
 
 import pandas as pd
 import numpy as np
+from datetime import timedelta
 
 from plotly.subplots import make_subplots
+
 ########################################################
 # Driver
 ########################################################
-# 教師ラベルの検証
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import pandas as pd
-import numpy as np
-
 # 教師ラベル
 def plot_driver_label(df_result, df_daily, start_date=None, end_date=None):
     """
@@ -239,7 +235,7 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     fig.show()
 
 # Driverモデル確率
-def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
+"""def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
     # 1. データの準備
     X = df_ready.drop(columns=['actual_regime'])
     X_latest = X.loc[start_date:end_date]
@@ -364,9 +360,9 @@ def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01",
 
     # 解析用に出力データフレームの列を整理して返す
     return df_probs[['actual_regime', 'dominant_regime']]
-
+"""
 # Driverモデル期待値＆確率
-def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
+"""def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
     # 1. 表示期間のデータ抽出
     df_plot = df_bt.loc[start_date:end_date].copy()
     df_probs = df_oof.loc[start_date:end_date].copy()
@@ -483,6 +479,94 @@ def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_da
     fig.update_yaxes(title=dict(text="Probabilities"), range=[0, 1], row=3, col=1)
 
     fig.show(config=dict(displayModeBar=False))
+"""
+
+def plot_driver_diagnostic_report(df_bt, start_date="2025-01-01", end_date="2025-06-01", lag=0):
+    # 1. 表示期間の切り出し
+    df_plot = df_bt.loc[start_date:end_date].copy()
+    
+    # 内部計算
+    df_plot['cum_bench'] = (1 + df_plot['sp500_ret'].fillna(0)).cumprod()
+    df_plot['basic_active'] = df_plot['macro_danger'].shift(lag).fillna(False)
+    df_plot['para_active'] = df_plot['parachute_active'].shift(1).fillna(False)
+
+    # 2. カラーパレットの再定義（視認性重視）
+    driver_labels = ['1:Credit', '2:Bond', '3:Mix']
+    driver_colors = ['rgba(255, 69, 58, 0.8)', 'rgba(255, 159, 10, 0.8)', 'rgba(10, 132, 255, 0.7)']
+    
+    # パラシュートを「グレー」に見せないための強力な発色（ネオンマゼンタ）
+    signal_colors = {
+        'basic': 'rgba(255, 69, 58, 0.15)',    # マクロ：淡い赤
+        'parachute': 'rgba(255, 0, 255, 0.6)'  # パラシュート：強いマゼンタ（不透明度アップ）
+    }
+
+    fig = make_subplots(
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+        row_heights=[0.33, 0.33, 0.34],
+        subplot_titles=(
+            "<b>1. MARKET DEFENSE: S&P500 & Signal Fusion</b>", 
+            "<b>2. RISK ANATOMY: Risk Score & Dominant Driver</b>", 
+            "<b>3. DRIVER PROBABILITIES: Probability Composition</b>"
+        )
+    )
+
+    # --- 1段目: 価格 ---
+    fig.add_trace(go.Scatter(
+        x=df_plot.index, y=df_plot['cum_bench'], 
+        name="S&P500", line=dict(color='#FFFFFF', width=1.8)
+    ), row=1, col=1)
+
+    # --- 背景シグナル描画 ---
+    # Basic Signal
+    df_plot['basic_grp'] = (df_plot['basic_active'] != df_plot['basic_active'].shift()).cumsum()
+    for _, g in df_plot[df_plot['basic_active']].groupby('basic_grp'):
+        fig.add_vrect(x0=g.index[0], x1=g.index[-1], fillcolor=signal_colors['basic'], layer="below", line_width=0, row=1, col=1)
+
+    # Parachute Signal (1日でも表示されるように修正)
+    df_plot['para_grp'] = (df_plot['para_active'] != df_plot['para_active'].shift()).cumsum()
+    for _, g in df_plot[df_plot['para_active']].groupby('para_grp'):
+        x0, x1 = g.index[0], g.index[-1]
+        # 1日だけの場合、幅を持たせる（前後12時間）
+        if x0 == x1:
+            x0 = x0 - timedelta(hours=12)
+            x1 = x1 + timedelta(hours=12)
+        
+        fig.add_vrect(
+            x0=x0, x1=x1, 
+            fillcolor=signal_colors['parachute'], 
+            line_width=2, line_color="rgba(255, 255, 255, 0.4)", # 縁取りを付けて強調
+            layer="below", row=1, col=1
+        )
+
+    # パラシュート点灯箇所にマーカー（▼）を追加
+    df_para_only = df_plot[df_plot['para_active']]
+    if not df_para_only.empty:
+        fig.add_trace(go.Scatter(
+            x=df_para_only.index, y=df_para_only['cum_bench'] * 1.02, # 少し上に表示
+            mode='markers', marker=dict(symbol='triangle-down', size=12, color='#FF00FF'),
+            name="Parachute Exit", showlegend=True
+        ), row=1, col=1)
+
+    # --- 2段目: Risk Score & Driver 背景 ---
+    fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['risk_score'], name="Risk Score", line=dict(color='#00FFFF', width=2)), row=2, col=1)
+    fig.add_hline(y=0.6, line_dash="dash", line_color="rgba(255,255,255,0.4)", row=2, col=1)
+    
+    dominant = df_plot[driver_labels].idxmax(axis=1)
+    df_plot['dom_grp'] = (dominant != dominant.shift()).cumsum()
+    bg_alpha = {'1:Credit': '0.22', '2:Bond': '0.18', '3:Mix': '0.12'}
+    for _, group in df_plot.groupby('dom_grp'):
+        dom_label = df_plot.loc[group.index[0], driver_labels].idxmax()
+        color_idx = driver_labels.index(dom_label)
+        bg_color = driver_colors[color_idx].replace('0.8', bg_alpha[dom_label]).replace('0.7', bg_alpha[dom_label])
+        fig.add_vrect(x0=group.index[0], x1=group.index[-1], fillcolor=bg_color, layer="below", line_width=0, row=2, col=1)
+
+    # --- 3段目: 確率推移 ---
+    for i, (col, name) in enumerate(zip(driver_labels, ['Credit', 'Bond', 'Mix'])):
+        fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[col], name=name, stackgroup='one', fillcolor=driver_colors[i], line=dict(width=0), hovertemplate='%{y:.1%}'), row=3, col=1)
+
+    fig.update_layout(template="plotly_dark", height=850, margin=dict(l=50, r=20, t=50, b=50), hovermode="x unified")
+    fig.show(config=dict(displayModeBar=False))########################################################
+
 
 
 ########################################################
