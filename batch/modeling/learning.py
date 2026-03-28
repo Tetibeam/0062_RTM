@@ -396,7 +396,7 @@ def learning_dfa(df, factors=1, factor_orders=1, target_col=None, target_is_posi
 
     return res_series, results, is_inverted
 
-def learning_lgbm_test(
+def learning_lgbm_test_gli(
     # 特徴量と目的変数
     df_ready, target_col, labels,
     # TimeSeriesSplitの設定値
@@ -404,16 +404,18 @@ def learning_lgbm_test(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None, objective="multiclass",max_depth=10,min_child_samples=5,
+    sample_weight=None, objective="multiclass",
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
     study_signal_filter=False,
+    #return_col='next_20d_ret_sp500',
     ):
     # 1. 前処理：データの準備
     df_ready = df_ready.dropna(subset=[target_col])
     X = df_ready.drop(columns=[target_col])
     y = df_ready[target_col]
+    #returns_all = df_ready[return_col]
 
     # 2. TimeSeriesSplitの設定
     # gap を指定することで、TrainとTestの間に空白を作り、未来リーク（カンニング）を完全に防ぐ
@@ -441,6 +443,8 @@ def learning_lgbm_test(
         # データ分割
         X_train, X_test = X.iloc[train_index], X.iloc[test_index]
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        #ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
+        #ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
         clf = lgb.LGBMClassifier(
@@ -448,10 +452,9 @@ def learning_lgbm_test(
             #num_class=len(labels),
             n_estimators=n_estimators,
             learning_rate=learning_rate,
-            max_depth=max_depth,
+            #max_depth=4,
             num_leaves=num_leaves,
             min_data_in_leaf=min_data_in_leaf,
-            min_child_samples=min_child_samples,
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
@@ -490,7 +493,6 @@ def learning_lgbm_test(
         # 6. 期待値データの保存
         y_pred = clf.predict(X_test)
         df_ev_fold = pd.DataFrame({
-        # # Bond+Creditの足し算
             'predict_label': y_pred
         }, index=X_test.index)
         #print("期待値データの出力")
@@ -584,17 +586,6 @@ def learning_lgbm_test(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-
-    #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
-    #bins = [0, 0.45, 0.63, 0.75, 0.85, 1.1]
-    #df_oof_ev['ev_rank'] = pd.cut(
-    #    df_oof_ev['risk_sum'],
-    #    bins=bins,
-    #    labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
-    #    include_lowest=True
-    #)
-    #ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
-    #print(ev_summary)
 
     return df_oof_all, final_shap_dfs, df_oof_ev
 

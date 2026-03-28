@@ -16,7 +16,7 @@ from batch.modeling.visualize import (
 from batch.modeling.learning import (
     lag_analysis,
     learning_dfa,
-    learning_lgbm_test,
+    learning_lgbm_test_gli,
     learning_logistic_lasso_test
     )
 import pandas as pd
@@ -35,45 +35,37 @@ def get_gli_model_beta(df_index):
     # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
     df = _make_target_variable(df)
 
-    # --- 教師ラベルの生成 ---
-    #df_label = _make_label_gli(df_gli)
-
     # --- データ集計-日次は月次に、四半期は月次に線形補完する ---
     df = _aggregation(df)
     #check_nan_time(df,"1990-01-01")
     #pd.set_option('display.max_rows', None)
     #print(df["CP"].tail(300))
 
+    # --- 教師ラベルの生成 ---
+    df_label = _make_label(df["NDFACBM027SBOG"].dropna())
+
     # --- 特徴量抽出 ---
     df_a, df_b, df_c, df_d =  _featuring(df)
     #check_nan_time(df_a,"1990-01-01")
-
-    # --- gli のデータを前月末尾にする ---
-    #df_gli = df_index["gli"].dropna()
-    #df_gli.index = df_gli.index - pd.offsets.MonthEnd(1)
-    #print(df_gli)
 
     # --- 特徴量とGLIのラグ相関分析 ---
     _lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
 
     # --- DFA前にラグを調整する ---
     df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
-    check_nan_time(df_d,"1990-01-01")
+    #check_nan_time(df_d,"1990-01-01")
 
-    # --- 学習用特徴量の生成 ---
-    #X = _make_featuring(factor_a, factor_b, factor_c, factor_d)
-    # --- 学習 ---
-    #df_master = pd.concat([X, y], axis=1).dropna()
+    df_master = df_label.to_frame().join([df_a, df_b, df_c, df_d], how='left')
     #print(df_master)
-    #plot_index(df_master)
+    #check_nan_time(df_master,"1990-01-01")
 
-    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test(
+    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=1,
-        n_estimators=100,learning_rate=0.05,num_leaves=3, min_data_in_leaf=15,
-        reg_alpha=10, reg_lambda=10, max_depth=2,min_child_samples= 5,
+        n_splits=2, gap=3,
+        n_estimators=300,learning_rate=0.03, num_leaves=3, min_data_in_leaf=20,
+        reg_alpha=10, reg_lambda=10, max_depth=2, min_child_samples= 5,
         learning_curve=True,
-    )"""
+    )
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -413,45 +405,26 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
     #check_nan_time(x,"1990-01-01")
     #print(x)
     return x
+
 ########################################################
 # 学習の変数
 ########################################################
-def _make_label_gli(df_gli):
+def _make_label(target):
 
-    df = df_gli.copy()
-    y_diff = df.diff()
-    target = y_diff.shift(-1).dropna()
-    #print(target.describe())
+    target_diff12 = target.diff(12)
+    future_change = target_diff12.shift(-3) - target_diff12
+
     # 統計データから算出した閾値
-    lower_threshold = -1.099750  # 下位25% (Down)
-    upper_threshold = 1.181250   # 上位25% (Up)
+    lower_threshold = -82.4491  # 下位25% (Down)
+    upper_threshold = 74.258375   # 上位25% (Up)
     labels = pd.cut(
-        target,
+        future_change,
         bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
         labels=[1, 2, 3]
     ).rename("gli_label")
-    #print(labels)
-    return labels
+    #print(labels.value_counts())
 
-    # 線形月次変換
-    """gli_monthly = df_gli.resample('ME').first().interpolate(method='linear')
-
-    # カンニングラベル
-    y_diff = gli_monthly.diff(3)
-    target = y_diff.shift(-3)
-
-    # 統計データから算出した閾値
-    lower_threshold = -0.911  # 下位25% (Down)
-    upper_threshold = 1.073   # 上位25% (Up)
-
-    labels = pd.cut(
-        target,
-        bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
-        labels=[1, 2, 3]
-    ).rename("gli_label")
-    #print(labels)
-
-    return labels"""
+    return labels.dropna()
 
 def _make_featuring(factor_a, factor_b, factor_c, factor_d):
 
