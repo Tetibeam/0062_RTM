@@ -58,7 +58,7 @@ def get_gli_model_beta(df_index):
 
     # --- DFA前にラグを調整する ---
     df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
-    #check_nan_time(df_c,"1990-01-01")
+    check_nan_time(df_d,"1990-01-01")
 
     # --- 学習用特徴量の生成 ---
     #X = _make_featuring(factor_a, factor_b, factor_c, factor_d)
@@ -167,33 +167,32 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 def _lag_adjustment(df_a, df_b, df_c, df_d):
 
     # Layer A
-    df_a["BUSLOANS_yoy_sync"] = df_a["BUSLOANS_yoy"].shift(6)#12
-    df_a["CP_yoy_sync"] = df_a["CP_yoy"].shift(0)#9
-    df_a["PNFIC1_yoy_sync"] = df_a["PNFIC1_yoy"].shift(21)#28
-    df_a = df_a.drop(columns=["BUSLOANS_yoy", "CP_yoy", "PNFIC1_yoy"])
+    df_a["BUSLOANS_yoy_sync"] = df_a["BUSLOANS_yoy"].shift(0)
+    df_a["CP_yoy_sync"] = df_a["CP_yoy"].shift(19)#9
+    #df_a["PNFIC1_yoy_sync"] = df_a["PNFIC1_yoy"].shift(21)#28
+    df_a = df_a.drop(columns=["BUSLOANS_yoy", "CP_yoy"])
 
     # Layer B
     #df_b["DSPIC96_yoy_clip_sync"] = df_b["DSPIC96_yoy_clip"].shift(5)#
     #df_b["UNRATE_diff_clip_sync"] = df_b["UNRATE_diff_clip"].shift(10)#
-    df_b["PCE_yoy_clip_sync"] = df_b["PCE_yoy_clip"].shift(13)#
-    df_b["PAYEMS_yoy_clip_sync"] = df_b["PAYEMS_yoy_clip"].shift(11)#
-    df_b["CES0500000003_yoy_clip_sync"] = df_b["CES0500000003_yoy_clip"].shift(0)#
-    df_b = df_b.drop(columns=["PAYEMS_yoy_clip", "PCE_yoy_clip", "CES0500000003_yoy_clip"])
+    df_b["yoy_PAYEMS_sync"] = df_b["yoy_PAYEMS"].shift(11)#
+    df_b["yoy_PCE_sync"] = df_b["yoy_PCE"].shift(12)#
+    #df_b["CES0500000003_yoy_clip_sync"] = df_b["CES0500000003_yoy_clip"].shift(0)#
+    df_b = df_b.drop(columns=["yoy_PAYEMS", "yoy_PCE"])
 
     # Layer C
-    df_c["SOFR_diff_clip_sync"] = df_c["SOFR_diff_clip"].shift(23)#
-    df_c["DXY_yoy_clip_sync"] = df_c["DXY_yoy_clip"].shift(53)#56
-    df_c["Liq_Spread_sync"] = df_c["SOFR_TB3MS_minus_clip"].shift(0)#
-    df_c["Credit_Spread_sync"] = df_c["BAMLC0A4CBBB_minus_BAMLC0A3CA_clip"].shift(10)#
-    df_c["Credit_Spread_diff_sync"] = df_c["BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip"].shift(18)#
-    df_c["Liq_Spread_diff_sync"] = df_c["SOFR_TB3MS_minus_diff_clip"].shift(5)#
-    df_c = df_c.drop(columns=[
-        "SOFR_diff_clip", "DXY_yoy_clip", "SOFR_TB3MS_minus_clip", "BAMLC0A4CBBB_minus_BAMLC0A3CA_clip",
-        "BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip", "SOFR_TB3MS_minus_diff_clip"])
+    df_c["spd_SOFR_TB3MS_sync"] = df_c["spd_SOFR_TB3MS"].shift(0)
+    df_c["diff_SOFR_sync"] = df_c["diff_SOFR"].shift(6)
+    #df_c["yoy_DXY_sync"] = df_c["yoy_DXY"].shift(14)
+    df_c["spd_BBB_A_sync"] = df_c["spd_BBB_A"].shift(12)#
+    #df_c["Credit_Spread_diff_sync"] = df_c["BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip"].shift(18)#
+    #df_c["Liq_Spread_diff_sync"] = df_c["SOFR_TB3MS_minus_diff_clip"].shift(5)#
+    df_c = df_c.drop(columns=["spd_SOFR_TB3MS", "diff_SOFR", "spd_BBB_A"])
+
     # Layer D
-    df_d["Net_Liquidity_yoy_clip_sync"] = df_d["Net_Liquidity_yoy_clip"].shift(2)#
-    df_d["Abs_Rate_clip_sync"] = df_d["Abs_Rate_clip"].shift(0)#
-    df_d = df_d.drop(columns=["Net_Liquidity_yoy_clip", "Abs_Rate_clip"])
+    df_d["yoy_Net_Liquidity_sync"] = df_d["yoy_Net_Liquidity"].shift(0)#
+    df_d["Res_Ratio_sync"] = df_d["Res_Ratio"].shift(0)
+    df_d = df_d.drop(columns=["yoy_Net_Liquidity", "Res_Ratio"])
 
 
     start = df_a.apply(pd.Series.first_valid_index).max()
@@ -314,7 +313,7 @@ def _featuring_c(df):
     #check_nan_time(df_,"1990-01-01")
     #print(df_.tail(10))
 
-    #diff_SOFR = df_["SOFR"].diff(12).dropna().rename("diff_SOFR")
+    diff_SOFR = df_["SOFR"].diff(12).dropna().rename("diff_SOFR")
     #clip_SOFR = diff_SOFR.clip(-3, 3).rename("SOFR_diff_clip")
 
     yoy_DXY = df_["DX-Y.NYB"].pct_change(12).dropna().rename("yoy_DXY")
@@ -336,7 +335,7 @@ def _featuring_c(df):
     #clip_diff_spd_BBB_A = diff_spd_BBB_A.clip(lower=-0.35, upper=0.3).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip")
 
     df_featured = pd.concat([
-        yoy_DXY, spd_SOFR_TB3MS, spd_BBB_A, diff_spd_BBB_A
+        diff_SOFR, spd_SOFR_TB3MS, spd_BBB_A
         ], axis=1).dropna(how="all")
 
     #print(df_featured.head(29))
