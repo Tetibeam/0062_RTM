@@ -404,7 +404,8 @@ def learning_lgbm_test_gli(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None, objective="multiclass",max_depth=2,
+    sample_weight=None, objective="multiclass",max_depth=2,feature_fraction=0.7,
+    bagging_fraction=0.8,bagging_freq=1,seed=1,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -458,6 +459,10 @@ def learning_lgbm_test_gli(
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
+            feature_fraction=feature_fraction,
+            bagging_fraction=bagging_fraction,
+            bagging_freq=bagging_freq,
+            seed=seed,
             importance_type=importance_type,
             random_state=42,
             verbose=-1

@@ -55,14 +55,20 @@ def get_gli_model_beta(df_index):
     df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
     #check_nan_time(df_d,"1990-01-01")
 
-    df_master = df_label.to_frame().join([df_a, df_b, df_c, df_d], how='left')
+    # --- 特徴量を追加する ---
+    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
+    df_features = _add_features(df_features)
+    #check_nan_time(df_features,"1990-01-01")
+
+
+    df_master = df_label.to_frame().join(df_features, how='left')
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
-
+    print(f"特徴量のリスト: {df_features.columns}")
     df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=3,
-        n_estimators=300,learning_rate=0.03, num_leaves=5, min_data_in_leaf=20,
+        n_estimators=300,learning_rate=0.01, num_leaves=10, min_data_in_leaf=50,
         reg_alpha=5, reg_lambda=5, max_depth=3,
         learning_curve=True,
     )
@@ -377,6 +383,17 @@ def _featuring_d(df):
     #plot_index(df_featured)
     #print(df_featured.corr())
     return df_featured
+
+def _add_features(df):
+    df["mom3_BUSLOANS_yoy_sync"] = df["BUSLOANS_yoy_sync"].diff(3)
+    df["mom3_CP_yoy_sync"] = df["CP_yoy_sync"].diff(3)
+    df["mom3_yoy_PCE_sync"] = df["yoy_PCE_sync"].diff(3)
+    df["mom3_yoy_PAYEMS_sync"] = df["yoy_PAYEMS_sync"].diff(3)
+    df["mom3_spd_SOFR_TB3MS_sync"] = df["spd_SOFR_TB3MS_sync"].diff(3)
+    df["mom3_spd_BBB_A_sync"] = df["spd_BBB_A_sync"].diff(3)
+    df["mom3_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync"].diff(3)
+    
+    return df.dropna(how="all")
 
 ########################################################
 # 回帰の変数
