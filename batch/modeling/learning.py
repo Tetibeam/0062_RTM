@@ -404,8 +404,8 @@ def learning_lgbm_test_gli(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None, objective="multiclass",max_depth=2,feature_fraction=0.7,
-    bagging_fraction=0.8,bagging_freq=1,seed=1,
+    sample_weight=None, objective="multiclass",max_depth=2,feature_fraction=0.7,stopping_rounds=20,
+    bagging_fraction=0.8,bagging_freq=1,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -462,7 +462,6 @@ def learning_lgbm_test_gli(
             feature_fraction=feature_fraction,
             bagging_fraction=bagging_fraction,
             bagging_freq=bagging_freq,
-            seed=seed,
             importance_type=importance_type,
             random_state=42,
             verbose=-1
@@ -477,7 +476,7 @@ def learning_lgbm_test_gli(
             # Early Stoppingで過学習を防ぐ
             # evals_result に学習の軌跡（スコアの履歴）を記録
             callbacks=[
-                lgb.early_stopping(stopping_rounds=30, verbose=False),
+                lgb.early_stopping(stopping_rounds=stopping_rounds, verbose=False),
                 lgb.record_evaluation(evals_result)
             ]
         )
@@ -597,8 +596,8 @@ def learning_lgbm_test_gli(
 def learning_logistic_lasso_test(
     df_ready, target_col, labels,
     n_splits=3, gap=3,
-    C=0.5, penalty="l1",
-    class_weight="balanced"
+    C=0.5, penalty="l1",solver='liblinear',
+    class_weight="balanced",max_iter=5000,
     ):
 
     import warnings
@@ -633,8 +632,9 @@ def learning_logistic_lasso_test(
         # OneVsRestClassifier でラップすることで liblinear での L1 多クラス分類を可能にする
         clf = OneVsRestClassifier(
                 LogisticRegression(
+                    max_iter=max_iter,
                     penalty=penalty,
-                    solver='liblinear',
+                    solver=solver,
                     C=C,
                     class_weight=class_weight,
                     random_state=42
@@ -675,7 +675,7 @@ def learning_logistic_lasso_test(
         all_y_probs.append(y_prob)
 
         fold += 1
-
+    pd.set_option('display.max_columns', None)
     print("\n" + "="*55)
     print("=== 学習結果 (Overall CV Performance) ===")
 

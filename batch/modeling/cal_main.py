@@ -85,7 +85,7 @@ regime_index_list = [
     "原油",
     "銅",
     "SOX指数",
-    "TOPIX",
+    #"TOPIX",
     "10年物米国債インフレ連動債利回り",
     "TOPIX セクターETF 銀行",
     "TOPIX セクターETF 食品",

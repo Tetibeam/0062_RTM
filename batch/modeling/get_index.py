@@ -58,6 +58,7 @@ def get_index_by_asset_class(index_name_list, start_date: pd.Timestamp, end_date
         msg = f"[{'*'*(counter+1):<{total}}] {counter+1} of {total} completed"
         sys.stdout.write("\r" + msg)
         sys.stdout.flush()
+        print(f" {ticker}")
         match source:
             case "bis_monthly":
                 df = _get_bis_prices_monthly(ticker, name, start_date, end_date)

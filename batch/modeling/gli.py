@@ -34,6 +34,8 @@ def get_gli_model_beta(df_index):
 
     # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
     df = _make_target_variable(df)
+    #pd.set_option('display.max_rows', None)
+    #print(df.tail(300))
 
     # --- データ集計-日次は月次に、四半期は月次に線形補完する ---
     df = _aggregation(df)
@@ -42,36 +44,46 @@ def get_gli_model_beta(df_index):
     #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df["NDFACBM027SBOG"].dropna())
+    #df_label = _make_label(df["NDFACBM027SBOG"].dropna())
 
     # --- 特徴量抽出 ---
-    df_a, df_b, df_c, df_d =  _featuring(df)
+    #df_a, df_b, df_c, df_d =  _featuring(df)
     #check_nan_time(df_a,"1990-01-01")
 
     # --- 特徴量とGLIのラグ相関分析 ---
-    _lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
+    #_lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
 
     # --- DFA前にラグを調整する ---
-    df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
+    #df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量を追加する ---
-    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
-    df_features = _add_features(df_features)
+    #df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
+    #df_features = _add_features(df_features)
     #check_nan_time(df_features,"1990-01-01")
 
-
-    df_master = df_label.to_frame().join(df_features, how='left')
+    # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
+    #df_master = df_label.to_frame().join(df_features, how='left')
+    #df_master = df_master.loc["2012-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
-    print(f"特徴量のリスト: {df_features.columns}")
-    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
+
+    #print(f"特徴量のリスト: {df_features.columns}")
+
+    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=3,
-        n_estimators=300,learning_rate=0.01, num_leaves=10, min_data_in_leaf=50,
-        reg_alpha=5, reg_lambda=5, max_depth=3,
+        n_splits=3, gap=6,
+        n_estimators=100,learning_rate=0.01, num_leaves=10, min_data_in_leaf=30,
+        reg_alpha=0.1, reg_lambda=0.1, max_depth=5,feature_fraction=0.4,bagging_fraction=0.5,bagging_freq=1,
+        class_weight="balanced",importance_type="gain",stopping_rounds=30,
         learning_curve=True,
-    )
+    )"""
+
+    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+        n_splits=2, gap=2,solver='saga',max_iter=5000,
+        C=0.1, penalty="l1",class_weight="balanced",
+    )"""
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -104,11 +116,17 @@ def _aggregation(df):
     #print(df_daily.columns,df_weekly.columns,df_monthly.columns,df_quarterly.columns)
     #check_nan_time(df_quarterly,"1990-01-01")
     #pd.set_option("display.max_rows", None)
-    #print(df_monthly.tail(80))
+    #print(df_monthly.tail(10))
 
-    df_daily_m = df_daily.resample('ME').mean()
-    df_weekly_m = df_weekly.resample('ME').mean()
-    df_monthly = df_monthly.resample('ME').mean()
+    df_daily_w = df_daily.resample('W-FRI').mean()
+    df_daily_w_s = df_daily_w.rolling(window=4).mean()
+    df_weekly_w = df_weekly.resample('W-FRI').mean()
+    df_weekly_w_s = df_weekly_w.rolling(window=4).mean()
+    df_monthly_w = df_monthly.resample('W-FRI').interpolate(method='linear')
+    df_monthly_w_lagged = df_monthly_w.shift(4)
+    df_monthly_w_final = df_monthly_w_lagged.ffill()
+    pd.set_option("display.max_rows", None)
+    print(df_monthly_w_final.tail(10))
 
     q_m = df_quarterly.dropna(how="all")
     q_m.index = q_m.index + pd.offsets.MonthEnd(0)
@@ -429,11 +447,20 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 def _make_label(target):
 
     target_diff12 = target.diff(12)
-    future_change = target_diff12.shift(-3) - target_diff12
+
+    # 3か月後予測
+    #future_change = target_diff12.shift(-3) - target_diff12
+    #lower_threshold = -82.4491  # 下位25% (Down)
+    #upper_threshold = 74.258375   # 上位25% (Up)
+    # 1か月後予測
+    future_change = target_diff12.shift(-1) - target_diff12
+    lower_threshold = -40.90375  # 下位25% (Down)
+    upper_threshold = 38.2968   # 上位25% (Up)
+    #print(future_change.describe())
 
     # 統計データから算出した閾値
-    lower_threshold = -82.4491  # 下位25% (Down)
-    upper_threshold = 74.258375   # 上位25% (Up)
+
+
     labels = pd.cut(
         future_change,
         bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
