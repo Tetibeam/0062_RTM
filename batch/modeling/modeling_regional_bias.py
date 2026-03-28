@@ -2,7 +2,7 @@
 # 地域バイアスモデル　- 日本
 ########################################################
 from batch.modeling.learning import(
-    learning_lgbm_test,
+    #learning_lgbm_test,
     learning_get_shap_date
     )
 from batch.modeling.visualize import(

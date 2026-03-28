@@ -2,7 +2,7 @@
 # 市場レジュームモデリング
 ########################################################
 from batch.modeling.learning import(
-    learning_lgbm_test,
+    #learning_lgbm_test,
     learning_lgbm_final,
     learning_get_shap_date,
     )

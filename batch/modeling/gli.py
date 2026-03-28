@@ -62,8 +62,8 @@ def get_gli_model_beta(df_index):
     df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=3,
-        n_estimators=300,learning_rate=0.03, num_leaves=3, min_data_in_leaf=20,
-        reg_alpha=10, reg_lambda=10, max_depth=2, min_child_samples= 5,
+        n_estimators=300,learning_rate=0.03, num_leaves=5, min_data_in_leaf=20,
+        reg_alpha=5, reg_lambda=5, max_depth=3,
         learning_curve=True,
     )
 
