@@ -48,7 +48,7 @@ def get_gli_model_beta(df_index):
     #print(df_gli)
 
     # --- 特徴量とGLIのラグ相関分析 ---
-    #_lag_corr_check(df_a, df_b, df_c, df_d, df_gli)
+    _lag_corr_check(df_a, df_b, df_c, df_d, df_gli)
 
     # --- DFA前にラグを調整する ---
     df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
@@ -66,7 +66,7 @@ def get_gli_model_beta(df_index):
     #print(results_b.summary())
     #print(results_c.summary())
     #print(results_d.summary())
-    #plot_index(pd.concat([factor_a,factor_b,factor_c, df_gli.reindex(factor_c.index)], axis=1).dropna())
+    #plot_index(pd.concat([factor_a,factor_b,factor_c,factor_d, df_gli.reindex(factor_c.index)], axis=1).dropna())
     #print(factor_a.tail(), factor_b.tail(), factor_c.tail(), factor_d.tail())
 
     # --- 因子とGLI-diffの可視化 ---
@@ -95,7 +95,7 @@ def get_gli_model_beta(df_index):
     learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=1,
-        C=0.5, class_weight="balanced",
+        C=0.5, penalty="l1",class_weight="balanced",
     )
 
     # --- 学習結果の分析・可視化 ---
@@ -165,7 +165,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, df_gli):
     #_plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
-    #_plot_lag_correlation(df_lag_d)
+    _plot_lag_correlation(df_lag_d)
 
     #pd.set_option('display.max_rows', None)
     #print(df_lag_d)

@@ -601,13 +601,19 @@ def learning_lgbm_test(
 def learning_logistic_lasso_test(
     df_ready, target_col, labels,
     n_splits=3, gap=3,
-    C=0.5,
+    C=0.5, penalty="l1",
     class_weight="balanced"
     ):
-    
+
+    import warnings
+    from sklearn.exceptions import ConvergenceWarning
+    warnings.filterwarnings("ignore", category=UserWarning, message=".*l1_ratio.*")
+    warnings.filterwarnings("ignore", category=FutureWarning)
+
     df_ready = df_ready.dropna(subset=[target_col])
     X = df_ready.drop(columns=[target_col])
     y = df_ready[target_col]
+    label_map = {i+1: name for i, name in enumerate(labels)} if isinstance(labels, list) else labels
 
     tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
@@ -630,34 +636,42 @@ def learning_logistic_lasso_test(
 
         # OneVsRestClassifier でラップすることで liblinear での L1 多クラス分類を可能にする
         clf = OneVsRestClassifier(
-            LogisticRegression(
-                penalty='l1',
-                C=C,
-                solver='liblinear',
-                class_weight=class_weight,
-                random_state=42
+                LogisticRegression(
+                    penalty=penalty,
+                    solver='liblinear',
+                    C=C,
+                    class_weight=class_weight,
+                    random_state=42
+                )
             )
-        )
 
         clf.fit(X_train_scaled, y_train)
 
         y_pred = clf.predict(X_test_scaled)
         y_prob = clf.predict_proba(X_test_scaled)
-        
+
         acc = accuracy_score(y_test, y_pred)
         b_acc = balanced_accuracy_score(y_test, y_pred)
         print(f"Fold {fold} | Test: {X_test.index[0]} ~ {X_test.index[-1]} | Acc: {acc:.4f} | B-Acc: {b_acc:.4f}")
 
-        # OneVsRestClassifier の場合、各推論器（estimators_）から係数を取得
-        # 各推論器の coef_ は (1, n_features) の形状なので [0] で取得
-        coef_list = [est.coef_[0] for est in clf.estimators_]
-        
-        # クラス名と特徴量名を紐付けたDataFrameを作成
+        estimators = clf.estimators_
+
+        if len(estimators) == 1:
+            # 【二値分類の場合】モデルが1つしかないので1行だけ作成
+            # 通常、二値分類の係数は「2番目のクラス」に対する寄与度を示します
+            coefs = estimators[0].coef_
+            display_names = [label_map[clf.classes_[1]]]
+        else:
+            # 【多クラス分類の場合】全クラス分の行を作成
+            coefs = np.vstack([est.coef_ for est in estimators])
+            display_names = [label_map[c] for c in clf.classes_]
+
         fold_coefs = pd.DataFrame(
-            coef_list, 
+            coefs, 
             columns=X.columns, 
-            index=[labels[c] for c in clf.classes_]
+            index=display_names
         )
+
         all_coefs.append(fold_coefs)
 
         all_y_test.extend(y_test)
@@ -668,7 +682,10 @@ def learning_logistic_lasso_test(
 
     print("\n" + "="*55)
     print("=== 学習結果 (Overall CV Performance) ===")
-    print(classification_report(all_y_test, all_y_pred, target_names=list(labels.values())))
+
+    unique_ids = sorted(np.unique(all_y_test))
+    target_names = [label_map[i] for i in unique_ids]
+    print(classification_report(all_y_test, all_y_pred, target_names=target_names))
 
     print("\n=== 全フォールド総合の混同行列 ===")
     print(confusion_matrix(all_y_test, all_y_pred))
