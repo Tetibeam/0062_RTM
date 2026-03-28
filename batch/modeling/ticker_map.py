@@ -40,6 +40,9 @@ ticker_map = {
     "銀行システムの総準備金": ["totresns", "fred", "TOTRESNS"],
     "TGA": ["tga", "fred", "WDTGAL"],
     "個人消費支出価格指数": ["pce", "fred", "PCE"],
+    "海外関連拠点向け純資金ポジション": ["NDFACBM027SBOG", "fred", "NDFACBM027SBOG"],
+    #"": ["", "", ""],
+  
 
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],

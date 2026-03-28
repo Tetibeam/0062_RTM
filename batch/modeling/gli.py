@@ -32,6 +32,12 @@ def get_gli_model_beta(df_index):
     #pd.set_option('display.max_rows', None)
     #print(df["CP"].tail(300))
 
+    # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
+    df = _make_target_variable(df)
+
+    # --- 教師ラベルの生成 ---
+    #df_label = _make_label_gli(df_gli)
+
     # --- データ集計-日次は月次に、四半期は月次に線形補完する ---
     df = _aggregation(df)
     #check_nan_time(df,"1990-01-01")
@@ -40,48 +46,24 @@ def get_gli_model_beta(df_index):
 
     # --- 特徴量抽出 ---
     df_a, df_b, df_c, df_d =  _featuring(df)
-    #check_nan_time(df_d,"1990-01-01")
+    #check_nan_time(df_a,"1990-01-01")
 
     # --- gli のデータを前月末尾にする ---
-    df_gli = df_index["gli"].dropna()
-    df_gli.index = df_gli.index - pd.offsets.MonthEnd(1)
+    #df_gli = df_index["gli"].dropna()
+    #df_gli.index = df_gli.index - pd.offsets.MonthEnd(1)
     #print(df_gli)
 
     # --- 特徴量とGLIのラグ相関分析 ---
-    _lag_corr_check(df_a, df_b, df_c, df_d, df_gli)
+    _lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
 
     # --- DFA前にラグを調整する ---
     df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
     #check_nan_time(df_c,"1990-01-01")
-    df_a = df_a.loc["2010-01-01":]
-    df_b = df_b.loc["2010-01-01":]
-    df_d = df_d.loc["2010-01-01":]
-
-    # --- DFA ---
-    factor_a, results_a, _ = learning_dfa(df_a, factors=1, factor_orders=2, target_col="BUSLOANS_yoy_sync", target_is_positive=True, output_name="FactorA_Supply")
-    factor_b, results_b, _ = learning_dfa(df_b, factors=1, factor_orders=2, target_col="PCE_yoy_clip_sync", target_is_positive=True, output_name="FactorB_Supply")
-    factor_c, results_c, _ = learning_dfa(df_c, factors=1, factor_orders=2, target_col="Liq_Spread_sync", target_is_positive=True, output_name="FactorC_Supply")
-    factor_d, results_d, _ = learning_dfa(df_d, factors=1, factor_orders=2, target_col="Net_Liquidity_yoy_clip_sync", target_is_positive=True, output_name="FactorD_Supply")
-    #print(results_a.summary())
-    #print(results_b.summary())
-    #print(results_c.summary())
-    #print(results_d.summary())
-    #plot_index(pd.concat([factor_a,factor_b,factor_c,factor_d, df_gli.reindex(factor_c.index)], axis=1).dropna())
-    #print(factor_a.tail(), factor_b.tail(), factor_c.tail(), factor_d.tail())
-
-    # --- 因子とGLI-diffの可視化 ---
-    #_check_factor(factor_a, df_gli, df_index["^GSPC"])
-    #_check_factor(factor_b, df_gli, df_index["^GSPC"])
-    #_check_factor(factor_c, df_gli, df_index["^GSPC"])
-    #_check_factor(factor_d, df_gli, df_index["^GSPC"])
-
-    # --- 教師ラベルの生成 ---
-    y = _make_label_gli(df_gli)
 
     # --- 学習用特徴量の生成 ---
-    X = _make_featuring(factor_a, factor_b, factor_c, factor_d)
+    #X = _make_featuring(factor_a, factor_b, factor_c, factor_d)
     # --- 学習 ---
-    df_master = pd.concat([X, y], axis=1).dropna()
+    #df_master = pd.concat([X, y], axis=1).dropna()
     #print(df_master)
     #plot_index(df_master)
 
@@ -92,16 +74,28 @@ def get_gli_model_beta(df_index):
         reg_alpha=10, reg_lambda=10, max_depth=2,min_child_samples= 5,
         learning_curve=True,
     )"""
-    learning_logistic_lasso_test(
-        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=3, gap=1,
-        C=0.5, penalty="l1",class_weight="balanced",
-    )
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
 
     #return df_oof_all
+
+def _make_target_variable(df):
+    # スプレッド
+    df['SOFR_Spread'] = df['SOFR'].ffill() - df['DTB3'].ffill()
+    df['TED_Spread'] = df['TEDRATE'].ffill()
+    # つなぎ目
+    overlap_start, overlap_end = "2018-04-01", "2018-12-31"
+    offset = (df.loc[overlap_start:overlap_end, 'TED_Spread'] - 
+              df.loc[overlap_start:overlap_end, 'SOFR_Spread']).mean()
+    #print(f"Detected Level Shift (Offset): {offset:.4f}")
+    switch_date = "2018-04-01"
+    df['Final_Price_Stress'] = df['SOFR_Spread'] # 基本はSOFRベース
+
+    df.loc[df.index < switch_date, 'Final_Price_Stress'] = df.loc[df.index < switch_date, 'TED_Spread'] - offset
+    df[['Final_Price_Stress']] = df[['Final_Price_Stress']].resample('MS').mean()
+
+    return df
 
 def _aggregation(df):
 
@@ -137,37 +131,37 @@ def _aggregation(df):
 
     return df_combine
 
-def _lag_corr_check(df_a, df_b, df_c, df_d, df_gli):
+def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 
     # GLI をdiffにする
-    df_gli = df_gli.resample('ME').interpolate(method='linear').dropna()
-    #df_gli_yoy = df_gli.pct_change(4).dropna().rename("gli_yoy")
-    df_gli_diff = df_gli.diff(12).dropna().rename("gli_diff")
+    #target = target.resample('ME').interpolate(method='linear').dropna()
+    #df_gli_yoy = target.pct_change(4).dropna().rename("gli_yoy")
+    target_diff = target.diff(12).dropna().rename("NDFACBM027SBOG_diff")
 
     # GLI のインデックスに合わせる
     #df_a = standard_scalar_df(df_a)
-    df_a_all = pd.concat([df_a.reindex(df_gli_diff.index), df_gli_diff], axis=1).dropna()
-    df_b_all = pd.concat([df_b.reindex(df_gli_diff.index), df_gli_diff], axis=1).dropna()
-    df_c_all = pd.concat([df_c.reindex(df_gli_diff.index), df_gli_diff], axis=1).dropna()
-    df_d_all = pd.concat([df_d.reindex(df_gli_diff.index), df_gli_diff], axis=1).dropna()
+    df_a_all = pd.concat([df_a.reindex(target_diff.index), target_diff], axis=1).dropna()
+    df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff], axis=1).dropna()
+    df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff], axis=1).dropna()
+    df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff], axis=1).dropna()
 
     # 特徴量とGLIのラグ相関分析
-    df_lag_a = lag_analysis(df_a_all, target_col="gli_diff", max_lag=72)
-    df_lag_b = lag_analysis(df_b_all, target_col="gli_diff", max_lag=72)
-    df_lag_c = lag_analysis(df_c_all, target_col="gli_diff", max_lag=72)
-    df_lag_d = lag_analysis(df_d_all, target_col="gli_diff", max_lag=72)
+    df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=72)
+    df_lag_b = lag_analysis(df_b_all, target_col="NDFACBM027SBOG_diff", max_lag=72)
+    df_lag_c = lag_analysis(df_c_all, target_col="NDFACBM027SBOG_diff", max_lag=72)
+    df_lag_d = lag_analysis(df_d_all, target_col="NDFACBM027SBOG_diff", max_lag=72)
 
     # 結果の確認・デバッグ
     #check_nan_time(df_b_all,"1990-01-01")
-    #plot_index(df_d_all)
-    #print(df_b_all)
+    #plot_index(df_a_all)
+    #print(df_d_all)
 
     #_plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
-    _plot_lag_correlation(df_lag_d)
+    #_plot_lag_correlation(df_lag_d)
 
-    #pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_rows', None)
     #print(df_lag_d)
 
 def _lag_adjustment(df_a, df_b, df_c, df_d):
@@ -257,16 +251,17 @@ def _featuring_a(df):
     df_ = df[col].dropna(how="all")
     #print(df_.tail(10))
     #check_nan_time(df_,"1990-01-01")
-    start = df_.apply(pd.Series.first_valid_index).max()
-    end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
-    df_ = df_.loc[start:end]
+    #start = df_.apply(pd.Series.first_valid_index).max()
+    #end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
+    #df_ = df_.loc[start:end]
     #check_nan_time(df_,"1990-01-01")
     #plot_index(df_)
     yoy_BUSLOANS = df_["BUSLOANS"].pct_change(12).dropna().rename("BUSLOANS_yoy")
     yoy_CP = df_["CP"].pct_change(12).dropna().rename("CP_yoy")
     yoy_PNFIC1 = df_["PNFIC1"].pct_change(12).dropna().rename("PNFIC1_yoy")
 
-    df_feature = pd.concat([yoy_BUSLOANS, yoy_CP, yoy_PNFIC1], axis=1).dropna(how="all")
+    #df_feature = pd.concat([yoy_BUSLOANS, yoy_CP, yoy_PNFIC1], axis=1).dropna(how="all")
+    df_feature = pd.concat([yoy_BUSLOANS, yoy_CP], axis=1).dropna(how="all")
     #print(df_feature.head(10))
 
     return df_feature
@@ -277,29 +272,31 @@ def _featuring_b(df):
     df_ = df[col].dropna(how="all")
     #print(df_.tail())
     #check_nan_time(df_,"1990-01-01")
-    start = df_.apply(pd.Series.first_valid_index).max()
-    end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
-    df_ = df_.loc[start:end]
+    #start = df_.apply(pd.Series.first_valid_index).max()
+    #end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
+    #df_ = df_.loc[start:end]
     #check_nan_time(df_,"1990-01-01")
     #print(df_)
     #plot_index(df_)
 
-    #yoy_DSPIC96 = df_["DSPIC96"].pct_change(12).dropna()
+    #yoy_DSPIC96 = df_["DSPIC96"].pct_change(12).dropna().rename("yoy_DSPIC96")
     #clip_DSPIC96 = yoy_DSPIC96.clip(-0.15, 0.18).rename("DSPIC96_yoy_clip")
 
-    yoy_PAYEMS = df_["PAYEMS"].pct_change(12).dropna()
-    clip_PAYEMS = yoy_PAYEMS.clip(-0.06, 0.06).rename("PAYEMS_yoy_clip")
+    yoy_PAYEMS = df_["PAYEMS"].pct_change(12).dropna().rename("yoy_PAYEMS")
+    #clip_PAYEMS = yoy_PAYEMS.clip(-0.06, 0.06).rename("PAYEMS_yoy_clip")
 
-    yoy_PCE = df_["PCE"].pct_change(12).dropna()
-    clip_PCE = yoy_PCE.clip(-0.05, 0.16).rename("PCE_yoy_clip")
+    yoy_PCE = df_["PCE"].pct_change(12).dropna().rename("yoy_PCE")
+    #clip_PCE = yoy_PCE.clip(-0.05, 0.16).rename("PCE_yoy_clip")
 
-    #diff_UNRATE = df_["UNRATE"].diff(12).dropna()
+    #diff_UNRATE = df_["UNRATE"].diff(12).dropna().rename("diff_UNRATE")
     #clip_UNRATE = diff_UNRATE.clip(-2.0, 4.5).rename("UNRATE_diff_clip")
 
-    yoy_CES0500000003 = df_["CES0500000003"].pct_change(12).dropna()
-    clip_yoy_CES0500000003 = yoy_CES0500000003.clip(0.02, 0.06).rename("CES0500000003_yoy_clip")
+    #yoy_CES0500000003 = df_["CES0500000003"].pct_change(12).dropna().rename("yoy_CES0500000003")
+    #clip_yoy_CES0500000003 = yoy_CES0500000003.clip(0.02, 0.06).rename("CES0500000003_yoy_clip")
 
-    df_featured = pd.concat([clip_PAYEMS,clip_PCE, clip_yoy_CES0500000003], axis=1).dropna(how="all")
+    #df_featured = pd.concat([clip_PAYEMS,clip_PCE, clip_yoy_CES0500000003], axis=1).dropna(how="all")
+    df_featured = pd.concat([yoy_PAYEMS,yoy_PCE], axis=1).dropna(how="all")
+    #print(df_featured.corr())
     #check_nan_time(df_featured,"1990-01-01")
 
     #plot_index(df_featured.tail(10))
@@ -311,40 +308,40 @@ def _featuring_c(df):
 
     # DFFで代用
     df_["SOFR"] = df_["SOFR"].fillna(df_["DFF"])
-    start = df_.apply(pd.Series.first_valid_index).max()
-    end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
-    df_ = df_.loc[start:end].drop(columns=["DFF"])
+    #start = df_.apply(pd.Series.first_valid_index).max()
+    #end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
+    #df_ = df_.loc[start:end].drop(columns=["DFF"])
     #check_nan_time(df_,"1990-01-01")
     #print(df_.tail(10))
 
-    diff_SOFR = df_["SOFR"].diff(12).dropna()
-    clip_SOFR = diff_SOFR.clip(-3, 3).rename("SOFR_diff_clip")
+    #diff_SOFR = df_["SOFR"].diff(12).dropna().rename("diff_SOFR")
+    #clip_SOFR = diff_SOFR.clip(-3, 3).rename("SOFR_diff_clip")
 
-    yoy_DXY = df_["DX-Y.NYB"].pct_change(12).dropna().rename("DXY_yoy")
-    clip_yoy_DXY = cap_by_sigma(yoy_DXY, sigma=2.5).rename("DXY_yoy_clip")
+    yoy_DXY = df_["DX-Y.NYB"].pct_change(12).dropna().rename("yoy_DXY")
+    #clip_yoy_DXY = cap_by_sigma(yoy_DXY, sigma=2.5).rename("DXY_yoy_clip")
 
-    diff_DXY = df_["DX-Y.NYB"].diff().dropna().rename("DXY_diff")
-    clip_diff_DXY = cap_by_sigma(diff_DXY, sigma=2.5).rename("DXY_diff_clip")
+    diff_DXY = df_["DX-Y.NYB"].diff().dropna().rename("diff_DXY")
+    #clip_diff_DXY = cap_by_sigma(diff_DXY, sigma=2.5).rename("DXY_diff_clip")
 
-    spd_TB3MS = (df_["SOFR"] - df_["TB3MS"]).dropna().rename("SOFR_TB3MS_minus")
-    clip_spd_TB3MS = spd_TB3MS.clip(-0.5, 0.5).rename("SOFR_TB3MS_minus_clip")
+    spd_SOFR_TB3MS = (df_["SOFR"] - df_["TB3MS"]).dropna().rename("spd_SOFR_TB3MS")
+    #clip_spd_TB3MS = spd_TB3MS.clip(-0.5, 0.5).rename("SOFR_TB3MS_minus_clip")
 
-    diff_spd_TB3MS = spd_TB3MS.diff().dropna().rename("SOFR_TB3MS_minus_diff")
-    clip_diff_spd_TB3MS = diff_spd_TB3MS.clip(-0.25, 0.25).rename("SOFR_TB3MS_minus_diff_clip")
+    #diff_spd_SOFR_TB3MS = spd_SOFR_TB3MS.diff().dropna().rename("diff_spd_SOFR_TB3MS")
+    #clip_diff_spd_TB3MS = diff_spd_TB3MS.clip(-0.25, 0.25).rename("SOFR_TB3MS_minus_diff_clip")
 
-    spd_BBB_A = (df_["BAMLC0A4CBBB"] - df_["BAMLC0A3CA"]).dropna().rename("BAMLC0A4CBBB_minus_BAMLC0A3CA")
-    clip_spd_BBB_A = spd_BBB_A.clip(lower=0, upper=1.2).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_clip")
+    spd_BBB_A = (df_["BAMLC0A4CBBB"] - df_["BAMLC0A3CA"]).dropna().rename("spd_BBB_A")
+    #clip_spd_BBB_A = spd_BBB_A.clip(lower=0, upper=1.2).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_clip")
 
-    diff_spd_BBB_A = spd_BBB_A.diff().dropna().rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_diff")
-    clip_diff_spd_BBB_A = diff_spd_BBB_A.clip(lower=-0.35, upper=0.3).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip")
+    diff_spd_BBB_A = spd_BBB_A.diff().dropna().rename("diff_spd_BBB_A")
+    #clip_diff_spd_BBB_A = diff_spd_BBB_A.clip(lower=-0.35, upper=0.3).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip")
 
     df_featured = pd.concat([
-        clip_SOFR, clip_spd_TB3MS, clip_yoy_DXY, clip_diff_DXY,
-        clip_spd_BBB_A,clip_diff_spd_BBB_A,clip_diff_spd_TB3MS
+        yoy_DXY, spd_SOFR_TB3MS, spd_BBB_A, diff_spd_BBB_A
         ], axis=1).dropna(how="all")
 
     #print(df_featured.head(29))
     #plot_index(df_featured)
+    #print(df_featured.corr())
     #check_nan_time(df_featured,"1990-01-01")
     return df_featured
 
@@ -359,33 +356,35 @@ def _featuring_d(df):
     df_['RRP_filled'] = df_['RRPONTSYD'].fillna(0) * 1000
     df_ = df_.drop(columns=['RESBALNS', 'TOTRESNS', 'RRPONTSYD'])
 
-    start = df_.apply(pd.Series.first_valid_index).max()
-    end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
-    df_ = df_.loc[start:end]
+    #start = df_.apply(pd.Series.first_valid_index).max()
+    #end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
+    #df_ = df_.loc[start:end]
     #print(df_.tail(10))
 
     # Net Liquidity の生成
     Net_Liquidity = df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])
     # 特徴量1: 成長率 (YoY)
-    yoy_Net_Liquidity = Net_Liquidity.pct_change(12).rename("Net_Liquidity_yoy")
-    clip_yoy_Net_Liquidity = yoy_Net_Liquidity.clip(-0.2, 0.5).rename("Net_Liquidity_yoy_clip")
+    yoy_Net_Liquidity = Net_Liquidity.pct_change(12).rename("yoy_Net_Liquidity")
+    #clip_yoy_Net_Liquidity = yoy_Net_Liquidity.clip(-0.2, 0.5).rename("Net_Liquidity_yoy_clip")
 
     # 特徴量2: 吸収率 (TGA+RRPが資産に占める割合)
-    Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
-    clip_Abs_Rate = Abs_Rate.clip(0, 0.25).rename("Abs_Rate_clip")
+    #Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
+    #clip_Abs_Rate = Abs_Rate.clip(0, 0.25).rename("Abs_Rate_clip")
 
     # 特徴量3: 銀行準備金の厚み
     Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
-    clip_Res_Ratio = Res_Ratio.clip(0, 0.25).rename("Res_Ratio_clip")
+    #clip_Res_Ratio = Res_Ratio.clip(0, 0.25).rename("Res_Ratio_clip")
 
-    df_featured = pd.concat([clip_yoy_Net_Liquidity,clip_Abs_Rate], axis=1).dropna(how="all")
+    #df_featured = pd.concat([clip_yoy_Net_Liquidity,clip_Abs_Rate], axis=1).dropna(how="all")
+    df_featured = pd.concat([yoy_Net_Liquidity,Res_Ratio], axis=1).dropna(how="all")
 
     #pd.set_option('display.max_rows', None)
     #print(df_["WDTGAL"])
 
     #print(df_featured.tail(10))
-    #heck_nan_time(df_featured,"1990-01-01")
+    #check_nan_time(df_featured,"1990-01-01")
     #plot_index(df_featured)
+    #print(df_featured.corr())
     return df_featured
 
 ########################################################
@@ -542,8 +541,8 @@ gli_index = [
     "BUSLOANS",
     "CP",
     "PNFIC1",
-    #"DSPIC96",
-    #"UNRATE",
+    "DSPIC96",
+    "UNRATE",
     "CES0500000003",
     "SOFR",
     "DFF",
@@ -557,7 +556,10 @@ gli_index = [
     "TOTRESNS",
     "WDTGAL",
     "PAYEMS",
-    "PCE"
+    "PCE",
+    "NDFACBM027SBOG",
+    "TEDRATE",
+    "DTB3"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):
