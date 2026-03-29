@@ -4,8 +4,8 @@ NDFACBM027SBOG　diff(52),A,CP_yoy_sync,正,69週
 NDFACBM027SBOG　diff(52),B,yoy_PCE_sync,正,50週
 NDFACBM027SBOG　diff(52),B,yoy_PAYEMS_sync,正,29週
 NDFACBM027SBOG　diff(52),C,spd_SOFR_TB3MS_sync,負,86週
-NDFACBM027SBOG　diff(52),C,diff_SOFR_sync,負,28週
-NDFACBM027SBOG　diff(52),C,spd_BBB_A_sync,負,52週
+NDFACBM027SBOG　diff(52),C,diff_SOFR_sync,負,0週
+NDFACBM027SBOG　diff(52),C,spd_BBB_A_sync,負,50週
 NDFACBM027SBOG　diff(52),D,yoy_Net_Liquidity_sync,正,0週
 NDFACBM027SBOG　diff(52),D,Res_Ratio_sync,正,0週
 ,,,,

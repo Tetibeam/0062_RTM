@@ -63,23 +63,23 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_features,"1990-01-01")
 
     df_features = df_features[[
-        'BUSLOANS_yoy_sync',
+        'BUSLOANS_yoy_sync',###
         #'CP_yoy_sync',
         #'yoy_PAYEMS_sync',
-        'yoy_PCE_sync',
-        'spd_SOFR_TB3MS_sync',
-        'diff_SOFR_sync',
-        'spd_BBB_A_sync',
-        'yoy_Net_Liquidity_sync_l0',
+        'yoy_PCE_sync',###
+        'spd_SOFR_TB3MS_sync',###
+        'diff_SOFR_sync',###
+        'spd_BBB_A_sync',###
+        'yoy_Net_Liquidity_sync_l0',###
         #"yoy_Net_Liquidity_sync_l55",
-        'Res_Ratio_sync',
+        'Res_Ratio_sync',###
         #'mom13_BUSLOANS_yoy_sync',
         #'mom13_CP_yoy_sync',
         #'mom13_yoy_PCE_sync',
         #'mom13_yoy_PAYEMS_sync',
         #'mom13_spd_SOFR_TB3MS_sync',
-        #'mom13_spd_BBB_A_sync',
-        #'mom13_yoy_Net_Liquidity_sync',
+        #'mom4_spd_BBB_A_sync',
+        #'mom4_yoy_Net_Liquidity_sync',
         #'mom26_yoy_Net_Liquidity_sync',
         #"z52_yoy_Net_Liquidity_sync",
         #"z52_diff_SOFR_sync",
@@ -106,11 +106,30 @@ def get_gli_model_beta(df_index):
         importance_type="gain",stopping_rounds=30,#min_gain_to_split=0.1,
         learning_curve=True,
     )
+    for label, shap_df in final_shap_dfs.items():
+        print(f"\n=== レジーム: {label} の符号検証 ===")
+        # 検証データ期間の元の特徴量を取得
+        original_X = df_master.loc[shap_df.index, df_features.columns]
+
+        logic_results = []
+        for col in df_features.columns:
+            # 元の値とSHAP値の相関を計算
+            correlation = original_X[col].corr(shap_df[col])
+            
+            # 方向性の判定
+            direction = "正の相関 (+)" if correlation > 0 else "負の相関 (-)"
+            logic_results.append({
+                "特徴量": col,
+                "方向性": direction,
+                "相関係数": f"{correlation:.3f}"
+            })
+
+        print(pd.DataFrame(logic_results))
 
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,solver='saga',max_iter=5000,
-        C=1, penalty="l1",class_weight="balanced",
+        C=0.5, penalty="l1",class_weight="balanced",
     )"""
 
     # --- 学習結果の分析・可視化 ---
@@ -228,7 +247,7 @@ def _lag_adjustment(df_a, df_b, df_c, df_d):
     df_c["spd_SOFR_TB3MS_sync"] = df_c["spd_SOFR_TB3MS"].shift(86)
     df_c["diff_SOFR_sync"] = df_c["diff_SOFR"].shift(0)
     #df_c["yoy_DXY_sync"] = df_c["yoy_DXY"].shift(14)
-    df_c["spd_BBB_A_sync"] = df_c["spd_BBB_A"].shift(52)#
+    df_c["spd_BBB_A_sync"] = df_c["spd_BBB_A"].shift(50)#
     #df_c["Credit_Spread_diff_sync"] = df_c["BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip"].shift(18)#
     #df_c["Liq_Spread_diff_sync"] = df_c["SOFR_TB3MS_minus_diff_clip"].shift(5)#
     df_c = df_c.drop(columns=["spd_SOFR_TB3MS", "diff_SOFR", "spd_BBB_A"])
@@ -437,8 +456,8 @@ def _add_features(df):
     df["mom13_yoy_PCE_sync"] = df["yoy_PCE_sync"].diff(13)
     df["mom13_yoy_PAYEMS_sync"] = df["yoy_PAYEMS_sync"].diff(13)
     df["mom13_spd_SOFR_TB3MS_sync"] = df["spd_SOFR_TB3MS_sync"].diff(13)
-    df["mom13_spd_BBB_A_sync"] = df["spd_BBB_A_sync"].diff(13)
-    df["mom13_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(13)
+    df["mom4_spd_BBB_A_sync"] = df["spd_BBB_A_sync"].diff(4)
+    df["mom4_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(4)
     df["mom26_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(26)
     df["z52_yoy_Net_Liquidity_sync"] = _featuring_z_score(df["yoy_Net_Liquidity_sync_l0"], 52)
     df["z52_diff_SOFR_sync"] = _featuring_z_score(df["diff_SOFR_sync"], 52)
@@ -493,7 +512,7 @@ def _make_label(target_monthly):
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
 
     target_diff52 = target_weekly.diff(52)
-    target_diff52 = target_diff52.loc["2010-01-01":]
+    #target_diff52 = target_diff52.loc["2010-01-01":]
 
     # 3か月後予測
     future_change = target_diff52.shift(-13) - target_diff52
