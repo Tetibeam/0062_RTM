@@ -1001,7 +1001,7 @@ def _plot_lag_correlation(df_lag_corrs):
             y=df_lag_corrs[col],
             mode='lines+markers',
             name=col,
-            marker=dict(size=20)
+            marker=dict(size=14)
         ))
 
     # レイアウト設定

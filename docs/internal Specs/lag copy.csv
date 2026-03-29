@@ -1,23 +1,23 @@
-目的変数,Layer,name,期待される相関,NDFACBM027SBOG_diffとのラグ相関,追加特徴量案
-NDFACBM027SBOG　diff(12),A,BUSLOANS_yoy_sync,正,0,shift(0) - shift(3)
-NDFACBM027SBOG　diff(12),A,CP_yoy_sync,正,19、または長いため15,shift(19) - shift(22)
-NDFACBM027SBOG　diff(12),B,yoy_PCE_sync,正,12,shift(12) - shift(15)
-NDFACBM027SBOG　diff(12),B,yoy_PAYEMS_sync,正,11,shift(11) - shift(14)
-NDFACBM027SBOG　diff(12),C,spd_SOFR_TB3MS_sync,負,0,shift(0) - shift(1)
-NDFACBM027SBOG　diff(12),C,diff_SOFR_sync,負,6,
-NDFACBM027SBOG　diff(12),C,spd_BBB_A_sync,負,12,shift(12) - shift(15)
-NDFACBM027SBOG　diff(12),D,yoy_Net_Liquidity_sync,正,0,shift(0) - shift(3)
-NDFACBM027SBOG　diff(12),D,Res_Ratio_sync,正,0,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
-,,,,,
+目的変数,Layer,name,期待される相関,NDFACBM027SBOG_diffとのラグ相関
+NDFACBM027SBOG　diff(52),A,BUSLOANS_yoy_sync,正,0週
+NDFACBM027SBOG　diff(52),A,CP_yoy_sync,正,69週
+NDFACBM027SBOG　diff(52),B,yoy_PCE_sync,正,50週
+NDFACBM027SBOG　diff(52),B,yoy_PAYEMS_sync,正,29週
+NDFACBM027SBOG　diff(52),C,spd_SOFR_TB3MS_sync,負,86週
+NDFACBM027SBOG　diff(52),C,diff_SOFR_sync,負,28週
+NDFACBM027SBOG　diff(52),C,spd_BBB_A_sync,負,52週
+NDFACBM027SBOG　diff(52),D,yoy_Net_Liquidity_sync,正,0週
+NDFACBM027SBOG　diff(52),D,Res_Ratio_sync,正,0週
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,

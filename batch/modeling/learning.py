@@ -404,8 +404,9 @@ def learning_lgbm_test_gli(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    sample_weight=None, objective="multiclass",max_depth=2,feature_fraction=0.7,stopping_rounds=20,
-    bagging_fraction=0.8,bagging_freq=1,
+    objective="multiclass",max_depth=2,stopping_rounds=20,
+    feature_fraction=0.7,bagging_fraction=0.8,bagging_freq=1,
+    #min_gain_to_split=0.1,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -459,10 +460,11 @@ def learning_lgbm_test_gli(
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
-            feature_fraction=feature_fraction,
-            bagging_fraction=bagging_fraction,
-            bagging_freq=bagging_freq,
+            #feature_fraction=feature_fraction,
+            #bagging_fraction=bagging_fraction,
+            #bagging_freq=bagging_freq,
             importance_type=importance_type,
+            #min_gain_to_split=min_gain_to_split,
             random_state=42,
             verbose=-1
         )
@@ -630,16 +632,15 @@ def learning_logistic_lasso_test(
         X_test_scaled = scaler.transform(X_test)
 
         # OneVsRestClassifier でラップすることで liblinear での L1 多クラス分類を可能にする
-        clf = OneVsRestClassifier(
-                LogisticRegression(
-                    max_iter=max_iter,
-                    penalty=penalty,
-                    solver=solver,
-                    C=C,
-                    class_weight=class_weight,
-                    random_state=42
-                )
+        clf = LogisticRegression(
+            max_iter=max_iter,
+            penalty=penalty,
+            solver=solver,
+            C=C,
+            class_weight=class_weight,
+            random_state=42,
             )
+
 
         clf.fit(X_train_scaled, y_train)
 
@@ -649,18 +650,21 @@ def learning_logistic_lasso_test(
         acc = accuracy_score(y_test, y_pred)
         b_acc = balanced_accuracy_score(y_test, y_pred)
         print(f"Fold {fold} | Test: {X_test.index[0]} ~ {X_test.index[-1]} | Acc: {acc:.4f} | B-Acc: {b_acc:.4f}")
-
-        estimators = clf.estimators_
-
-        if len(estimators) == 1:
-            # 【二値分類の場合】モデルが1つしかないので1行だけ作成
-            # 通常、二値分類の係数は「2番目のクラス」に対する寄与度を示します
-            coefs = estimators[0].coef_
-            display_names = [label_map[clf.classes_[1]]]
-        else:
-            # 【多クラス分類の場合】全クラス分の行を作成
-            coefs = np.vstack([est.coef_ for est in estimators])
+        if hasattr(clf, 'estimators_'):
+            # もし OneVsRestClassifier を使っている場合（以前の互換性用）
+            coefs = np.vstack([est.coef_ for est in clf.estimators_])
             display_names = [label_map[c] for c in clf.classes_]
+            if len(clf.classes_) <= 2: # 二値分類の場合
+                display_names = [label_map[clf.classes_[1]]]
+        else:
+            # 通常の LogisticRegression の場合
+            coefs = clf.coef_
+            if len(clf.classes_) <= 2:
+                # 二値分類の場合 (1, n_features)
+                display_names = [label_map[clf.classes_[1]]]
+            else:
+                # 多クラス分類の場合 (n_classes, n_features)
+                display_names = [label_map[c] for c in clf.classes_]
 
         fold_coefs = pd.DataFrame(
             coefs, 
