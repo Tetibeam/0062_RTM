@@ -68,9 +68,9 @@ def get_gli_model_beta(df_index):
         #'yoy_PAYEMS_sync',
         'yoy_PCE_sync',###
         'spd_SOFR_TB3MS_sync',###
-        #'diff_SOFR_sync',###
+        'diff_SOFR_sync',###
         'spd_BBB_A_sync',###
-        #'yoy_Net_Liquidity_sync_l0',###
+        'yoy_Net_Liquidity_sync_l0',###
         #"yoy_Net_Liquidity_sync_l55",
         'Res_Ratio_sync',###
         #'mom13_BUSLOANS_yoy_sync',
@@ -81,8 +81,8 @@ def get_gli_model_beta(df_index):
         #'mom4_spd_BBB_A_sync',
         #'mom4_yoy_Net_Liquidity_sync',
         #'mom26_yoy_Net_Liquidity_sync',
-        "z52_yoy_Net_Liquidity_sync",
-        "z52_diff_SOFR_sync",
+        #"z52_yoy_Net_Liquidity_sync",
+        #"z52_diff_SOFR_sync",
         #"Financial_Stress_Index",
         #"vol4_CP_yoy_sync",
         #"vol4_yoy_PCE_sync"
@@ -428,6 +428,7 @@ def _featuring_d(df):
     Net_Liquidity = df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])
     # 特徴量1: 成長率 (YoY)
     yoy_Net_Liquidity = Net_Liquidity.pct_change(52).rename("yoy_Net_Liquidity")
+    
     #clip_yoy_Net_Liquidity = yoy_Net_Liquidity.clip(-0.2, 0.5).rename("Net_Liquidity_yoy_clip")
 
     # 特徴量2: 吸収率 (TGA+RRPが資産に占める割合)
@@ -451,6 +452,7 @@ def _featuring_d(df):
     return df_featured
 
 def _add_features(df):
+    #mom
     df["mom13_BUSLOANS_yoy_sync"] = df["BUSLOANS_yoy_sync"].diff(13)
     df["mom13_CP_yoy_sync"] = df["CP_yoy_sync"].diff(13)
     df["mom13_yoy_PCE_sync"] = df["yoy_PCE_sync"].diff(13)
@@ -459,11 +461,14 @@ def _add_features(df):
     df["mom4_spd_BBB_A_sync"] = df["spd_BBB_A_sync"].diff(4)
     df["mom4_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(4)
     df["mom26_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(26)
+    # yoy_diffのZスコア化
     df["z52_yoy_Net_Liquidity_sync"] = _featuring_z_score(df["yoy_Net_Liquidity_sync_l0"], 52)
     df["z52_diff_SOFR_sync"] = _featuring_z_score(df["diff_SOFR_sync"], 52)
     df["Financial_Stress_Index"] = df["diff_SOFR_sync"]*df["z52_yoy_Net_Liquidity_sync"]
     df["vol4_CP_yoy_sync"] = df["CP_yoy_sync"].rolling(window=4).std()
     df["vol4_yoy_PCE_sync"] = df["yoy_PCE_sync"].rolling(window=4).std()
+    # 生値のZスコア化
+    df["z104_yoy_Net_Liquidity_sync"] = _featuring_z_score(df["Net_Liquidity_sync_l0"], 104)
 
     return df.dropna(how="all")
 
