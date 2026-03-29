@@ -68,9 +68,9 @@ def get_gli_model_beta(df_index):
         #'yoy_PAYEMS_sync',
         'yoy_PCE_sync',###
         'spd_SOFR_TB3MS_sync',###
-        'diff_SOFR_sync',###
+        #'diff_SOFR_sync',###
         'spd_BBB_A_sync',###
-        'yoy_Net_Liquidity_sync_l0',###
+        #'yoy_Net_Liquidity_sync_l0',###
         #"yoy_Net_Liquidity_sync_l55",
         'Res_Ratio_sync',###
         #'mom13_BUSLOANS_yoy_sync',
@@ -81,8 +81,8 @@ def get_gli_model_beta(df_index):
         #'mom4_spd_BBB_A_sync',
         #'mom4_yoy_Net_Liquidity_sync',
         #'mom26_yoy_Net_Liquidity_sync',
-        #"z52_yoy_Net_Liquidity_sync",
-        #"z52_diff_SOFR_sync",
+        "z52_yoy_Net_Liquidity_sync",
+        "z52_diff_SOFR_sync",
         #"Financial_Stress_Index",
         #"vol4_CP_yoy_sync",
         #"vol4_yoy_PCE_sync"
@@ -92,7 +92,7 @@ def get_gli_model_beta(df_index):
     df_master = df_label.to_frame().join(df_features, how='left')
     #df_master = df_master.loc["2007-01-01":]
     #print(df_master)
-    #check_nan_time(df_master,"1990-01-01")
+    check_nan_time(df_master,"1990-01-01")
 
 
     print(f"特徴量のリスト: {df_features.columns}")
@@ -512,7 +512,7 @@ def _make_label(target_monthly):
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
 
     target_diff52 = target_weekly.diff(52)
-    #target_diff52 = target_diff52.loc["2010-01-01":]
+    target_diff52 = target_diff52.loc["2010-01-01":]
 
     # 3か月後予測
     future_change = target_diff52.shift(-13) - target_diff52
