@@ -1029,10 +1029,6 @@ def _plot_lag_correlation(df_lag_corrs):
 
     fig.show()
 
-
-
-
-#-------------------------------------------------------------
 def _plot_graphs(cal_out, origin):
 
     fig = go.Figure()
@@ -1041,7 +1037,7 @@ def _plot_graphs(cal_out, origin):
         y=cal_out,
         mode='lines',
         name=cal_out.name,
-        #yaxis="y1"
+        yaxis="y1"
         
     ))
     fig.add_trace(go.Scatter(
@@ -1049,17 +1045,21 @@ def _plot_graphs(cal_out, origin):
         y=origin,
         mode='lines',
         name=origin.name,
-        #yaxis='y2'
+        yaxis='y2'
     ))
     fig.update_layout(
         xaxis=dict(
             title='Date',
             showgrid=False
         ),
-        #yaxis=dict(side='left', showgrid=True),
-        #yaxis2=dict(side='right', overlaying='y', showgrid=False),
+        yaxis=dict(side='left', showgrid=True),
+        yaxis2=dict(side='right', overlaying='y', showgrid=False),
     )
-    fig.show()
+    fig.show(config=dict(displayModeBar=False))
+
+
+#-------------------------------------------------------------
+
 
 def _plot_contribution(contrib_rolling):
 

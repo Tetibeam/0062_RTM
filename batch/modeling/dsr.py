@@ -136,6 +136,7 @@ def get_dsr_model_beta(df_index):
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
 
     return df_oof_all
+
 def _aggregation(df):
 
     df_daily = df[get_columns_by_frequency(df, target="daily")].dropna(how="all")
