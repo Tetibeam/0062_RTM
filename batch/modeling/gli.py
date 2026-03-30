@@ -97,7 +97,7 @@ def get_gli_model_beta(df_index):
 
     print(f"特徴量のリスト: {df_features.columns}")
 
-    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
         n_estimators=1000,learning_rate=0.001, num_leaves=15, min_data_in_leaf=65,
@@ -125,7 +125,7 @@ def get_gli_model_beta(df_index):
             })
 
         print(pd.DataFrame(logic_results))
-
+"""
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,solver='saga',max_iter=5000,
@@ -219,7 +219,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     #plot_index(df_a_all)
     #print(df_d_all)
 
-    #_plot_lag_correlation(df_lag_a)
+    _plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
     #_plot_lag_correlation(df_lag_d)
