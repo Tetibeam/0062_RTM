@@ -217,11 +217,11 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     
-    _plot_graphs(df_a_all["NDFACBM027SBOG"], df_a_all["level_CP"])
-    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["qoq_CP"])
-    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z52_qoq_CP"])
-    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z104_CP"])
-    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["mom4_CP"])
+    #_plot_graphs(df_a_all["NDFACBM027SBOG"], df_a_all["level_CP"])
+    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["qoq_CP"])
+    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z52_qoq_CP"])
+    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z104_CP"])
+    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["mom4_CP"])
 
     # 特徴量とGLIのラグ相関分析
     df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
@@ -234,7 +234,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     #plot_index(df_a_all)
     #print(df_d_all)
 
-    _plot_lag_correlation(df_lag_a)
+    #_plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
     #_plot_lag_correlation(df_lag_d)
@@ -350,14 +350,24 @@ def _featuring_a(df):
     # yoy / diff
     qoq_BUSLOANS = df_["BUSLOANS"].pct_change(13).dropna().rename("qoq_BUSLOANS")
     qoq_CP = df_["CP"].pct_change(13).dropna().rename("qoq_CP")
+    qoq_PNFIC1 = df_["PNFIC1"].pct_change(13).dropna().rename("qoq_PNFIC1")
+    yoy_BUSLOANS = df_["BUSLOANS"].pct_change(52).dropna().rename("yoy_BUSLOANS")
+    yoy_CP = df_["CP"].pct_change(52).dropna().rename("yoy_CP")
     yoy_PNFIC1 = df_["PNFIC1"].pct_change(52).dropna().rename("yoy_PNFIC1")
 
     # yoy/diffのZスコア化
     z52_qoq_BUSLOANS = _featuring_z_score(qoq_BUSLOANS, 52).rename("z52_qoq_BUSLOANS")
     z52_qoq_CP = _featuring_z_score(qoq_CP, 52).rename("z52_qoq_CP")
+    z52_qoq_PNFIC1 = _featuring_z_score(qoq_PNFIC1, 52).rename("z52_qoq_PNFIC1")
+    z52_yoy_BUSLOANS = _featuring_z_score(yoy_BUSLOANS, 52).rename("z52_yoy_BUSLOANS")
+    z52_yoy_CP = _featuring_z_score(yoy_CP, 52).rename("z52_yoy_CP")
     z52_yoy_PNFIC1 = _featuring_z_score(yoy_PNFIC1, 52).rename("z52_yoy_PNFIC1")
 
     # 生値のZスコア化
+    z52_BUSLOANS = _featuring_z_score(df_["BUSLOANS"], 52).rename("z52_BUSLOANS")
+    z52_CP = _featuring_z_score(df_["CP"], 52).rename("z52_CP")
+    z52_PNFIC1 = _featuring_z_score(df_["PNFIC1"], 52).rename("z52_PNFIC1")
+
     z104_BUSLOANS = _featuring_z_score(df_["BUSLOANS"], 104).rename("z104_BUSLOANS")
     z104_CP = _featuring_z_score(df_["CP"], 104).rename("z104_CP")
     z104_PNFIC1 = _featuring_z_score(df_["PNFIC1"], 104).rename("z104_PNFIC1")
