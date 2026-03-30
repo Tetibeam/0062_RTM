@@ -217,11 +217,11 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     
-    #_plot_graphs(df_c_all["NDFACBM027SBOG"], df_c_all["spd_SOFR_TB3MS"])
-    #_plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all["diff13_spd_SOFR_TB3MS"])
-    #_plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all["z52_diff13_spd_SOFR_TB3MS"])
-    #_plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all["z104_spd_SOFR_TB3MS"])
-    #_plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all["mom4_spd_SOFR_TB3MS"])
+    _plot_graphs(df_a_all["NDFACBM027SBOG"], df_a_all["level_CP"])
+    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["qoq_CP"])
+    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z52_qoq_CP"])
+    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z104_CP"])
+    _plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["mom4_CP"])
 
     # 特徴量とGLIのラグ相関分析
     df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
@@ -234,7 +234,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     #plot_index(df_a_all)
     #print(df_d_all)
 
-    #_plot_lag_correlation(df_lag_a)
+    _plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
     #_plot_lag_correlation(df_lag_d)
@@ -349,12 +349,12 @@ def _featuring_a(df):
 
     # yoy / diff
     qoq_BUSLOANS = df_["BUSLOANS"].pct_change(13).dropna().rename("qoq_BUSLOANS")
-    yoy_CP = df_["CP"].pct_change(52).dropna().rename("yoy_CP")
+    qoq_CP = df_["CP"].pct_change(13).dropna().rename("qoq_CP")
     yoy_PNFIC1 = df_["PNFIC1"].pct_change(52).dropna().rename("yoy_PNFIC1")
 
     # yoy/diffのZスコア化
     z52_qoq_BUSLOANS = _featuring_z_score(qoq_BUSLOANS, 52).rename("z52_qoq_BUSLOANS")
-    z52_yoy_CP = _featuring_z_score(yoy_CP, 52).rename("z52_yoy_CP")
+    z52_qoq_CP = _featuring_z_score(qoq_CP, 52).rename("z52_qoq_CP")
     z52_yoy_PNFIC1 = _featuring_z_score(yoy_PNFIC1, 52).rename("z52_yoy_PNFIC1")
 
     # 生値のZスコア化
@@ -364,7 +364,7 @@ def _featuring_a(df):
 
     # mom
     mom4_BUSLOANS = df_["BUSLOANS"].diff(13).rename("mom4_BUSLOANS")
-    mom13_CP = df_["CP"].diff(13).rename("mom13_CP")
+    mom4_CP = df_["CP"].diff(4).rename("mom4_CP")
     mom13_PNFIC1 = df_["PNFIC1"].diff(13).rename("mom13_PNFIC1")
 
     df_feature = pd.concat([
@@ -372,16 +372,16 @@ def _featuring_a(df):
         level_CP,
         level_PNFIC1,
         qoq_BUSLOANS,
-        yoy_CP,
+        qoq_CP,
         yoy_PNFIC1,
         z52_qoq_BUSLOANS,
-        z52_yoy_CP,
+        z52_qoq_CP,
         z52_yoy_PNFIC1,
         z104_BUSLOANS,
         z104_CP,
         z104_PNFIC1,
         mom4_BUSLOANS,
-        mom13_CP,
+        mom4_CP,
         mom13_PNFIC1
         ], axis=1).dropna(how="all")
     #print(df_feature.head(10))
