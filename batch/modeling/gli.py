@@ -312,53 +312,75 @@ def _featuring(df):
 def _featuring_a(df):
     col = ["BUSLOANS","CP","PNFIC1"]
     df_ = df[col].dropna(how="all")
-    #print(df_.tail(10))
-    #check_nan_time(df_,"1990-01-01")
-    #start = df_.apply(pd.Series.first_valid_index).max()
-    #end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
-    #df_ = df_.loc[start:end]
-    #check_nan_time(df_,"1990-01-01")
-    #plot_index(df_)
+
+    # yoy / diff
     yoy_BUSLOANS = df_["BUSLOANS"].pct_change(52).dropna().rename("BUSLOANS_yoy")
     yoy_CP = df_["CP"].pct_change(52).dropna().rename("CP_yoy")
     yoy_PNFIC1 = df_["PNFIC1"].pct_change(52).dropna().rename("PNFIC1_yoy")
 
-    #df_feature = pd.concat([yoy_BUSLOANS, yoy_CP, yoy_PNFIC1], axis=1).dropna(how="all")
-    df_feature = pd.concat([yoy_BUSLOANS, yoy_CP], axis=1).dropna(how="all")
+    # yoy/diffのZスコア化
+    z52_yoy_BUSLOANS = _featuring_z_score(yoy_BUSLOANS, 52).rename("z52_yoy_BUSLOANS")
+    z52_yoy_CP = _featuring_z_score(yoy_CP, 52).rename("z52_yoy_CP")
+    z52_yoy_PNFIC1 = _featuring_z_score(yoy_PNFIC1, 52).rename("z52_yoy_PNFIC1")
+
+    # 生値のZスコア化
+    z104_BUSLOANS = _featuring_z_score(df_["BUSLOANS"], 104).rename("z104_BUSLOANS")
+    z104_CP = _featuring_z_score(df_["CP"], 104).rename("z104_CP")
+    z104_PNFIC1 = _featuring_z_score(df_["PNFIC1"], 104).rename("z104_PNFIC1")
+
+    # mom
+    mom13_BUSLOANS = df_["BUSLOANS"].diff(13).rename("mom13_BUSLOANS")
+    mom13_CP = df_["CP"].diff(13).rename("mom13_CP")
+    mom13_PNFIC1 = df_["PNFIC1"].diff(13).rename("mom13_PNFIC1")
+
+    df_feature = pd.concat([
+        yoy_BUSLOANS,
+        yoy_CP,
+        yoy_PNFIC1,
+        z52_yoy_BUSLOANS,
+        z52_yoy_CP,
+        z52_yoy_PNFIC1,
+        z104_BUSLOANS,
+        z104_CP,
+        z104_PNFIC1,
+        mom13_BUSLOANS,
+        mom13_CP,
+        mom13_PNFIC1
+        ], axis=1).dropna(how="all")
     #print(df_feature.head(10))
 
     return df_feature
 
 def _featuring_b(df):
-    #col = ["DSPIC96","UNRATE","CES0500000003"]
     col = ["PAYEMS","PCE","CES0500000003"]
     df_ = df[col].dropna(how="all")
-    #print(df_.tail())
-    #check_nan_time(df_,"1990-01-01")
-    #start = df_.apply(pd.Series.first_valid_index).max()
-    #end   = df_.apply(pd.Series.last_valid_index).max() #末尾はNanで残してカルマンフィルタを使う
-    #df_ = df_.loc[start:end]
-    #check_nan_time(df_,"1990-01-01")
-    #print(df_)
-    #plot_index(df_)
 
-    #yoy_DSPIC96 = df_["DSPIC96"].pct_change(52).dropna().rename("yoy_DSPIC96")
-    #clip_DSPIC96 = yoy_DSPIC96.clip(-0.15, 0.18).rename("DSPIC96_yoy_clip")
-
+    # yoy / diff
     yoy_PAYEMS = df_["PAYEMS"].pct_change(52).dropna().rename("yoy_PAYEMS")
-    #clip_PAYEMS = yoy_PAYEMS.clip(-0.06, 0.06).rename("PAYEMS_yoy_clip")
-
     yoy_PCE = df_["PCE"].pct_change(52).dropna().rename("yoy_PCE")
-    #clip_PCE = yoy_PCE.clip(-0.05, 0.16).rename("PCE_yoy_clip")
 
-    #diff_UNRATE = df_["UNRATE"].diff(52).dropna().rename("diff_UNRATE")
-    #clip_UNRATE = diff_UNRATE.clip(-2.0, 4.5).rename("UNRATE_diff_clip")
+    # yoy/diffのZスコア化
+    z52_yoy_PAYEMS = _featuring_z_score(yoy_PAYEMS, 52).rename("z52_yoy_PAYEMS")
+    z52_yoy_PCE = _featuring_z_score(yoy_PCE, 52).rename("z52_yoy_PCE")
 
-    #yoy_CES0500000003 = df_["CES0500000003"].pct_change(52).dropna().rename("yoy_CES0500000003")
-    #clip_yoy_CES0500000003 = yoy_CES0500000003.clip(0.02, 0.06).rename("CES0500000003_yoy_clip")
+    # 生値のZスコア化
+    z104_PAYEMS = _featuring_z_score(df_["PAYEMS"], 104).rename("z104_PAYEMS")
+    z104_PCE = _featuring_z_score(df_["PCE"], 104).rename("z104_PCE")
 
-    #df_featured = pd.concat([clip_PAYEMS,clip_PCE, clip_yoy_CES0500000003], axis=1).dropna(how="all")
-    df_featured = pd.concat([yoy_PAYEMS,yoy_PCE], axis=1).dropna(how="all")
+    # mom
+    mom13_PAYEMS = df_["PAYEMS"].diff(13).rename("mom13_PAYEMS")
+    mom13_PCE = df_["PCE"].diff(13).rename("mom13_PCE")
+
+    df_featured = pd.concat([
+        yoy_PAYEMS,
+        yoy_PCE,
+        z52_yoy_PAYEMS,
+        z52_yoy_PCE,
+        z104_PAYEMS,
+        z104_PCE,
+        mom13_PAYEMS,
+        mom13_PCE
+        ], axis=1).dropna(how="all")
     #print(df_featured.corr())
     #check_nan_time(df_featured,"1990-01-01")
 
@@ -369,37 +391,57 @@ def _featuring_c(df):
     col = ["SOFR","DFF","TB3MS","DX-Y.NYB","BAMLC0A4CBBB","BAMLC0A3CA"]
     df_ = df[col].dropna(how="all")
 
-    # DFFで代用
     df_["SOFR"] = df_["SOFR"].fillna(df_["DFF"])
-    #start = df_.apply(pd.Series.first_valid_index).max()
-    #end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
-    #df_ = df_.loc[start:end].drop(columns=["DFF"])
-    #check_nan_time(df_,"1990-01-01")
-    #print(df_.tail(10))
-
-    diff_SOFR = df_["SOFR"].diff(52).dropna().rename("diff_SOFR")
-    #clip_SOFR = diff_SOFR.clip(-3, 3).rename("SOFR_diff_clip")
-
-    yoy_DXY = df_["DX-Y.NYB"].pct_change(52).dropna().rename("yoy_DXY")
-    #clip_yoy_DXY = cap_by_sigma(yoy_DXY, sigma=2.5).rename("DXY_yoy_clip")
-
-    diff_DXY = df_["DX-Y.NYB"].diff().dropna().rename("diff_DXY")
-    #clip_diff_DXY = cap_by_sigma(diff_DXY, sigma=2.5).rename("DXY_diff_clip")
-
     spd_SOFR_TB3MS = (df_["SOFR"] - df_["TB3MS"]).dropna().rename("spd_SOFR_TB3MS")
-    #clip_spd_TB3MS = spd_TB3MS.clip(-0.5, 0.5).rename("SOFR_TB3MS_minus_clip")
-
-    #diff_spd_SOFR_TB3MS = spd_SOFR_TB3MS.diff().dropna().rename("diff_spd_SOFR_TB3MS")
-    #clip_diff_spd_TB3MS = diff_spd_TB3MS.clip(-0.25, 0.25).rename("SOFR_TB3MS_minus_diff_clip")
-
     spd_BBB_A = (df_["BAMLC0A4CBBB"] - df_["BAMLC0A3CA"]).dropna().rename("spd_BBB_A")
-    #clip_spd_BBB_A = spd_BBB_A.clip(lower=0, upper=1.2).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_clip")
 
+    # yoy / diff
+    diff_SOFR = df_["SOFR"].diff(52).dropna().rename("diff_SOFR")
+    yoy_DXY = df_["DX-Y.NYB"].pct_change(52).dropna().rename("yoy_DXY")
+    diff_DXY = df_["DX-Y.NYB"].diff().dropna().rename("diff_DXY")
+    diff_spd_SOFR_TB3MS = spd_SOFR_TB3MS.diff().dropna().rename("diff_spd_SOFR_TB3MS")
     diff_spd_BBB_A = spd_BBB_A.diff().dropna().rename("diff_spd_BBB_A")
-    #clip_diff_spd_BBB_A = diff_spd_BBB_A.clip(lower=-0.35, upper=0.3).rename("BAMLC0A4CBBB_minus_BAMLC0A3CA_diff_clip")
+
+    # yoy/diffのZスコア化
+    z52_diff_SOFR = _featuring_z_score(diff_SOFR, 52).rename("z52_diff_SOFR")
+    z52_yoy_DXY = _featuring_z_score(yoy_DXY, 52).rename("z52_yoy_DXY")
+    z52_diff_DXY = _featuring_z_score(diff_DXY, 52).rename("z52_diff_DXY")
+    z52_diff_spd_SOFR_TB3MS = _featuring_z_score(diff_spd_SOFR_TB3MS, 52).rename("z52_diff_spd_SOFR_TB3MS")
+    z52_diff_spd_BBB_A = _featuring_z_score(diff_spd_BBB_A, 52).rename("z52_diff_spd_BBB_A")
+    
+    # 生値のZスコア化
+    z104_SOFR = _featuring_z_score(df_["SOFR"], 104).rename("z104_SOFR")
+    z104_DXY = _featuring_z_score(df_["DX-Y.NYB"], 104).rename("z104_DXY")
+    z104_SOFR_TB3MS = _featuring_z_score(spd_SOFR_TB3MS, 104).rename("z104_spd_SOFR_TB3MS")
+    z104_BBB_A = _featuring_z_score(spd_BBB_A, 104).rename("z104_spd_BBB_A")
+    
+    # mom
+    mom13_SOFR = df_["SOFR"].diff(13).rename("mom4_SOFR")
+    mom13_DXY = df_["DX-Y.NYB"].diff(13).rename("mom4_DXY")
+    mom13_spd_SOFR_TB3MS = spd_SOFR_TB3MS.diff(13).rename("mom4_spd_SOFR_TB3MS")
+    mom13_spd_BBB_A = spd_BBB_A.diff(13).rename("mom4_spd_BBB_A")
 
     df_featured = pd.concat([
-        diff_SOFR, spd_SOFR_TB3MS, spd_BBB_A
+        spd_SOFR_TB3MS,
+        spd_BBB_A,
+        diff_SOFR,
+        yoy_DXY,
+        diff_DXY,
+        diff_spd_SOFR_TB3MS,
+        diff_spd_BBB_A,
+        z52_diff_SOFR,
+        z52_yoy_DXY,
+        z52_diff_DXY,
+        z52_diff_spd_SOFR_TB3MS,
+        z52_diff_spd_BBB_A,
+        z104_SOFR,
+        z104_DXY,
+        z104_SOFR_TB3MS,
+        z104_BBB_A,
+        mom13_SOFR,
+        mom13_DXY,
+        mom13_spd_SOFR_TB3MS,
+        mom13_spd_BBB_A
         ], axis=1).dropna(how="all")
 
     #print(df_featured.head(29))
@@ -419,32 +461,41 @@ def _featuring_d(df):
     df_['RRP_filled'] = df_['RRPONTSYD'].fillna(0) * 1000
     df_ = df_.drop(columns=['RESBALNS', 'TOTRESNS', 'RRPONTSYD'])
 
-    #start = df_.apply(pd.Series.first_valid_index).max()
-    #end   = df_.apply(pd.Series.last_valid_index).max() # 末尾はNanで残してカルマンフィルタを使う
-    #df_ = df_.loc[start:end]
-    #print(df_.tail(10))
-
-    # Net Liquidity の生成
+    # Net Liquidity / 銀行準備金の厚み / 吸収率 (TGA+RRPが資産に占める割合)
     Net_Liquidity = df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])
+    Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
+    #Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
+
     # 特徴量1: 成長率 (YoY)
     yoy_Net_Liquidity = Net_Liquidity.pct_change(52).rename("yoy_Net_Liquidity")
-    
-    #clip_yoy_Net_Liquidity = yoy_Net_Liquidity.clip(-0.2, 0.5).rename("Net_Liquidity_yoy_clip")
+    yoy_Res_Ratio = Res_Ratio.pct_change(52).rename("yoy_Res_Ratio")
 
-    # 特徴量2: 吸収率 (TGA+RRPが資産に占める割合)
-    #Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
-    #clip_Abs_Rate = Abs_Rate.clip(0, 0.25).rename("Abs_Rate_clip")
+    # 特徴量2: YOYのZスコア
+    z52_yoy_Net_Liquidity = _featuring_z_score(yoy_Net_Liquidity, 52).rename("z52_yoy_Net_Liquidity")
+    z52_yoy_Res_Ratio = _featuring_z_score(yoy_Res_Ratio, 52).rename("z52_yoy_Res_Ratio")
 
-    # 特徴量3: 銀行準備金の厚み
-    Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
-    #clip_Res_Ratio = Res_Ratio.clip(0, 0.25).rename("Res_Ratio_clip")
+    # 特徴量3: 生値のZスコア
+    z104_Net_Liquidity = _featuring_z_score(Net_Liquidity, 104).rename("z52_Net_Liquidity")
+    z104_Res_Ratio = _featuring_z_score(Res_Ratio, 104).rename("z52_Res_Ratio")
 
-    #df_featured = pd.concat([clip_yoy_Net_Liquidity,clip_Abs_Rate], axis=1).dropna(how="all")
-    df_featured = pd.concat([yoy_Net_Liquidity,Res_Ratio], axis=1).dropna(how="all")
+    # mom
+    mom4_Net_Liquidity = Net_Liquidity.diff(4).rename("mom4_Net_Liquidity")
+    mom4_Res_Ratio = Res_Ratio.diff(4).rename("mom4_Res_Ratio")
+
+    df_featured = pd.concat([
+        Net_Liquidity,
+        Res_Ratio,
+        yoy_Net_Liquidity,
+        yoy_Res_Ratio,
+        z52_yoy_Net_Liquidity,
+        z52_yoy_Res_Ratio,
+        z104_Net_Liquidity,
+        z104_Res_Ratio,
+        mom4_Net_Liquidity,
+        mom4_Res_Ratio
+    ], axis=1).dropna(how="all")
 
     #pd.set_option('display.max_rows', None)
-    #print(df_["WDTGAL"])
-
     #print(df_featured.tail(10))
     #check_nan_time(df_featured,"1990-01-01")
     #plot_index(df_featured)
@@ -452,23 +503,10 @@ def _featuring_d(df):
     return df_featured
 
 def _add_features(df):
-    #mom
-    df["mom13_BUSLOANS_yoy_sync"] = df["BUSLOANS_yoy_sync"].diff(13)
-    df["mom13_CP_yoy_sync"] = df["CP_yoy_sync"].diff(13)
-    df["mom13_yoy_PCE_sync"] = df["yoy_PCE_sync"].diff(13)
-    df["mom13_yoy_PAYEMS_sync"] = df["yoy_PAYEMS_sync"].diff(13)
-    df["mom13_spd_SOFR_TB3MS_sync"] = df["spd_SOFR_TB3MS_sync"].diff(13)
-    df["mom4_spd_BBB_A_sync"] = df["spd_BBB_A_sync"].diff(4)
-    df["mom4_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(4)
-    df["mom26_yoy_Net_Liquidity_sync"] = df["yoy_Net_Liquidity_sync_l0"].diff(26)
-    # yoy_diffのZスコア化
-    df["z52_yoy_Net_Liquidity_sync"] = _featuring_z_score(df["yoy_Net_Liquidity_sync_l0"], 52)
-    df["z52_diff_SOFR_sync"] = _featuring_z_score(df["diff_SOFR_sync"], 52)
-    df["Financial_Stress_Index"] = df["diff_SOFR_sync"]*df["z52_yoy_Net_Liquidity_sync"]
-    df["vol4_CP_yoy_sync"] = df["CP_yoy_sync"].rolling(window=4).std()
-    df["vol4_yoy_PCE_sync"] = df["yoy_PCE_sync"].rolling(window=4).std()
-    # 生値のZスコア化
-    df["z104_yoy_Net_Liquidity_sync"] = _featuring_z_score(df["Net_Liquidity_sync_l0"], 104)
+
+    #df["Financial_Stress_Index"] = df["diff_SOFR_sync"]*df["z52_yoy_Net_Liquidity_sync"]
+    #df["vol4_CP_yoy_sync"] = df["CP_yoy_sync"].rolling(window=4).std()
+    #df["vol4_yoy_PCE_sync"] = df["yoy_PCE_sync"].rolling(window=4).std()
 
     return df.dropna(how="all")
 
@@ -483,6 +521,7 @@ def _featuring_z_score(df, window):
 ########################################################
 # 回帰の変数
 ########################################################
+
 def _make_reg_y(df_gli):
     #print(df_gli)
     gli_monthly = df_gli.resample('ME').first().interpolate(method='linear')
@@ -491,6 +530,7 @@ def _make_reg_y(df_gli):
     y.name = 'target_gli_change'
     #print(y)
     return y
+
 def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
     # GLIとのLAGからミラにずらした分を引いてGLIと合わせる
     fa = factor_a.shift(7-3)
@@ -511,6 +551,7 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 # 学習の変数
 ########################################################
+
 def _make_label(target_monthly):
     # 週次にします
     target_lagged = target_monthly.shift(1)
