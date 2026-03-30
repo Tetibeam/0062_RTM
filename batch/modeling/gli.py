@@ -219,10 +219,10 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     #plot_index(df_a_all)
     #print(df_d_all)
 
-    _plot_lag_correlation(df_lag_a)
+    #_plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
-    #_plot_lag_correlation(df_lag_d)
+    _plot_lag_correlation(df_lag_d)
 
     #pd.set_option('display.max_rows', None)
     #print(df_lag_d)
