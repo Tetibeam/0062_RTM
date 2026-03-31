@@ -51,138 +51,30 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_a,"1990-01-01")
 
     # --- 特徴量とGLIのラグ相関分析 ---
-    _lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
+    #_lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
 
     # --- DFA前にラグを調整する ---
-    df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
+    #df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量を追加する ---
-    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
-    df_features = _add_features(df_features)
+    #df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
+    #df_features = _add_features(df_features)
     #check_nan_time(df_features,"1990-01-01")
 
 
-    df_features = df_features[[
-        # --- target_diff52, 逆張りモデル ---
-        #'BUSLOANS_yoy_sync',
-        #'yoy_PCE_sync',
-        #'spd_SOFR_TB3MS_sync',
-        #'diff_SOFR_sync',
-        #'spd_BBB_A_sync',
-        #'yoy_Net_Liquidity_sync_l0',
-        #'Res_Ratio_sync',
-
-        # --- target_diff13 ---
-        #'level_BUSLOANS_sync',
-        #'level_CP_sync',
-        #'level_PNFIC1_sync',
-        #'qoq_BUSLOANS_sync',
-        #'qoq_CP_sync',
-        #'qoq_PNFIC1_sync',
-        #'yoy_BUSLOANS_sync',
-        'yoy_CP_sync',
-        #'yoy_PNFIC1_sync',
-        #'z52_qoq_BUSLOANS_sync',
-        #'z52_qoq_CP_sync',
-        #'z52_qoq_PNFIC1_sync',
-        #'z52_yoy_BUSLOANS_sync',
-        #'z52_yoy_CP_sync',
-        #'z52_BUSLOANS_sync',
-        #'z52_CP_sync',
-        #'z52_PNFIC1_sync',
-        #'z104_BUSLOANS_sync',
-        #'z104_CP_sync',
-        #'z104_PNFIC1_sync',
-        'mom4_BUSLOANS_sync',
-        #'mom4_CP_sync',
-        #'mom4_PNFIC1_sync',
-
-        #'level_PAYEMS_sync',
-        #'level_PCE_sync',
-        #'qoq_PAYEMS_sync',###
-        #'qoq_PCE_sync',###
-        #'yoy_PAYEMS_sync',
-        #'yoy_PCE_sync',
-        #'z52_qoq_PAYEMS_sync',
-        #'z52_qoq_PCE_sync',
-        #'z52_yoy_PAYEMS_sync',
-        #'z52_yoy_PCE_sync',
-        #'z52_PAYEMS_sync',
-        #'z52_PCE_sync',
-        #'z104_PAYEMS_sync',
-        #'z104_PCE_sync',
-        #'mom4_PAYEMS_sync',
-        #'mom4_PCE_sync',
-
-        #'level_SOFR_sync',
-        #'level_DXY_sync',
-        #'spd_SOFR_TB3MS_sync',
-        #'spd_BBB_A_sync',
-        #'diff13_SOFR_sync',
-        #'qoq_DXY_sync',
-        #'diff13_DXY_sync',
-        #'diff13_spd_SOFR_TB3MS_sync',
-        #'diff13_spd_BBB_A_sync',
-        #'diff52_SOFR_sync',
-        #'yoy_DXY_sync',
-        #'diff52_spd_SOFR_TB3MS_sync',
-        #'diff52_spd_BBB_A_sync',
-        #'z52_diff13_SOFR_sync',
-        #'z52_qoq_DXY_sync',
-        #'z52_diff13_spd_SOFR_TB3MS_sync',
-        #'z52_diff13_spd_BBB_A_sync',
-        #'z52_diff52_SOFR_sync',
-        #'z52_yoy_DXY_sync',
-        #'z52_diff52_spd_SOFR_TB3MS_sync',
-        #'z52_diff52_spd_BBB_A_sync',
-        'z52_SOFR_sync',
-        #'z52_DXY_sync',
-        #'z52_spd_SOFR_TB3MS_sync',
-        #'z52_spd_BBB_A_sync',
-        #'z104_SOFR_sync',
-        #'z104_DXY_sync',
-        #'z104_spd_SOFR_TB3MS_sync',
-        #'z104_spd_BBB_A_sync',
-        #'mom4_SOFR_sync',
-        #'mom4_DXY_sync',
-        #'mom4_spd_SOFR_TB3MS_sync',
-        #'mom4_spd_BBB_A_sync',
-
-        #'Net_Liquidity_sync',
-        #'Res_Ratio_sync',
-        #'Abs_Rate_sync',
-        'qoq_Net_Liquidity_sync',
-        ##'qoq_Res_Ratio_sync',
-        #'qoq_Abs_Rate_sync',
-        #'yoy_Net_Liquidity_sync',
-        #'yoy_Res_Ratio_sync',
-        'yoy_Abs_Rate_sync',
-        #'z52_qoq_Net_Liquidity_sync',
-        #'z52_qoq_Res_Ratio_sync',
-        #'z52_qoq_Abs_Rate_sync',
-        #'z52_yoy_Net_Liquidity_sync',
-        #'z52_yoy_Res_Ratio_sync',
-        #'z52_yoy_Abs_Rate_sync',
-        #'z52_Net_Liquidity_sync',
-        #'z52_Res_Ratio_sync',
-        #'z52_Abs_Rate_sync',
-        #'z104_Net_Liquidity_sync',
-        'z104_Res_Ratio_sync',
-        #'z104_Abs_Rate_sync',
-        #'mom4_Net_Liquidity_sync',
-        'mom4_Res_Ratio_sync',
-        #'mom4_Abs_Rate_sync'
-    ]]
+    """df_features = df_features[[
+       
+    ]]"""
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
-    df_master = df_label.to_frame().join(df_features, how='left')
+    #df_master = df_label.to_frame().join(df_features, how='left')
     #df_master = df_master.loc["2007-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
 
 
-    print(f"特徴量のリスト: {df_features.columns}")
+    #print(f"特徴量のリスト: {df_features.columns}")
 
     # --- diff52基準の逆張りモデル ---
     """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
@@ -225,11 +117,11 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))"""
 
-    mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,solver='saga',max_iter=5000,
         C=0.5, penalty="l1",class_weight="balanced",
-    )
+    )"""
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -937,15 +829,9 @@ def _make_featuring(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 
 gli_index = [
-    "gli",
     "BUSLOANS",
-    "CP",
     "PNFIC1",
-    "DSPIC96",
-    "UNRATE",
-    "CES0500000003",
     "SOFR",
-    "DFF",
     "TB3MS",
     "BAMLC0A4CBBB",
     "BAMLC0A3CA",
@@ -959,7 +845,9 @@ gli_index = [
     "PCE",
     "NDFACBM027SBOG",
     "TEDRATE",
-    "DTB3"
+    "DTB3",
+    "VXTLT",
+    "WCURCIR"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):

@@ -41,7 +41,8 @@ ticker_map = {
     "TGA": ["tga", "fred", "WDTGAL"],
     "個人消費支出価格指数": ["pce", "fred", "PCE"],
     "海外関連拠点向け純資金ポジション": ["NDFACBM027SBOG", "fred", "NDFACBM027SBOG"],
-    #"": ["", "", ""],
+    "債券版VIX": ["VXTLT", "cboe", "https://cdn.cboe.com/api/global/us_indices/daily_prices/VXTLT_History.csv"],
+    "流通現金": ["WCURCIR", "fred", "WCURCIR"],
   
 
 
