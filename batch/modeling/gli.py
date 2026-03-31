@@ -74,36 +74,36 @@ def get_gli_model_beta(df_index):
         #'Res_Ratio_sync',
 
         # --- target_diff13 ---
-        'level_BUSLOANS_sync',
-        'level_CP_sync',
-        'level_PNFIC1_sync',
-        'qoq_BUSLOANS_sync',
-        'qoq_CP_sync',
-        'qoq_PNFIC1_sync',
-        'yoy_BUSLOANS_sync',
+        #'level_BUSLOANS_sync',
+        #'level_CP_sync',
+        #'level_PNFIC1_sync',
+        #'qoq_BUSLOANS_sync',
+        #'qoq_CP_sync',
+        #'qoq_PNFIC1_sync',
+        #'yoy_BUSLOANS_sync',
         'yoy_CP_sync',
-        'yoy_PNFIC1_sync',
-        'z52_qoq_BUSLOANS_sync',
-        'z52_qoq_CP_sync',
-        'z52_qoq_PNFIC1_sync',
-        'z52_yoy_BUSLOANS_sync',
-        'z52_yoy_CP_sync',
-        'z52_BUSLOANS_sync',
-        'z52_CP_sync',
-        'z52_PNFIC1_sync',
-        'z104_BUSLOANS_sync',
-        'z104_CP_sync',
-        'z104_PNFIC1_sync',
+        #'yoy_PNFIC1_sync',
+        #'z52_qoq_BUSLOANS_sync',
+        #'z52_qoq_CP_sync',
+        #'z52_qoq_PNFIC1_sync',
+        #'z52_yoy_BUSLOANS_sync',
+        #'z52_yoy_CP_sync',
+        #'z52_BUSLOANS_sync',
+        #'z52_CP_sync',
+        #'z52_PNFIC1_sync',
+        #'z104_BUSLOANS_sync',
+        #'z104_CP_sync',
+        #'z104_PNFIC1_sync',
         'mom4_BUSLOANS_sync',
-        'mom4_CP_sync',
-        'mom4_PNFIC1_sync',
+        #'mom4_CP_sync',
+        #'mom4_PNFIC1_sync',
 
         #'level_PAYEMS_sync',
         #'level_PCE_sync',
-        #'qoq_PAYEMS_sync',
-        #'qoq_PCE_sync',
+        #'qoq_PAYEMS_sync',###
+        #'qoq_PCE_sync',###
         #'yoy_PAYEMS_sync',
-        'yoy_PCE_sync',
+        #'yoy_PCE_sync',
         #'z52_qoq_PAYEMS_sync',
         #'z52_qoq_PCE_sync',
         #'z52_yoy_PAYEMS_sync',
@@ -117,9 +117,9 @@ def get_gli_model_beta(df_index):
 
         #'level_SOFR_sync',
         #'level_DXY_sync',
-        'spd_SOFR_TB3MS_sync',
-        'spd_BBB_A_sync',
-        'diff13_SOFR_sync',
+        #'spd_SOFR_TB3MS_sync',
+        #'spd_BBB_A_sync',
+        #'diff13_SOFR_sync',
         #'qoq_DXY_sync',
         #'diff13_DXY_sync',
         #'diff13_spd_SOFR_TB3MS_sync',
@@ -136,7 +136,7 @@ def get_gli_model_beta(df_index):
         #'z52_yoy_DXY_sync',
         #'z52_diff52_spd_SOFR_TB3MS_sync',
         #'z52_diff52_spd_BBB_A_sync',
-        #'z52_SOFR_sync',
+        'z52_SOFR_sync',
         #'z52_DXY_sync',
         #'z52_spd_SOFR_TB3MS_sync',
         #'z52_spd_BBB_A_sync',
@@ -150,14 +150,14 @@ def get_gli_model_beta(df_index):
         #'mom4_spd_BBB_A_sync',
 
         #'Net_Liquidity_sync',
-        'Res_Ratio_sync',
+        #'Res_Ratio_sync',
         #'Abs_Rate_sync',
-        #'qoq_Net_Liquidity_sync',
-        #'qoq_Res_Ratio_sync',
+        'qoq_Net_Liquidity_sync',
+        ##'qoq_Res_Ratio_sync',
         #'qoq_Abs_Rate_sync',
         #'yoy_Net_Liquidity_sync',
         #'yoy_Res_Ratio_sync',
-        #'yoy_Abs_Rate_sync',
+        'yoy_Abs_Rate_sync',
         #'z52_qoq_Net_Liquidity_sync',
         #'z52_qoq_Res_Ratio_sync',
         #'z52_qoq_Abs_Rate_sync',
@@ -167,11 +167,11 @@ def get_gli_model_beta(df_index):
         #'z52_Net_Liquidity_sync',
         #'z52_Res_Ratio_sync',
         #'z52_Abs_Rate_sync',
-        'z104_Net_Liquidity_sync',
-        #'z104_Res_Ratio_sync',
+        #'z104_Net_Liquidity_sync',
+        'z104_Res_Ratio_sync',
         #'z104_Abs_Rate_sync',
         #'mom4_Net_Liquidity_sync',
-        #'mom4_Res_Ratio_sync',
+        'mom4_Res_Ratio_sync',
         #'mom4_Abs_Rate_sync'
     ]]
 
@@ -196,16 +196,16 @@ def get_gli_model_beta(df_index):
     )"""
 
 
-    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
-        n_estimators=1000,learning_rate=0.001, num_leaves=5, min_data_in_leaf=50,
+        n_estimators=1000,learning_rate=0.001, num_leaves=15, min_data_in_leaf=50,
         reg_alpha=0.5, reg_lambda=7, max_depth=2,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
         class_weight="balanced",
         importance_type="gain",stopping_rounds=30,#min_gain_to_split=0.1,
         learning_curve=True,
-    )
-    for label, shap_df in final_shap_dfs.items():
+    )"""
+    """for label, shap_df in final_shap_dfs.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -223,13 +223,13 @@ def get_gli_model_beta(df_index):
                 "相関係数": f"{correlation:.3f}"
             })
 
-        print(pd.DataFrame(logic_results))
+        print(pd.DataFrame(logic_results))"""
 
-    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+    mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,solver='saga',max_iter=5000,
         C=0.5, penalty="l1",class_weight="balanced",
-    )"""
+    )
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -308,11 +308,14 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    
-    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["yoy_CP"])
-    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z52_qoq_CP"])
-    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["z104_CP"])
-    #_plot_graphs(df_a_all["NDFACBM027SBOG_diff"], df_a_all["mom4_CP"])
+
+    """for feat  in [
+        "level_SOFR","diff13_SOFR","diff52_SOFR",
+        "z52_diff13_SOFR","z52_diff52_SOFR", "z52_SOFR",
+        "z104_SOFR", "mom4_SOFR"
+        ]:
+        _plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all[feat])"""
+
 
     # 特徴量とGLIのラグ相関分析
     df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
@@ -726,6 +729,7 @@ def _featuring_d(df):
     qoq_Net_Liquidity = Net_Liquidity.pct_change(13).rename("qoq_Net_Liquidity")
     qoq_Res_Ratio = Res_Ratio.pct_change(13).rename("qoq_Res_Ratio")
     qoq_Abs_Rate = Abs_Rate.pct_change(13).rename("qoq_Abs_Rate")
+
     yoy_Net_Liquidity = Net_Liquidity.pct_change(52).rename("yoy_Net_Liquidity")
     yoy_Res_Ratio = Res_Ratio.pct_change(52).rename("yoy_Res_Ratio")
     yoy_Abs_Rate = Abs_Rate.pct_change(52).rename("yoy_Abs_Rate")
@@ -734,6 +738,7 @@ def _featuring_d(df):
     z52_qoq_Net_Liquidity = _featuring_z_score(qoq_Net_Liquidity, 52).rename("z52_qoq_Net_Liquidity")
     z52_qoq_Res_Ratio = _featuring_z_score(qoq_Res_Ratio, 52).rename("z52_qoq_Res_Ratio")
     z52_qoq_Abs_Rate = _featuring_z_score(qoq_Abs_Rate, 52).rename("z52_qoq_Abs_Rate")
+
     z52_yoy_Net_Liquidity = _featuring_z_score(yoy_Net_Liquidity, 52).rename("z52_yoy_Net_Liquidity")
     z52_yoy_Res_Ratio = _featuring_z_score(yoy_Res_Ratio, 52).rename("z52_yoy_Res_Ratio")
     z52_yoy_Abs_Rate = _featuring_z_score(yoy_Abs_Rate, 52).rename("z52_yoy_Abs_Rate")
