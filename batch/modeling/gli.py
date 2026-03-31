@@ -402,17 +402,18 @@ def _check_factor(df, gli, sp500):
 # 特徴量抽出
 ########################################################
 def _featuring(df):
-    
-    # Layer A: Systemic Liquidity (供給源：ダムの放水量)
+    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL"]
+    df_ = df[col].dropna(how="all")
 
-    #　2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
+    # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ---
+
+    #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
     df_['Unified_Reserves'] = df_['RESBALNS'].fillna(df_['TOTRESNS'])
     df_['Unified_Reserves'] = df_['Unified_Reserves'] * 1000
 
-    # リバースレポ残高は2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
+    # リバースレポ残高（市場からFRBへの預け入れ） - 2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
     df_['RRP_filled'] = df_['RRPONTSYD'].fillna(0) * 1000
-    df_ = df_.drop(columns=['RESBALNS', 'TOTRESNS', 'RRPONTSYD'])
-
+    check_nan_time(df_,"1990-01-01")
     # Net Liquidity / 銀行準備金の厚み / 吸収率 (TGA+RRPが資産に占める割合)
     Net_Liquidity = (df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])).rename("Net_Liquidity")
     Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
@@ -421,7 +422,7 @@ def _featuring(df):
     # Layer B: Market Stress & Costs (摩擦：配管の詰まり)
     # Layer C: Bank Activity & Leakage (現場：銀行の財布)
     # Layer D: Macro Fundamentals (背景：天候)
-
+    df_ = df_.drop(columns=['RESBALNS', 'TOTRESNS', 'RRPONTSYD'])
     df_a = _featuring_a(df)
     df_b = _featuring_b(df)
     df_c = _featuring_c(df)
