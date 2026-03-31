@@ -414,11 +414,16 @@ def _featuring(df):
     # リバースレポ残高（市場からFRBへの預け入れ） - 2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
     df_['RRP_filled'] = df_['RRPONTSYD'].fillna(0) * 1000
     check_nan_time(df_,"1990-01-01")
-    # Net Liquidity / 銀行準備金の厚み / 吸収率 (TGA+RRPが資産に占める割合)
+
+    # Net Liquidity
     Net_Liquidity = (df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])).rename("Net_Liquidity")
+
+    # / 銀行準備金の厚み
     Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
+
+    # / 吸収率 (TGA+RRPが資産に占める割合)
     Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
-    
+
     # Layer B: Market Stress & Costs (摩擦：配管の詰まり)
     # Layer C: Bank Activity & Leakage (現場：銀行の財布)
     # Layer D: Macro Fundamentals (背景：天候)
