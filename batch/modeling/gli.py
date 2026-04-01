@@ -65,19 +65,19 @@ def get_gli_model_beta(df_index):
 
     df_features = df_features[[
         #'Net_Liquidity',
-        #'Abs_Rate',#B
+        'Abs_Rate',#B
         #'Res_Ratio',
         #'WCUR_Ratio',
-        #'Net_Liquidity_qoq',#B
-        #'Net_Liquidity_z52',#A
+        'Net_Liquidity_qoq',#B
+        'Net_Liquidity_z52',#A
         #'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
-        #'DXY_qoq',
+        'DXY_qoq',
         #'VXTLT_z52',
-        'Bank_Dependency',
-        'Loan_qoq',
+        #'Bank_Dependency',
+        #'Loan_qoq',
         'NFINCP_qoq',
-        'WCUR_qoq',
+        #'WCUR_qoq',
     ]]
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---

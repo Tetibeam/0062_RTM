@@ -122,7 +122,31 @@ def _get_yfinance_prices(tickers: list, start_date:pd.Timestamp, end_date: pd.Ti
 ##########################################
 def _get_fred_prices(tickers: list, start_date:pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
     # --- データ取得 ---
+
+    print(f"FRED取得中... : {len(tickers)}指標")
+    dfs = []
+    errors = []
     try:
+        fred = Fred(api_key="d8028eba4732e356349912d4e0f07dc3")
+        for i, ticker in enumerate(tickers):
+            print(f"FRED取得中... : {ticker}")
+
+            try:
+                s = fred.get_series(ticker)
+                s.name = ticker  # ← これ重要
+                dfs.append(s)
+
+            except Exception as e:
+                print(f"❌ エラー: {ticker} -> {e}")
+                errors.append(ticker)
+
+        df = pd.concat(dfs, axis=1)
+        df.index.name = "Date"
+
+    except Exception as e:
+        raise DataFetchError(f"fred 取得失敗: {e}")
+
+    """try:
         print(f"FRED取得中... : {len(tickers)}指標")
         fred = Fred(api_key="d8028eba4732e356349912d4e0f07dc3")
         df = pd.concat(
@@ -133,7 +157,7 @@ def _get_fred_prices(tickers: list, start_date:pd.Timestamp, end_date: pd.Timest
         df.index.name ="Date"
 
     except Exception as e:
-        raise DataFetchError(f"fred 取得失敗: {e}")
+        raise DataFetchError(f"fred 取得失敗: {e}")"""
 
     # --- 取得結果チェック ---
     if df is None or df.empty:
