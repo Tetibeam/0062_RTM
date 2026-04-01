@@ -402,32 +402,12 @@ def _check_factor(df, gli, sp500):
 # 特徴量抽出
 ########################################################
 def _featuring(df):
-    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL"]
-    df_ = df[col].dropna(how="all")
 
-    # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ---
 
-    #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
-    df_['Unified_Reserves'] = df_['RESBALNS'].fillna(df_['TOTRESNS'])
-    df_['Unified_Reserves'] = df_['Unified_Reserves'] * 1000
-
-    # リバースレポ残高（市場からFRBへの預け入れ） - 2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
-    df_['RRP_filled'] = df_['RRPONTSYD'].fillna(0) * 1000
-    check_nan_time(df_,"1990-01-01")
-
-    # Net Liquidity
-    Net_Liquidity = (df_['WALCL'] - (df_['WDTGAL'] +  df_['RRP_filled'])).rename("Net_Liquidity")
-
-    # / 銀行準備金の厚み
-    Res_Ratio = (df_['Unified_Reserves'] / df_['WALCL']).rename("Res_Ratio")
-
-    # / 吸収率 (TGA+RRPが資産に占める割合)
-    Abs_Rate = ((df_['WDTGAL'] + df_['RRP_filled']) / df_['WALCL']).rename("Abs_Rate")
-
-    # Layer B: Market Stress & Costs (摩擦：配管の詰まり)
+    
     # Layer C: Bank Activity & Leakage (現場：銀行の財布)
     # Layer D: Macro Fundamentals (背景：天候)
-    df_ = df_.drop(columns=['RESBALNS', 'TOTRESNS', 'RRPONTSYD'])
+
     df_a = _featuring_a(df)
     df_b = _featuring_b(df)
     df_c = _featuring_c(df)
@@ -436,127 +416,77 @@ def _featuring(df):
     return df_a, df_b, df_c, df_d
 
 def _featuring_a(df):
-    col = ["BUSLOANS","CP","PNFIC1"]
-    df_ = df[col].dropna(how="all")
+    # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ------
 
-    # level
-    level_BUSLOANS = df_["BUSLOANS"].dropna().rename("level_BUSLOANS")
-    level_CP = df_["CP"].dropna().rename("level_CP")
-    level_PNFIC1 = df_["PNFIC1"].dropna().rename("level_PNFIC1")
+    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR"]
+    df_feats = df[col].dropna(how="all")
 
-    # yoy / diff
-    qoq_BUSLOANS = df_["BUSLOANS"].pct_change(13).dropna().rename("qoq_BUSLOANS")
-    qoq_CP = df_["CP"].pct_change(13).dropna().rename("qoq_CP")
-    qoq_PNFIC1 = df_["PNFIC1"].pct_change(13).dropna().rename("qoq_PNFIC1")
-    yoy_BUSLOANS = df_["BUSLOANS"].pct_change(52).dropna().rename("yoy_BUSLOANS")
-    yoy_CP = df_["CP"].pct_change(52).dropna().rename("yoy_CP")
-    yoy_PNFIC1 = df_["PNFIC1"].pct_change(52).dropna().rename("yoy_PNFIC1")
+    #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
+    df_feats['Unified_Reserves'] = df_feats['RESBALNS'].fillna(df_feats['TOTRESNS'])
+    df_feats['Unified_Reserves'] = df_feats['Unified_Reserves'] * 1000
 
-    # yoy/diffのZスコア化
-    z52_qoq_BUSLOANS = _featuring_z_score(qoq_BUSLOANS, 52).rename("z52_qoq_BUSLOANS")
-    z52_qoq_CP = _featuring_z_score(qoq_CP, 52).rename("z52_qoq_CP")
-    z52_qoq_PNFIC1 = _featuring_z_score(qoq_PNFIC1, 52).rename("z52_qoq_PNFIC1")
-    z52_yoy_BUSLOANS = _featuring_z_score(yoy_BUSLOANS, 52).rename("z52_yoy_BUSLOANS")
-    z52_yoy_CP = _featuring_z_score(yoy_CP, 52).rename("z52_yoy_CP")
-    z52_yoy_PNFIC1 = _featuring_z_score(yoy_PNFIC1, 52).rename("z52_yoy_PNFIC1")
+    # リバースレポ残高（市場からFRBへの預け入れ） - 2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
+    df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
 
-    # 生値のZスコア化
-    z52_BUSLOANS = _featuring_z_score(df_["BUSLOANS"], 52).rename("z52_BUSLOANS")
-    z52_CP = _featuring_z_score(df_["CP"], 52).rename("z52_CP")
-    z52_PNFIC1 = _featuring_z_score(df_["PNFIC1"], 52).rename("z52_PNFIC1")
+    # Net Liquidity
+    df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
 
-    z104_BUSLOANS = _featuring_z_score(df_["BUSLOANS"], 104).rename("z104_BUSLOANS")
-    z104_CP = _featuring_z_score(df_["CP"], 104).rename("z104_CP")
-    z104_PNFIC1 = _featuring_z_score(df_["PNFIC1"], 104).rename("z104_PNFIC1")
+    # 吸収率 (TGA+RRPが資産に占める割合)
+    df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
 
-    # mom
-    mom4_BUSLOANS = df_["BUSLOANS"].diff(13).rename("mom4_BUSLOANS")
-    mom4_CP = df_["CP"].diff(4).rename("mom4_CP")
-    mom4_PNFIC1 = df_["PNFIC1"].diff(4).rename("mom4_PNFIC1")
+    # 準備預金の占有率
+    df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
 
-    df_feature = pd.concat([
-        level_BUSLOANS,
-        level_CP,
-        level_PNFIC1,
-        qoq_BUSLOANS,
-        qoq_CP,
-        qoq_PNFIC1,
-        yoy_BUSLOANS,
-        yoy_CP,
-        yoy_PNFIC1,
-        z52_qoq_BUSLOANS,
-        z52_qoq_CP,
-        z52_qoq_PNFIC1,
-        z52_yoy_BUSLOANS,
-        z52_yoy_CP,
-        z52_yoy_PNFIC1,
-        z52_BUSLOANS,
-        z52_CP,
-        z52_PNFIC1,
-        z104_BUSLOANS,
-        z104_CP,
-        z104_PNFIC1,
-        mom4_BUSLOANS,
-        mom4_CP,
-        mom4_PNFIC1
-        ], axis=1).dropna(how="all")
-    #print(df_feature.head(10))
+    # 現金の漏出スピード
+    df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
 
-    return df_feature
+    # 特徴量
+    df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
+    df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
+
+    df_feats = df_feats[[
+        'Net_Liquidity', 'Abs_Rate', 'Res_Ratio', 'WCUR_Ratio',
+        'Net_Liquidity_qoq', 'Net_Liquidity_z52'
+        ]].dropna(how="all")
+
+    #print(df_feats)
+    #check_nan_time(df_feats,"1990-01-01")
+
+    return df_feats
 
 def _featuring_b(df):
-    col = ["PAYEMS","PCE","CES0500000003"]
-    df_ = df[col].dropna(how="all")
+    # ------ Layer B: Market Stress & Costs (摩擦：配管の詰まり) ------
+    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF"]
+    df_feats = df[col].dropna(how="all")
 
-    # level
-    level_PAYEMS = df_["PAYEMS"].dropna().rename("level_PAYEMS")
-    level_PCE = df_["PCE"].dropna().rename("level_PCE")
+    df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
 
-    # yoy / diff
-    qoq_PAYEMS = df_["PAYEMS"].pct_change(13).dropna().rename("qoq_PAYEMS")
-    yoy_PAYEMS = df_["PAYEMS"].pct_change(52).dropna().rename("yoy_PAYEMS")
-    qoq_PCE = df_["PCE"].pct_change(13).dropna().rename("qoq_PCE")
-    yoy_PCE = df_["PCE"].pct_change(52).dropna().rename("yoy_PCE")
+    # 短期指標のスプレッド
+    df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
+    df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
 
-    # yoy/diffのZスコア化
-    z52_qoq_PAYEMS = _featuring_z_score(qoq_PAYEMS, 52).rename("z52_qoq_PAYEMS")
-    z52_yoy_PAYEMS = _featuring_z_score(yoy_PAYEMS, 52).rename("z52_yoy_PAYEMS")
-    z52_qoq_PCE = _featuring_z_score(qoq_PCE, 52).rename("z52_qoq_PCE")
-    z52_yoy_PCE = _featuring_z_score(yoy_PCE, 52).rename("z52_yoy_PCE")
+    # 信用リスクのスプレッド
+    df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
 
-    # 生値のZスコア化
-    z52_PAYEMS = _featuring_z_score(df_["PAYEMS"], 52).rename("z52_PAYEMS")
-    z52_PCE = _featuring_z_score(df_["PCE"], 52).rename("z52_PCE")
-    z104_PAYEMS = _featuring_z_score(df_["PAYEMS"], 104).rename("z104_PAYEMS")
-    z104_PCE = _featuring_z_score(df_["PCE"], 104).rename("z104_PCE")
+    # グローバルなドル圧迫
+    df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
 
-    # mom
-    mom4_PAYEMS = df_["PAYEMS"].diff(4).rename("mom4_PAYEMS")
-    mom4_PCE = df_["PCE"].diff(4).rename("mom4_PCE")
+    # 債券市場の恐怖
+    df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
 
-    df_featured = pd.concat([
-        level_PAYEMS,
-        level_PCE,
-        qoq_PAYEMS,
-        qoq_PCE,
-        yoy_PAYEMS,
-        yoy_PCE,
-        z52_qoq_PAYEMS,
-        z52_qoq_PCE,
-        z52_yoy_PAYEMS,
-        z52_yoy_PCE,
-        z52_PAYEMS,
-        z52_PCE,
-        z104_PAYEMS,
-        z104_PCE,
-        mom4_PAYEMS,
-        mom4_PCE
-        ], axis=1).dropna(how="all")
-    #print(df_featured.corr())
-    #check_nan_time(df_featured,"1990-01-01")
+    
+    df_feats = df_feats[[
+        'SOFR_TB3MS_Spread',
+        'TED_Z52',
+        'spd_BBB_A',
+        'DXY_qoq',
+        'VXTLT_z52'
+        ]].dropna(how="all")
 
-    #plot_index(df_featured.tail(10))
-    return df_featured
+    print(df_feats)
+    check_nan_time(df_feats,"1990-01-01")
+
+    return df_feats
 
 def _featuring_c(df):
     col = ["SOFR","DFF","TB3MS","DX-Y.NYB","BAMLC0A4CBBB","BAMLC0A3CA"]
@@ -844,11 +774,6 @@ def _make_featuring(factor_a, factor_b, factor_c, factor_d):
     #print(df_featured)
     return df_featured
 
-
-
-
-
-
 ########################################################
 # 実装確認・デバッグ
 ########################################################
@@ -872,7 +797,8 @@ gli_index = [
     "TEDRATE",
     "DTB3",
     "VXTLT",
-    "WCURCIR"
+    "WCURCIR",
+    "DFF",
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):
