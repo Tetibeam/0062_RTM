@@ -48,6 +48,8 @@ regime_index_list = [
     "海外関連拠点向け純資金ポジション",
     "債券版VIX",
     "流通現金",
+    "非金融コマーシャルペーパー",
+    "個人消費物価指数",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -107,7 +109,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_2:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_5:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付

@@ -23,6 +23,9 @@ from sklearn.linear_model import LogisticRegression
 from statsmodels.tsa.statespace.dynamic_factor_mq import DynamicFactorMQ
 import statsmodels.api as sm
 
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
+
 import lightgbm as lgb
 import shap
 
@@ -612,6 +615,10 @@ def learning_logistic_lasso_test(
     y = df_ready[target_col]
     label_map = {i+1: name for i, name in enumerate(labels)} if isinstance(labels, list) else labels
 
+    print("=== VIF Check (Pre-flight) ===")
+    vif_df = check_vif(X)
+    print(vif_df)
+
     tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
     all_coefs = []
@@ -649,7 +656,13 @@ def learning_logistic_lasso_test(
 
         acc = accuracy_score(y_test, y_pred)
         b_acc = balanced_accuracy_score(y_test, y_pred)
+
         print(f"Fold {fold} | Test: {X_test.index[0]} ~ {X_test.index[-1]} | Acc: {acc:.4f} | B-Acc: {b_acc:.4f}")
+
+        y_train_pred = clf.predict(X_train_scaled)
+        train_b_acc = balanced_accuracy_score(y_train, y_train_pred)
+        print(f"Fold {fold} | Train B-Acc: {train_b_acc:.4f} | Test B-Acc: {b_acc:.4f}")
+
         if hasattr(clf, 'estimators_'):
             # もし OneVsRestClassifier を使っている場合（以前の互換性用）
             coefs = np.vstack([est.coef_ for est in clf.estimators_])
@@ -690,13 +703,35 @@ def learning_logistic_lasso_test(
     print("\n=== 全フォールド総合の混同行列 ===")
     print(confusion_matrix(all_y_test, all_y_pred))
 
-    mean_coefs = pd.concat(all_coefs).groupby(level=0).mean()
-    print("\n=== 特徴量係数 (Coefficients - Lasso Selection) ===")
-    print(mean_coefs)
+    all_fold_concat = pd.concat(all_coefs)
+    mean_coefs = all_fold_concat.groupby(level=0).mean()
+    std_coefs = all_fold_concat.groupby(level=0).std()
+    print("\n=== 特徴量係数 (Regime-wise Stability Analysis) ===")
+    
+    # クラスごとに結果を表示
+    for class_name in mean_coefs.index:
+        print(f"\n[ Regime: {class_name} ]")
+        stability_df = pd.DataFrame({
+            "Mean": mean_coefs.loc[class_name],
+            "Std": std_coefs.loc[class_name],
+            "Abs_Mean/Std": (mean_coefs.loc[class_name].abs() / std_coefs.loc[class_name]).replace([np.inf, -np.inf], np.nan)
+        }).sort_values("Mean", ascending=False)
+        print(stability_df)
 
     return mean_coefs, all_y_probs, all_y_test
 
+def check_vif(X):
+    # NaNが含まれていると計算できないので注意
+    X_vif = X.dropna()
+    # 定数項（切片）を追加
+    X_vif = add_constant(X_vif)
 
+    vif_data = pd.DataFrame()
+    vif_data["feature"] = X_vif.columns
+    vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) for i in range(len(X_vif.columns))]
+
+    # const（定数項）を除いて、VIFが高い順に並び替え
+    return vif_data[vif_data["feature"] != "const"].sort_values("VIF", ascending=False)
 
 
 

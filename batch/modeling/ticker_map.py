@@ -43,6 +43,8 @@ ticker_map = {
     "海外関連拠点向け純資金ポジション": ["NDFACBM027SBOG", "fred", "NDFACBM027SBOG"],
     "債券版VIX": ["VXTLT", "cboe", "https://cdn.cboe.com/api/global/us_indices/daily_prices/VXTLT_History.csv"],
     "流通現金": ["WCURCIR", "fred", "WCURCIR"],
+    "非金融コマーシャルペーパー": ["NFINCP", "fred", "NFINCP"],
+    "個人消費物価指数": ["PCEPI", "fred", "PCEPI"],
   
 
 
