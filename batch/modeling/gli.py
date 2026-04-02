@@ -115,7 +115,7 @@ def get_gli_model_beta(df_index):
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
     )
-    """for label, shap_df in final_shap_dfs.items():
+    for label, shap_df in final_shap_dfs.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -133,7 +133,7 @@ def get_gli_model_beta(df_index):
                 "相関係数": f"{correlation:.3f}"
             })
 
-        print(pd.DataFrame(logic_results))"""
+        print(pd.DataFrame(logic_results))
 
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
