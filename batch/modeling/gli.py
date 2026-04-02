@@ -44,7 +44,7 @@ def get_gli_model_beta(df_index):
     #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df_target_var["NDFACBM027SBOG"].dropna())
+    df_label = _make_label(df_target_var["NDFACBM027SBOG"].dropna(), df)
 
     # --- 特徴量抽出 ---
     df_a, df_b, df_c, df_d =  _featuring(df)
@@ -65,24 +65,29 @@ def get_gli_model_beta(df_index):
 
     df_features = df_features[[
         #'Net_Liquidity',
-        'Abs_Rate',#B
+        #'Abs_Rate',#B
+        "Abs_Rate_z52",
         #'Res_Ratio',
         #'WCUR_Ratio',
         'Net_Liquidity_qoq',#B
         'Net_Liquidity_z52',#A
-        #'SOFR_TB3MS_Spread',
+        'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
-        'DXY_qoq',
+        #'DXY_qoq',
         #'VXTLT_z52',
         #'Bank_Dependency',
         #'Loan_qoq',
-        'NFINCP_qoq',
+        #'NFINCP_qoq',
         #'WCUR_qoq',
+        #'PCEPI_yoy',
+        'PAYEMS_qoq',
+        'DFII10',
+        "Dollar_Squeeze_Index"
     ]]
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
     df_master = df_label.to_frame().join(df_features, how='left')
-    df_master = df_master.loc["2010-01-01":]
+    #df_master = df_master.loc["2010-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
 
@@ -101,15 +106,15 @@ def get_gli_model_beta(df_index):
     )"""
 
 
-    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=13,
-        n_estimators=1000,learning_rate=0.001, num_leaves=15, min_data_in_leaf=50,
-        reg_alpha=0.5, reg_lambda=7, max_depth=2,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
-        class_weight="balanced",
-        importance_type="gain",stopping_rounds=30,#min_gain_to_split=0.1,
+        n_splits=3, gap=13,
+        n_estimators=2000,learning_rate=0.001, num_leaves=25, min_data_in_leaf=80,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
+        class_weight="balanced",#extra_trees="True",
+        importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
+    )
     """for label, shap_df in final_shap_dfs.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
@@ -130,11 +135,11 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))"""
 
-    mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,solver='saga',max_iter=5000,
-        C=0.5, penalty="l1",class_weight="balanced",
-    )
+        C=0.1, penalty="l1",class_weight="balanced",
+    )"""
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -184,7 +189,7 @@ def _aggregation(df):
     df_quarterly_w = df_quarterly_w.dropna(how="all")
 
     #pd.set_option("display.max_rows", None)
-    #print(df_monthly_w_lagged.tail(10))
+    #print(df_daily_w_s.tail(10))
     #check_nan_time(df_monthly_w_lagged)
 
     # 結合
@@ -420,6 +425,8 @@ def _featuring(df):
     df_b = _featuring_b(df)
     df_c = _featuring_c(df)
     df_d = _featuring_d(df)
+    
+    df_b["Dollar_Squeeze_Index"] = df_b["DXY_qoq"] - df_a["Net_Liquidity_z52"]
 
     return df_a, df_b, df_c, df_d
 
@@ -441,6 +448,7 @@ def _featuring_a(df):
 
     # 吸収率 (TGA+RRPが資産に占める割合)
     df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
+    df_feats["Abs_Rate_z52"] = _featuring_z_score(df_feats["Abs_Rate"], 52)
 
     # 準備預金の占有率
     df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
@@ -453,8 +461,8 @@ def _featuring_a(df):
     df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
 
     df_feats = df_feats[[
-        'Net_Liquidity', 'Abs_Rate', 'Res_Ratio', 'WCUR_Ratio',
-        'Net_Liquidity_qoq', 'Net_Liquidity_z52'
+        'Net_Liquidity', 'Abs_Rate', "Abs_Rate_z52", 'Res_Ratio',
+        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52'
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -593,7 +601,7 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 # 学習の変数
 ########################################################
 
-def _make_label(target_monthly):
+def _make_label(target_monthly, df_index):
     # 週次にします
     target_lagged = target_monthly.shift(1)
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
@@ -605,8 +613,8 @@ def _make_label(target_monthly):
     # 3か月後予測
     #future_change = target_diff13.shift(-13) - target_diff13
     future_change = target_diff13.shift(-13)
-    lower_threshold = -53.642265  # 下位25% (Down)
-    upper_threshold = 47.575755   # 上位25% (Up)
+    lower_threshold = -80#-53.642265  # 下位25% (Down)
+    upper_threshold = 80#47.575755   # 上位25% (Up)
     # 1か月後予測
     #future_change = target_diff52.shift(-4) - target_diff52
     #lower_threshold = -31.075355  # 下位25% (Down)
@@ -619,7 +627,21 @@ def _make_label(target_monthly):
         bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
         labels=[1, 2, 3]
     ).rename("gli_label")
+
     #print(labels.value_counts())
+
+    """asset_clean = df_index["^GSPC"].dropna()
+    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
+    df_index['next_3m_ret_sp500'] = future_ret
+    asset_clean = df_index["TLT"].dropna()
+    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
+    df_index['next_3m_ret_tlt'] = future_ret
+    asset_clean = df_index["BAMLH0A0HYM2"].dropna()
+    future_ret = asset_clean.diff(13).shift(-13).dropna()
+    df_index['next_3m_diff_hy'] = future_ret
+    _analysis_label(
+        pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
+    )"""
 
     return labels.dropna()
 
@@ -630,9 +652,9 @@ def _analysis_label(df):
     print(stats)
 
     market_summary = df.groupby('gli_label').agg({
-        'next_20d_ret_sp500': ['mean', 'std', 'min', 'max'],
-        'next_20d_ret_tlt': ['mean', 'std'],
-        'next_20d_diff_hy': ['mean']
+        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max'],
+        'next_3m_ret_tlt': ['mean', 'std'],
+        'next_3m_diff_hy': ['mean']
     }).round(4)
     print(market_summary)
 
@@ -756,7 +778,10 @@ gli_index = [
     "DFF",
     "NFINCP",
     "PCEPI",
-    "DFII10"
+    "DFII10",
+    "^GSPC",
+    "TLT",
+    "BAMLH0A0HYM2"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):

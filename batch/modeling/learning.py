@@ -407,8 +407,8 @@ def learning_lgbm_test_gli(
     # 学習パラメータの設定
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
-    objective="multiclass",max_depth=2,stopping_rounds=20,
-    feature_fraction=0.7,bagging_fraction=0.8,bagging_freq=1,
+    objective="multiclass",max_depth=2,stopping_rounds=20,extra_trees="True",
+    feature_fraction=0.7,bagging_fraction=0.8,bagging_freq=1,path_smooth=1.0,
     #min_gain_to_split=0.1,
     # 学習曲線の表示
     learning_curve=False,
@@ -469,6 +469,8 @@ def learning_lgbm_test_gli(
             importance_type=importance_type,
             #min_gain_to_split=min_gain_to_split,
             random_state=42,
+            #path_smooth=path_smooth,
+            #extra_trees=extra_trees,
             verbose=-1
         )
 
