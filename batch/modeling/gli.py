@@ -623,6 +623,39 @@ def _make_label(target_monthly):
 
     return labels.dropna()
 
+def _analysis_label(df):
+    # 分析・可視化
+    stats = df['gli_label'].value_counts().to_frame(name='Count')
+    stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
+    print(stats)
+
+    market_summary = df.groupby('gli_label').agg({
+        'next_20d_ret_sp500': ['mean', 'std', 'min', 'max'],
+        'next_20d_ret_tlt': ['mean', 'std'],
+        'next_20d_diff_hy': ['mean']
+    }).round(4)
+    print(market_summary)
+
+    # 継続日数の算出
+    df['change'] = df['gli_label'] != df['gli_label'].shift()
+    df['regime_id'] = df['change'].cumsum()
+
+    # 各期間の長さをカウント
+    duration_stats = df.groupby(['regime_id', 'gli_label']).size().reset_index(name='duration')
+    avg_duration = duration_stats.groupby('gli_label')['duration'].mean().round(1)
+    print(f"平均継続日数:\n{avg_duration}")
+
+    # 遷移マトリクス（現在の状態 -> 次の状態）
+    transition_matrix = pd.crosstab(
+        df['gli_label'], 
+        df['gli_label'].shift(-1), 
+        normalize='index'
+    ).round(2)
+
+    print("遷移マトリクス（行：現在 -> 列：次）:")
+    print(transition_matrix)
+
+
 def _make_featuring(factor_a, factor_b, factor_c, factor_d):
 
     # lag調整した因子セットをつくる
