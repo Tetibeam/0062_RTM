@@ -87,7 +87,10 @@ def get_gli_model_beta(df_index):
         'Burden_Ratio',
         #'Burden_Ratio_z52',
         'Burden_diff13',
-        #"HY_diff13"
+        #"HY_diff13",
+        #"UUP_qoq",
+        #"UUP_diff13",
+        #"UUP_z52",
     ]]
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
@@ -128,7 +131,7 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))
 
-    df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
+    """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
     df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
     df_shap["3:LIFT"].to_parquet("gli_shap_lift.parquet", engine="pyarrow")
@@ -136,7 +139,7 @@ def get_gli_model_beta(df_index):
     df.to_parquet("gli_raw.parquet", engine="pyarrow")
     df_master.to_parquet("gli_master.parquet", engine="pyarrow")
     df_features.to_parquet("gli_features.parquet", engine="pyarrow")
-    df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")
+    df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")"""
 
 
 
@@ -438,7 +441,7 @@ def _featuring(df):
 def _featuring_a(df):
     # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ------
 
-    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR"]
+    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR","UUP"]
     df_feats = df[col].dropna(how="all")
 
     #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
@@ -461,13 +464,17 @@ def _featuring_a(df):
     # 現金の漏出スピード
     df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
 
+    df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
+    df_feats['UUP_diff13'] = df_feats['UUP'].diff(13)
+    df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
+
     # 特徴量
     df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
     df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
 
     df_feats = df_feats[[
         'Net_Liquidity', 'Abs_Rate', "Abs_Rate_z52", 'Res_Ratio',
-        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52'
+        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52',"UUP_qoq","UUP_z52","UUP_diff13"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -649,7 +656,7 @@ def _make_label(target_monthly, df_index):
 
     #print(labels.value_counts())
 
-    asset_clean = df_index["^GSPC"].dropna()
+    """asset_clean = df_index["^GSPC"].dropna()
     future_ret = asset_clean.pct_change(13).shift(-13).dropna()
     df_index['next_3m_ret_sp500'] = future_ret
     asset_clean = df_index["TLT"].dropna()
@@ -660,7 +667,7 @@ def _make_label(target_monthly, df_index):
     df_index['next_3m_diff_hy'] = future_ret
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )
+    )"""
 
     return labels.dropna()
 
@@ -804,6 +811,8 @@ gli_index = [
     "BAMLH0A0HYM2",
     "B069RC1",
     "DSPI",
+    "EEM",
+    "UUP"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):

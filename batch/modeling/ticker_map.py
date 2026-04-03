@@ -6,6 +6,7 @@ ticker_map = {
     "米国国債長期債": ["tlt", "yfinance", "TLT"],
     "ハイイールド債スプレッド": ["hyg", "yfinance", "HYG"],
     "ドル流動性": ["uup", "yfinance", "UUP"],
+    "新興国株式": ["EEM", "yfinance", "EEM"],
 
     "債務サービス比率": ["dsr", "bis_quarterly", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_DSR/1.0/Q.US.P?startPeriod=2010-01-01&format=csv"],
     "企業利益": ["cp", "fred", "CP"],

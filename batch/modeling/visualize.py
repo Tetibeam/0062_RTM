@@ -235,251 +235,6 @@ def plot_driver_soft_label(df_result, df_daily, start_date=None, end_date=None):
     fig.show()
 
 # Driverモデル確率
-"""def plot_driver_trajectory(df_ready, sp500_ret, labels, start_date="2022-01-01", end_date="2023-01-01"):
-    # 1. データの準備
-    X = df_ready.drop(columns=['actual_regime'])
-    X_latest = X.loc[start_date:end_date]
-
-    # ★追加: 正解ラベルを取得
-    y_latest = df_ready.loc[start_date:end_date, 'actual_regime']
-
-    # 2. 予測確率の算出
-    labels = labels
-    probs = X_latest
-    df_probs = pd.DataFrame(probs, index=X_latest.index, columns=labels)
-
-    # 最も確率が高いレジュームを特定（強調表示用）
-    df_probs['dominant_regime'] = df_probs.iat[:,:2].idxmax(axis=1)
-
-    # ★追加: マッピング用の辞書を作成し、返り値のデータフレームにも正解を記録
-    regime_dict = {float(i+1): label for i, label in enumerate(labels)}
-    df_probs['actual_regime'] = y_latest.map(regime_dict)
-    pd.set_option('display.max_rows', None)
-    print(df_probs)
-
-    # 3. カラーパレットの設定（プロ仕様）
-    colors = ['rgba(255, 215, 0, 0.8)', 'rgba(255, 0, 255, 0.85)', 'rgba(178, 34, 34, 0.8)', 
-              'rgba(30, 144, 255, 0.8)', 'rgba(0, 250, 154, 0.7)']
-
-    # ★追加: 正解ラベルの色引き当て用辞書
-    color_dict = {float(i+1): color for i, color in enumerate(colors)}
-
-    # 4. 可視化
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        row_heights=[0.35, 0.65],
-        # ★追加: タイトルを微修正
-        subplot_titles=("MARKET CONTEXT (S&P500) & Actual Regime", "PROBABILISTIC TRAJECTORY")
-    )
-
-    # --- 上段：価格チャート & 支配的レジュームの背景強調 ---
-    sp500_price = (1 + sp500_ret).cumprod()
-    sp500_price = sp500_price.loc[start_date:end_date]
-    min_sp500 = sp500_price.min() - 0.1
-    max_sp500 = sp500_price.max() + 0.1
-
-    df_probs['change'] = df_probs['dominant_regime'] != df_probs['dominant_regime'].shift()
-    df_probs['group'] = df_probs['change'].cumsum()
-
-    regime_groups = df_probs.groupby('group')
-
-    for _, group in regime_groups:
-        start_dt = group.index[0]
-        end_dt = group.index[-1]
-        regime_label = group['dominant_regime'].iloc[0]
-
-        regime_idx = labels.index(regime_label)
-        base_color = colors[regime_idx]
-        bg_color = base_color.replace('0.8', '0.12').replace('0.9', '0.12').replace('0.7', '0.12')
-
-        fig.add_shape(
-            type="rect",
-            xref="x", 
-            yref="y", # ★修正: 元コードの"paper"だとデータ座標(min_sp500等)と噛み合わずズレるため"y"に修正
-            x0=start_dt, x1=end_dt,
-            y0=min_sp500, y1=max_sp500,
-            fillcolor=bg_color,
-            line_width=0,
-            layer="below", 
-            row=1, col=1
-        )
-
-    # ★追加: 正解ラベルの「カラーリボン」を価格チャートの下部に描画
-    true_colors = y_latest.map(color_dict)
-    true_texts = y_latest.map(regime_dict)
-
-    fig.add_trace(go.Scatter(
-        x=y_latest.index,
-        y=[min_sp500 + 0.01] * len(y_latest), # 価格チャートの一番下（min_sp500の少し上）に固定
-        mode='markers',
-        marker=dict(color=true_colors, symbol='square', size=12),
-        name='Actual (True)',
-        text=true_texts,
-        hovertemplate='<b>Actual: %{text}</b><extra></extra>',
-        showlegend=False # 凡例が煩雑になるのを防ぐ
-    ), row=1, col=1)
-
-    # 価格線を重ねる
-    fig.add_trace(go.Scatter(
-        x=sp500_price.index, y=sp500_price, 
-        name="S&P500", line=dict(color='#E0E0E0', width=1.5)
-    ), row=1, col=1)
-
-    # --- 下段：確率のスタックエリア（グラデーション） ---
-    for i, col in enumerate(labels):
-        fig.add_trace(go.Scatter(
-            x=df_probs.index, y=df_probs[col],
-            name=col,
-            stackgroup='one',
-            line=dict(width=0, color=colors[i]),
-            fillcolor=colors[i],
-            hovertemplate='%{y:.1%}'
-        ), row=2, col=1)
-
-    # --- レイアウトの磨き上げ ---
-    fig.update_layout(
-        template="plotly_dark",
-        title=dict(
-            text=f"<b>REGIME PRISM</b><br><span style='font-size:12px; color:#A0A0A0;'>Analysis Period: {start_date} to {end_date}</span>",
-            x=0.05, y=0.95
-        ),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.1, xanchor="right", x=1),
-        margin=dict(l=50, r=50, t=120, b=50),
-        plot_bgcolor='#0a0a0a',
-        paper_bgcolor='#0a0a0a',
-    )
-
-    fig.update_yaxes(gridcolor='#222', zeroline=False)
-    fig.update_yaxes(title_text="Probability", tickformat=".0%", range=[0, 1], row=2, col=1)
-    fig.update_xaxes(gridcolor='#222', rangeslider_visible=False)
-
-    fig.show(config=dict(displayModeBar=False))
-
-    # 解析用に出力データフレームの列を整理して返す
-    return df_probs[['actual_regime', 'dominant_regime']]
-"""
-# Driverモデル期待値＆確率
-"""def plot_driver_diagnostic_report(df_bt, df_oof, start_date="2022-01-01", end_date="2024-01-01"):
-    # 1. 表示期間のデータ抽出
-    df_plot = df_bt.loc[start_date:end_date].copy()
-    df_probs = df_oof.loc[start_date:end_date].copy()
-
-    # Net Macro Stress の計算
-    df_plot['net_stress'] = (df_probs['1:Credit'] + df_probs['2:Bond']) - df_probs['3:Mix']
-    df_plot['cum_bench'] = (1 + df_plot['sp500_ret']).cumprod()
-
-    # 2. カラーパレットの定義（高コントラスト版）
-    # 黒背景に映えるAppleシステムカラーに近い配色
-    driver_colors = [
-        'rgba(255, 69, 58, 0.8)',  # Credit: システムレッド（警告）
-        'rgba(255, 159, 10, 0.8)', # Bond: システムアンバー（注意）
-        'rgba(10, 132, 255, 0.7)'  # Mix: システムブルー（巡航）
-    ]
-    driver_labels = ['1:Credit', '2:Bond', '3:Mix']
-    driver_names = ['Credit (Danger)', 'Bond (Instability)', 'Mix/Neutral']
-
-    rank_colors = {
-        'High Risk': 'rgba(255, 140, 0, 0.25)',
-        'CRITICAL': 'rgba(255, 0, 0, 0.3)'
-    }
-
-    # 3. サブプロットの設定
-    fig = make_subplots(
-        rows=3, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.33, 0.33, 0.34],
-        subplot_titles=(
-            "<b>1. MARKET CONTEXT: S&P500 & ev_rank</b>", 
-            "<b>2. REGIME DYNAMICS: Net Macro Stress Index</b>", 
-            "<b>3. DRIVER PROBABILITIES: Probability Composition</b>"
-        )
-    )
-
-    # 背景シェイプ関数 (ev_rank用)
-    def add_rank_bg(fig, target_row, y_range):
-        df_plot['rank_change'] = df_plot['ev_rank'] != df_plot['ev_rank'].shift()
-        df_plot['rank_group'] = df_plot['rank_change'].cumsum()
-        for _, group in df_plot.groupby('rank_group'):
-            rank = group['ev_rank'].iloc[0]
-            if rank in rank_colors:
-                fig.add_shape(
-                    type="rect", xref="x", yref=f"y{target_row}",
-                    x0=group.index[0], x1=group.index[-1], y0=y_range[0], y1=y_range[1],
-                    fillcolor=rank_colors[rank], line_width=0, layer="below", row=target_row, col=1
-                )
-
-    # 背景シェイプ関数 (Dominant Driver用) - 視認性を上げた設定
-    def add_driver_bg(fig, target_row, y_range):
-        dominant = df_probs[driver_labels].idxmax(axis=1)
-        df_probs['dom_change'] = dominant != dominant.shift()
-        df_probs['dom_group'] = df_probs['dom_change'].cumsum()
-
-        # 視認性を確保するためのアルファ値
-        bg_alpha = {'1:Credit': '0.22', '2:Bond': '0.18', '3:Mix': '0.12'}
-
-        for _, group in df_probs.groupby('dom_group'):
-            start_dt = group.index[0]
-            dom_label = df_probs.loc[start_dt, driver_labels].idxmax()
-            color_idx = driver_labels.index(dom_label)
-            alpha = bg_alpha.get(dom_label, '0.1')
-            bg_color = driver_colors[color_idx].replace('0.8', alpha).replace('0.7', alpha)
-
-            fig.add_shape(
-                type="rect", xref="x", yref=f"y{target_row}",
-                x0=start_dt, x1=group.index[-1], y0=y_range[0], y1=y_range[1],
-                fillcolor=bg_color, line_width=0, layer="below", row=target_row, col=1
-            )
-
-    # --- 上段: 価格推移 ---
-    fig.add_trace(go.Scatter(
-        x=df_plot.index, y=df_plot['cum_bench'], 
-        name="S&P500", line=dict(color='#FFFFFF', width=1.5)
-    ), row=1, col=1)
-    add_rank_bg(fig, 1, [df_plot['cum_bench'].min()*0.9, df_plot['cum_bench'].max()*1.1])
-
-    # --- 中段: Net Stress (背景あり) ---
-    fig.add_trace(go.Scatter(
-        x=df_plot.index, y=df_plot['net_stress'], 
-        name="Net Stress", 
-        line=dict(color='#00FFFF', width=2.5), # 蛍光シアンで視認性確保
-        hovertemplate='Stress: %{y:.2f}'
-    ), row=2, col=1)
-    fig.add_hline(y=0, line_dash="dash", line_color="rgba(255,255,255,0.5)", row=2, col=1)
-    add_driver_bg(fig, 2, [-1.1, 1.1])
-
-    # --- 下段: 確率推移 (背景なし) ---
-    for i, (col, name) in enumerate(zip(driver_labels, driver_names)):
-        fig.add_trace(go.Scatter(
-            x=df_probs.index, y=df_probs[col],
-            name=name, stackgroup='one',
-            line=dict(width=0.5, color='rgba(255,255,255,0.2)'), # 境界線を薄く入れる
-            fillcolor=driver_colors[i],
-            hovertemplate='%{y:.1%}'
-        ), row=3, col=1)
-
-    # --- レイアウト調整 ---
-    fig.update_layout(
-        title=dict(
-            text=f"<b>DRIVER PROFILER DIAGNOSTIC REPORT</b>",
-            x=0.05, y=0.97, font=dict(size=20, color='#FFFFFF')
-        ),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        plot_bgcolor='#0a0a0a',
-        paper_bgcolor='#0a0a0a',
-        margin=dict(l=10,r=10,t=80,b=10,pad=10)
-    )
-
-    fig.update_yaxes(gridcolor='#222', zeroline=False)
-    fig.update_yaxes(title=dict(text="Net Stress Index"), range=[-1.1, 1.1], row=2, col=1)
-    fig.update_yaxes(title=dict(text="Probabilities"), range=[0, 1], row=3, col=1)
-
-    fig.show(config=dict(displayModeBar=False))
-"""
 
 def plot_driver_diagnostic_report(df_bt, start_date="2025-01-01", end_date="2025-06-01", lag=0):
     # 1. 表示期間の切り出し
@@ -565,15 +320,107 @@ def plot_driver_diagnostic_report(df_bt, start_date="2025-01-01", end_date="2025
         fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[col], name=name, stackgroup='one', fillcolor=driver_colors[i], line=dict(width=0), hovertemplate='%{y:.1%}'), row=3, col=1)
 
     fig.update_layout(template="plotly_dark", height=850, margin=dict(l=50, r=20, t=50, b=50), hovermode="x unified")
-    fig.show(config=dict(displayModeBar=False))########################################################
-
-
+    fig.show(config=dict(displayModeBar=False))
 
 ########################################################
-# Regime
+# GLI
 ########################################################
 
+def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04-03"):
 
+    # 1. 表示期間の切り出し
+    df_plot = df_bt.loc[start_date:end_date].copy()
+    
+    # 指数化（累積リターン）
+    if 'sp500_ret' in df_plot.columns:
+        df_plot['cum_sp500'] = (1 + df_plot['sp500_ret'].fillna(0)).cumprod()
+    else:
+        # 価格データしかない場合のフォールバック
+        df_plot['cum_sp500'] = df_plot['^GSPC'] / df_plot['^GSPC'].iloc[0]
+
+    # 2. カラーパレットの定義
+    colors = {
+        'STALL': 'rgba(255, 159, 10, 0.25)',  # オレンジ（還流・注意）
+        'LIFT': 'rgba(10, 132, 255, 0.25)',   # ブルー（浮揚・好機）
+        'LIFT_HIGH': 'rgba(0, 255, 127, 0.6)', # ネオン・スプリンググリーン（100%勝率地帯）
+        'PROB_STALL': 'rgba(255, 159, 10, 0.8)',
+        'PROB_CRUISE': 'rgba(100, 100, 100, 0.6)',
+        'PROB_LIFT': 'rgba(10, 132, 255, 0.8)',
+        'PRICE': '#FFFFFF'
+    }
+
+    fig = make_subplots(
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04,
+        row_heights=[0.33, 0.33, 0.34],
+        subplot_titles=(
+            "<b>1. GLOBAL MACRO FLOW: STALL & LIFT Overlay</b>",
+            "<b>2. THE HOLY GRAIL: High Conviction LIFT (Prob >= 45%)</b>",
+            "<b>3. PROBABILITY COMPOSITION: Regime Transitions</b>"
+        )
+    )
+
+    # --- 1段目: S&P500 + STALL/LIFT 背景 ---
+    fig.add_trace(go.Scatter(
+        x=df_plot.index, y=df_plot['cum_sp500'], 
+        name="S&P 500", line=dict(color=colors['PRICE'], width=1.5)
+    ), row=1, col=1)
+
+    # 背景色描画（予測ラベルに基づく）
+    df_plot['label_grp'] = (df_plot['predict_label'] != df_plot['predict_label'].shift()).cumsum()
+    for _, g in df_plot.groupby('label_grp'):
+        val = g['predict_label'].iloc[0]
+        if val == 1: # STALL
+            fig.add_vrect(x0=g.index[0], x1=g.index[-1], fillcolor=colors['STALL'], layer="below", line_width=0, row=1, col=1)
+        elif val == 3: # LIFT
+            fig.add_vrect(x0=g.index[0], x1=g.index[-1], fillcolor=colors['LIFT'], layer="below", line_width=0, row=1, col=1)
+
+    # --- 2段目: S&P500 + LIFT High 背景 ---
+    # 比較しやすくするため、1段目と同じ価格曲線を薄く描画
+    fig.add_trace(go.Scatter(
+        x=df_plot.index, y=df_plot['cum_sp500'], 
+        name="S&P 500 (High-Lift Focus)", line=dict(color=colors['PRICE'], width=1.2), showlegend=False
+    ), row=2, col=1)
+
+    # 45%以上の「聖杯」ゾーンのみを抽出
+    df_plot['is_high_lift'] = df_plot['3:LIFT'] >= 0.45
+    df_plot['high_lift_grp'] = (df_plot['is_high_lift'] != df_plot['is_high_lift'].shift()).cumsum()
+    
+    for _, g in df_plot[df_plot['is_high_lift']].groupby('high_lift_grp'):
+        fig.add_vrect(
+            x0=g.index[0], x1=g.index[-1], 
+            fillcolor=colors['LIFT_HIGH'], 
+            line_width=1, line_color='rgba(255,255,255,0.3)', 
+            layer="below", row=2, col=1
+        )
+
+    # --- 3段目: 確率推移 (Stacked Area) ---
+    prob_labels = ['1:STALL', '2:CRUISE', '3:LIFT']
+    area_colors = [colors['PROB_STALL'], colors['PROB_CRUISE'], colors['PROB_LIFT']]
+    
+    for i, col in enumerate(prob_labels):
+        fig.add_trace(go.Scatter(
+            x=df_plot.index, y=df_plot[col],
+            name=col.split(':')[-1],
+            stackgroup='one',
+            fillcolor=area_colors[i],
+            line=dict(width=0),
+            hovertemplate='%{y:.1%}'
+        ), row=3, col=1)
+
+    # レイアウト設定
+    fig.update_layout(
+        template="plotly_dark", 
+        height=900, 
+        margin=dict(l=50, r=20, t=60, b=50), 
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    fig.update_yaxes(title_text="Index", row=1, col=1)
+    fig.update_yaxes(title_text="Index", row=2, col=1)
+    fig.update_yaxes(title_text="Probability", tickformat=".0%", range=[0, 1], row=3, col=1)
+
+    fig.show(config=dict(displayModeBar=False))
 
 
 
