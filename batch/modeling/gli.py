@@ -45,7 +45,7 @@ def get_gli_model_beta(df_index):
 
     # --- 教師ラベルの生成 ---
     df_label = _make_label(df_target_var["NDFACBM027SBOG"].dropna(), df)
-
+    #print(df_label)
     # --- 特徴量抽出 ---
     df_a, df_b, df_c, df_d =  _featuring(df)
     #check_nan_time(df_d,"1990-01-01")
@@ -71,7 +71,7 @@ def get_gli_model_beta(df_index):
         #'WCUR_Ratio',
         'Net_Liquidity_qoq',#B
         'Net_Liquidity_z52',#A
-        'SOFR_TB3MS_Spread',
+        #'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
         #'DXY_qoq',
         #'VXTLT_z52',
@@ -81,8 +81,13 @@ def get_gli_model_beta(df_index):
         #'WCUR_qoq',
         #'PCEPI_yoy',
         'PAYEMS_qoq',
-        'DFII10',
-        "Dollar_Squeeze_Index"
+        #"PAYEMS_qoq_sm13",
+        #'DFII10',
+        "Dollar_Squeeze_Index",
+        'Burden_Ratio',
+        #'Burden_Ratio_z52',
+        'Burden_diff13',
+        #"HY_diff13"
     ]]
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
@@ -92,30 +97,18 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_master,"1990-01-01")
 
 
-    #print(f"特徴量のリスト: {df_features.columns}")
+    print(f"特徴量のリスト: {df_features.columns}")
 
-    # --- diff52基準の逆張りモデル ---
-    """df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
-        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=13,
-        n_estimators=1000,learning_rate=0.001, num_leaves=15, min_data_in_leaf=65,
-        reg_alpha=0.5, reg_lambda=7, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
-        class_weight="balanced",
-        importance_type="gain",stopping_rounds=30,#min_gain_to_split=0.1,
-        learning_curve=True,
-    )"""
-
-
-    df_oof_all, final_shap_dfs, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,
-        n_estimators=2000,learning_rate=0.001, num_leaves=25, min_data_in_leaf=80,
+        n_estimators=1000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=65,
         reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
-        class_weight="balanced",#extra_trees="True",
+        class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
     )
-    for label, shap_df in final_shap_dfs.items():
+    for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -135,10 +128,22 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))
 
+    df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
+    df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
+    df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
+    df_shap["3:LIFT"].to_parquet("gli_shap_lift.parquet", engine="pyarrow")
+    df_oof_ev.to_parquet("gli_oof_ev.parquet", engine="pyarrow")
+    df.to_parquet("gli_raw.parquet", engine="pyarrow")
+    df_master.to_parquet("gli_master.parquet", engine="pyarrow")
+    df_features.to_parquet("gli_features.parquet", engine="pyarrow")
+    df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")
+
+
+
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=13,solver='saga',max_iter=5000,
-        C=0.1, penalty="l1",class_weight="balanced",
+        n_splits=3, gap=13,solver='saga',max_iter=5000,
+        C=0.5, penalty="l1",class_weight="balanced",
     )"""
 
     # --- 学習結果の分析・可視化 ---
@@ -472,7 +477,7 @@ def _featuring_a(df):
 
 def _featuring_b(df):
     # ------ Layer B: Market Stress & Costs (摩擦：配管の詰まり) ------
-    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF"]
+    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2"]
     df_feats = df[col].dropna(how="all")
 
     df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
@@ -489,13 +494,16 @@ def _featuring_b(df):
 
     # 債券市場の恐怖
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
+    
+    df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
 
     df_feats = df_feats[[
         'SOFR_TB3MS_Spread',
         #'TED_Z52',
         'spd_BBB_A',
         'DXY_qoq',
-        'VXTLT_z52'
+        'VXTLT_z52',
+        "HY_diff13"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -530,20 +538,31 @@ def _featuring_c(df):
 
 def _featuring_d(df):
     # ------ Layer D: Macro Fundamentals (背景：天候) ------
-    col=["PCEPI", "PAYEMS", "DFII10"]
+    col=["PCEPI", "PAYEMS", "DFII10", "DSPI", "B069RC1"]
     df_feats = df[col].dropna(how="all")
 
     # インフレの勢い、雇用の勢い
     df_feats['PCEPI_yoy'] = df_feats['PCEPI'].pct_change(52) # 前年比
     df_feats['PAYEMS_qoq'] = df_feats['PAYEMS'].pct_change(13)     # 直近の加速
+    df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean()     # 直近の加速
 
     # 実質金利のレベル感
     df_feats['DFII10'] = df_feats['DFII10']
+
+    # 利払い負担率
+    df_feats['Burden_Ratio'] = (df_feats['B069RC1'] / df_feats['DSPI']) * 100
+    df_feats["Burden_Ratio_z52"] = _featuring_z_score(df_feats['Burden_Ratio'], 52)
+    df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
+    
 
     df_feats = df_feats[[
         'PCEPI_yoy',
         'PAYEMS_qoq',
         'DFII10',
+        'Burden_Ratio',
+        'Burden_Ratio_z52',
+        'Burden_diff13',
+        'PAYEMS_qoq_sm13'
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -630,7 +649,7 @@ def _make_label(target_monthly, df_index):
 
     #print(labels.value_counts())
 
-    """asset_clean = df_index["^GSPC"].dropna()
+    asset_clean = df_index["^GSPC"].dropna()
     future_ret = asset_clean.pct_change(13).shift(-13).dropna()
     df_index['next_3m_ret_sp500'] = future_ret
     asset_clean = df_index["TLT"].dropna()
@@ -641,7 +660,7 @@ def _make_label(target_monthly, df_index):
     df_index['next_3m_diff_hy'] = future_ret
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )"""
+    )
 
     return labels.dropna()
 
@@ -780,8 +799,11 @@ gli_index = [
     "PCEPI",
     "DFII10",
     "^GSPC",
+    "ACWI",
     "TLT",
-    "BAMLH0A0HYM2"
+    "BAMLH0A0HYM2",
+    "B069RC1",
+    "DSPI",
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):

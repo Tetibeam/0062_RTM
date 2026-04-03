@@ -31,6 +31,7 @@ regime_index_list = [
     "クレジットカードローンの延滞率",
     "個人貯蓄率",
     "非農業ビジネス部門の実質時間当たり報酬",
+
     # GLI model
     "米ドル建ての代表的代替リスクフリーレート",
     "実効フェデラルファンド金利",
@@ -50,6 +51,9 @@ regime_index_list = [
     "流通現金",
     "非金融コマーシャルペーパー",
     "個人消費物価指数",
+    "個人利払い支出",
+    "名目可処分個人所得",
+    "全世界株式",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -89,7 +93,6 @@ regime_index_list = [
     "原油",
     "銅",
     "SOX指数",
-    #"TOPIX",
     "10年物米国債インフレ連動債利回り",
     "TOPIX セクターETF 銀行",
     "TOPIX セクターETF 食品",
@@ -109,7 +112,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_7:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付

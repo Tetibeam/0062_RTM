@@ -470,7 +470,7 @@ def learning_lgbm_test_gli(
             #min_gain_to_split=min_gain_to_split,
             random_state=42,
             #path_smooth=path_smooth,
-            #extra_trees=extra_trees,
+            extra_trees=extra_trees,
             verbose=-1
         )
 

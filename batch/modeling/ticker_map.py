@@ -44,9 +44,9 @@ ticker_map = {
     "債券版VIX": ["VXTLT", "cboe", "https://cdn.cboe.com/api/global/us_indices/daily_prices/VXTLT_History.csv"],
     "流通現金": ["WCURCIR", "fred", "WCURCIR"],
     "非金融コマーシャルペーパー": ["NFINCP", "fred", "NFINCP"],
+    "個人利払い支出": ["B069RC1", "fred", "B069RC1"],
+    "名目可処分個人所得": ["DSPI", "fred", "DSPI"],
     "個人消費物価指数": ["PCEPI", "fred", "PCEPI"],
-  
-
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
     "NASDAQ総合指数": ["nasdaq", "yfinance", "^IXIC"],

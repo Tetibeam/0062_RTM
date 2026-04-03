@@ -466,12 +466,7 @@ if __name__ == "__main__":
     start = pd.Timestamp("1999-01-01")
     end = pd.Timestamp("2026-04-01")
     #df = _get_yfinance_prices_test(ticker="DX-Y.NYB", name="DX-Y.NYB", start_date=start, end_date=end)
-    for ticker in [
-        "CP","PNFIC1","BUSLOANS","BAA","AAA","DSPIC96","PAYEMS","UNRATE","ECIWAG","AWHMAN","MORTGAGE30US",
-        "TERMCBCCALLNS","TOTALSL","REALLN","DRTSCLCC","PSAVERT","COMPRNFB","HHMSDODNS","CES0500000003",
-        "SOFR","DFF","TB3MS","BAMLC0A4CBBB","BAMLC0A3CA","WALCL","RRPONTSYD","RESBALNS","TOTRESNS","WDTGAL",
-        "PCE","NDFACBM027SBOG","WCURCIR","NFINCP","PCEPI","BAMLH0A0HYM2","DGS10","T10Y2Y","DEXJPUS","DEXSZUS",
-        "T10YIE","TEDRATE","CPN3M","DTB3","DGS3MO","DGS2"]:
-        df = _get_fred_prices_test(ticker=ticker, name=ticker, start_date=start, end_date=end)
+
+    df = _get_fred_prices_test(ticker="DSPI", name="DSPI", start_date=start, end_date=end)
     #df = _get_fred_prices(tickers=["CP"], start_date=start, end_date=end)
     #print(df)
