@@ -82,11 +82,11 @@ def get_gli_model_beta(df_index):
         #'PCEPI_yoy',
         'PAYEMS_qoq',
         #"PAYEMS_qoq_sm13",
-        #'DFII10',
+        'DFII10',
         "Dollar_Squeeze_Index",
-        'Burden_Ratio',
+        #'Burden_Ratio',
         #'Burden_Ratio_z52',
-        'Burden_diff13',
+        #'Burden_diff13',
         #"HY_diff13",
         #"UUP_qoq",
         #"UUP_diff13",
@@ -146,7 +146,7 @@ def get_gli_model_beta(df_index):
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,solver='saga',max_iter=5000,
-        C=0.5, penalty="l1",class_weight="balanced",
+        C=0.1, penalty="l1",class_weight="balanced",
     )"""
 
     # --- 学習結果の分析・可視化 ---
@@ -212,7 +212,6 @@ def _aggregation(df):
 
 def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 
-    
     # GLI をdiffにする
     #target = target.resample('ME').interpolate(method='linear').dropna()
     #df_gli_yoy = target.pct_change(4).dropna().rename("gli_yoy")
@@ -629,8 +628,9 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 
 def _make_label(target_monthly, df_index):
     # 週次にします
-    target_lagged = target_monthly.shift(1)
+    target_lagged = target_monthly.shift(0)
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
+    print(target_weekly)
 
     #target_diff52 = target_weekly.diff(52)
     target_diff13 = target_weekly.diff(13)

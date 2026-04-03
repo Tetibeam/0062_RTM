@@ -366,7 +366,6 @@ def _get_fred_prices_test(ticker: str, name:str, start_date:pd.Timestamp, end_da
         print(f"FRED取得テスト... : {ticker}")
         fred = Fred(api_key="d8028eba4732e356349912d4e0f07dc3")
         df = fred.get_series(ticker,observation_start="2003-01-01")
-        print(df)
         df.name = name
         df.index.name ="Date"
 
@@ -465,7 +464,7 @@ if __name__ == "__main__":
 
     start = pd.Timestamp("1999-01-01")
     end = pd.Timestamp("2026-04-01")
-    df = _get_yfinance_prices_test(ticker="EEM", name="EEM", start_date=start, end_date=end)
-    #df = _get_fred_prices_test(ticker="DSPI", name="DSPI", start_date=start, end_date=end)
+    #df = _get_yfinance_prices_test(ticker="EEM", name="EEM", start_date=start, end_date=end)
+    df = _get_fred_prices_test(ticker="TDSP", name="TDSP", start_date=start, end_date=end)
     #df = _get_fred_prices(tickers=["CP"], start_date=start, end_date=end)
-    print(df)
+    print(df.dropna())
