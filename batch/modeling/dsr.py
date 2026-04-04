@@ -38,13 +38,13 @@ def get_dsr_model_beta(df_index):
     #print(df.tail(300))
 
     # --- データ集計-日次は月次に、四半期は月次に線形補完する ---
-    #df = _aggregation(df)
+    df = _aggregation(df)
     #check_nan_time(df,"1990-01-01")
     #pd.set_option('display.max_rows', None)
     #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df_target_var["MGI"].dropna())
+    df_label = _make_label(df_target_var["MGI"].dropna(), df)
     #print(df_label)
     # --- 特徴量抽出 ---
     #df_a, df_b, df_c, df_d =  _featuring(df)
@@ -635,43 +635,22 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 
 def _make_label(target_weekly, df_index):
-    # 週次にします
-    #target_lagged = target_monthly.shift(1)
-    #target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
+    LAG=13
 
-    #target_diff52 = target_weekly.diff(52)
-    target_diff13 = target_weekly.diff(13)
-    target_diff13 = target_diff13.loc["2010-01-01":]
+    future_change = target_weekly.diff(LAG).shift(-LAG)
+    future_change = future_change.loc["2010-01-01":]
 
-    # 3か月後予測
-    #future_change = target_diff13.shift(-13) - target_diff13
-    future_change = target_diff13.shift(-13)
-    lower_threshold = -0.595692
-    upper_threshold = 0.700414
-    # 1か月後予測
-    #future_change = target_diff52.shift(-4) - target_diff52
-    #lower_threshold = -31.075355  # 下位25% (Down)
-    #upper_threshold = 30.315039   # 上位25% (Up)
-    #print(future_change.describe())
+    lower_threshold = -1.2
+    upper_threshold = 1.2
+    print(future_change.describe())
 
-    # 統計データから算出した閾値
-    labels = pd.cut(
-        future_change,
-        bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
-        labels=[1, 2, 3]
-    ).rename("gli_label")
+    labels = pd.cut(future_change,bins=[-np.inf, lower_threshold, upper_threshold, np.inf],labels=[1, 2, 3]).rename("dsr_label")
 
-    #print(labels.value_counts())
 
-    asset_clean = df_index["^GSPC"].dropna()
-    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
-    df_index['next_3m_ret_sp500'] = future_ret
-    asset_clean = df_index["TLT"].dropna()
-    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
-    df_index['next_3m_ret_tlt'] = future_ret
-    asset_clean = df_index["BAMLH0A0HYM2"].dropna()
-    future_ret = asset_clean.diff(13).shift(-13).dropna()
-    df_index['next_3m_diff_hy'] = future_ret
+    df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
+    df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
+    df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
+
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
     )
@@ -679,12 +658,13 @@ def _make_label(target_weekly, df_index):
     return labels.dropna()
 
 def _analysis_label(df):
+    df=df.loc["2021-01-01":]
     # 分析・可視化
-    stats = df['gli_label'].value_counts().to_frame(name='Count')
-    stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
+    stats = df['dsr_label'].value_counts().to_frame(name='Count')
+    stats['Percentage (%)'] = (df['dsr_label'].value_counts(normalize=True) * 100).round(2)
     print(stats)
 
-    market_summary = df.groupby('gli_label').agg({
+    market_summary = df.groupby('dsr_label').agg({
         'next_3m_ret_sp500': ['mean', 'std', 'min', 'max'],
         'next_3m_ret_tlt': ['mean', 'std'],
         'next_3m_diff_hy': ['mean']
@@ -692,18 +672,18 @@ def _analysis_label(df):
     print(market_summary)
 
     # 継続日数の算出
-    df['change'] = df['gli_label'] != df['gli_label'].shift()
+    df['change'] = df['dsr_label'] != df['dsr_label'].shift()
     df['regime_id'] = df['change'].cumsum()
 
     # 各期間の長さをカウント
-    duration_stats = df.groupby(['regime_id', 'gli_label']).size().reset_index(name='duration')
-    avg_duration = duration_stats.groupby('gli_label')['duration'].mean().round(1)
+    duration_stats = df.groupby(['regime_id', 'dsr_label']).size().reset_index(name='duration')
+    avg_duration = duration_stats.groupby('dsr_label')['duration'].mean().round(1)
     print(f"平均継続日数:\n{avg_duration}")
 
     # 遷移マトリクス（現在の状態 -> 次の状態）
     transition_matrix = pd.crosstab(
-        df['gli_label'], 
-        df['gli_label'].shift(-1), 
+        df['dsr_label'], 
+        df['dsr_label'].shift(-1), 
         normalize='index'
     ).round(2)
 
@@ -792,6 +772,7 @@ dsr_index = [
     "^GSPC",
     "ACWI",
     "TLT",
+    "BAMLH0A0HYM2",
     "DSPI",
     "EEM",
     "TDSP",

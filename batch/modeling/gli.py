@@ -105,7 +105,7 @@ def get_gli_model_beta(df_index):
 
     print(f"特徴量のリスト: {df_features.columns}")
 
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
         n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
@@ -154,7 +154,7 @@ def get_gli_model_beta(df_index):
         'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
         'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
     })
-    print(stats)
+    print(stats)"""
 
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
@@ -656,25 +656,22 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 
 def _make_label(target_monthly, df_index):
+    LAG=13
     # 週次にします
     target_lagged = target_monthly.shift(0)
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
     #print(target_weekly)
 
     #target_diff52 = target_weekly.diff(52)
-    target_diff13 = target_weekly.diff(13)
-    target_diff13 = target_diff13.loc["2010-01-01":]
+    target_diff = target_weekly.diff(LAG)
+    target_diff = target_diff.loc["2010-01-01":]
 
     # 3か月後予測
-    #future_change = target_diff13.shift(-13) - target_diff13
-    future_change = target_diff13.shift(-13)
-    lower_threshold = -80#-53.642265  # 下位25% (Down)
-    upper_threshold = 80#47.575755   # 上位25% (Up)
-    # 1か月後予測
-    #future_change = target_diff52.shift(-4) - target_diff52
-    #lower_threshold = -31.075355  # 下位25% (Down)
-    #upper_threshold = 30.315039   # 上位25% (Up)
-    #print(future_change.describe())
+    future_change = target_diff.shift(-LAG)
+    print(future_change.describe())
+    lower_threshold = -80
+    upper_threshold = 80
+
 
     # 統計データから算出した閾値
     labels = pd.cut(
@@ -685,15 +682,9 @@ def _make_label(target_monthly, df_index):
 
     #print(labels.value_counts())
 
-    asset_clean = df_index["^GSPC"].dropna()
-    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
-    df_index['next_3m_ret_sp500'] = future_ret
-    asset_clean = df_index["TLT"].dropna()
-    future_ret = asset_clean.pct_change(13).shift(-13).dropna()
-    df_index['next_3m_ret_tlt'] = future_ret
-    asset_clean = df_index["BAMLH0A0HYM2"].dropna()
-    future_ret = asset_clean.diff(13).shift(-13).dropna()
-    df_index['next_3m_diff_hy'] = future_ret
+    df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
+    df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
+    df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
     )
@@ -702,7 +693,7 @@ def _make_label(target_monthly, df_index):
 
 def _analysis_label(df):
     # 分析・可視化
-    #df = df.loc["2021-01-01":]
+    df = df.loc["2021-01-01":]
     stats = df['gli_label'].value_counts().to_frame(name='Count')
     stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
     print(stats)
@@ -714,7 +705,7 @@ def _analysis_label(df):
     }).round(4)
     print(market_summary)
 
-    # 継続日数の算出
+    """# 継続日数の算出
     df['change'] = df['gli_label'] != df['gli_label'].shift()
     df['regime_id'] = df['change'].cumsum()
 
@@ -731,7 +722,7 @@ def _analysis_label(df):
     ).round(2)
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
-    print(transition_matrix)
+    print(transition_matrix)"""
 
 
 def _make_featuring(factor_a, factor_b, factor_c, factor_d):
