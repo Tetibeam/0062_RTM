@@ -44,7 +44,7 @@ def get_dsr_model_beta(df_index):
     #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
-    #df_label = _make_label(df_target_var["NDFACBM027SBOG"].dropna(), df)
+    df_label = _make_label(df_target_var["MGI"].dropna())
     #print(df_label)
     # --- 特徴量抽出 ---
     #df_a, df_b, df_c, df_d =  _featuring(df)
@@ -162,17 +162,20 @@ def _make_target_variable(df):
     #print(df_monthly.columns,df_quarterly.columns)
     #check_nan_time(df_quarterly,"1990-01-01")
 
-    df_monthly = df_monthly.resample('ME').first().dropna(how="all")
-    q_m = df_quarterly.dropna(how="all")
-    q_m.index = q_m.index + pd.offsets.MonthEnd(-1)
-    df_quarterly_m = q_m.resample('ME').interpolate(method='linear')
-    df_quarterly_m = df_quarterly_m.dropna(how="all")
+    df_monthly_w = df_monthly.dropna(how="all").resample('W-FRI').interpolate(method='linear').dropna(how="all")
+    q_w = df_quarterly.dropna(how="all")
+    q_w.index = q_w.index + pd.offsets.MonthEnd(-1)
+    df_quarterly_w = q_w.resample('W-FRI').interpolate(method='linear')
+    df_quarterly_w = df_quarterly_w.dropna(how="all")
 
-    df_monthly["Corp_Stress"] = df_monthly["BAA"] / df_quarterly_m["CP"]
-    df_monthly["Corp_Stress_z"]
-    print(df_monthly.dropna(how="all").tail(20))
+    df_monthly_w["Corp_Stress"] = df_monthly_w["BAA"] / df_quarterly_w["CP"]
+    df_monthly_w["Corp_Stress_z52"] = _featuring_z_score(df_monthly_w["Corp_Stress"], 52)
+    df_monthly_w["TDSP_z52"] = _featuring_z_score(df_quarterly_w["TDSP"], 52)
+    df_monthly_w["MGI"] = df_monthly_w["Corp_Stress_z52"]*0.6 + df_monthly_w["TDSP_z52"]*0.4
 
-    #return df_target[['MGI']]
+    #_plot_graphs(df_monthly_w["MGI"], df_quarterly_w["dsr"])
+
+    return df_monthly_w[['MGI']].dropna()
 
 def _aggregation(df):
 
@@ -631,10 +634,10 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 # 学習の変数
 ########################################################
 
-def _make_label(target_monthly, df_index):
+def _make_label(target_weekly, df_index):
     # 週次にします
-    target_lagged = target_monthly.shift(1)
-    target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
+    #target_lagged = target_monthly.shift(1)
+    #target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
 
     #target_diff52 = target_weekly.diff(52)
     target_diff13 = target_weekly.diff(13)
@@ -643,8 +646,8 @@ def _make_label(target_monthly, df_index):
     # 3か月後予測
     #future_change = target_diff13.shift(-13) - target_diff13
     future_change = target_diff13.shift(-13)
-    lower_threshold = -80#-53.642265  # 下位25% (Down)
-    upper_threshold = 80#47.575755   # 上位25% (Up)
+    lower_threshold = -0.595692
+    upper_threshold = 0.700414
     # 1か月後予測
     #future_change = target_diff52.shift(-4) - target_diff52
     #lower_threshold = -31.075355  # 下位25% (Down)
@@ -660,7 +663,7 @@ def _make_label(target_monthly, df_index):
 
     #print(labels.value_counts())
 
-    """asset_clean = df_index["^GSPC"].dropna()
+    asset_clean = df_index["^GSPC"].dropna()
     future_ret = asset_clean.pct_change(13).shift(-13).dropna()
     df_index['next_3m_ret_sp500'] = future_ret
     asset_clean = df_index["TLT"].dropna()
@@ -671,7 +674,7 @@ def _make_label(target_monthly, df_index):
     df_index['next_3m_diff_hy'] = future_ret
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )"""
+    )
 
     return labels.dropna()
 

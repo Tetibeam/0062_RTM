@@ -842,7 +842,8 @@ gli_index = [
     "B069RC1",
     "DSPI",
     "EEM",
-    "UUP"
+    "UUP",
+    "gli"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):
