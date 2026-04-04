@@ -162,13 +162,15 @@ def _make_target_variable(df):
     #print(df_monthly.columns,df_quarterly.columns)
     #check_nan_time(df_quarterly,"1990-01-01")
 
-    df_monthly = df_monthly.resample('ME').dropna(how="all")
+    df_monthly = df_monthly.resample('ME').first().dropna(how="all")
     q_m = df_quarterly.dropna(how="all")
     q_m.index = q_m.index + pd.offsets.MonthEnd(-1)
     df_quarterly_m = q_m.resample('ME').interpolate(method='linear')
     df_quarterly_m = df_quarterly_m.dropna(how="all")
 
-    df_monthly = df_monthly[""] / df_monthly[""]
+    df_monthly["Corp_Stress"] = df_monthly["BAA"] / df_quarterly_m["CP"]
+    df_monthly["Corp_Stress_z"]
+    print(df_monthly.dropna(how="all").tail(20))
 
     #return df_target[['MGI']]
 
