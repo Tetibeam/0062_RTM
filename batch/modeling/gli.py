@@ -156,10 +156,6 @@ def get_gli_model_beta(df_index):
     })
     print(stats)
 
-
-
-
-
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
     df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
@@ -175,7 +171,7 @@ def get_gli_model_beta(df_index):
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,solver='saga',max_iter=5000,
-        C=0.1, penalty="l1",class_weight="balanced",
+        C=0.5, penalty="l1",class_weight="balanced",
     )"""
 
     # --- 学習結果の分析・可視化 ---

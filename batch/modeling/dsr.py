@@ -33,7 +33,7 @@ def get_dsr_model_beta(df_index):
     #print(df["CP"].tail(300))
 
     # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
-    #df_target_var = _make_target_variable(df)
+    df_target_var = _make_target_variable(df)
     #pd.set_option('display.max_rows', None)
     #print(df.tail(300))
 
@@ -157,12 +157,20 @@ def get_dsr_model_beta(df_index):
 def _make_target_variable(df):
     # スプレッド
     df_target= df[["TDSP", "CP", "BAA", "dsr"]].copy()
-    df_target["TDSP_z52"] = _featuring_z_score(df_target["TDSP"], window=52)
-    df_target["BAA_CP_z52"] = _featuring_z_score(df_target["BAA"] / df_target["CP"], window=52)
-    df_target['MGI'] = (df_target["TDSP_z52"] * 0.6) + (df_target["BAA_CP_z52"] * 0.4)
-    
-    print(df_target.dropna(how="all"))
-    return df_target[['MGI']]
+    df_monthly = df_target[get_columns_by_frequency(df_target, target="monthly")]
+    df_quarterly = df_target[get_columns_by_frequency(df_target, target="quarterly")]
+    #print(df_monthly.columns,df_quarterly.columns)
+    #check_nan_time(df_quarterly,"1990-01-01")
+
+    df_monthly = df_monthly.resample('ME').dropna(how="all")
+    q_m = df_quarterly.dropna(how="all")
+    q_m.index = q_m.index + pd.offsets.MonthEnd(-1)
+    df_quarterly_m = q_m.resample('ME').interpolate(method='linear')
+    df_quarterly_m = df_quarterly_m.dropna(how="all")
+
+    df_monthly = df_monthly[""] / df_monthly[""]
+
+    #return df_target[['MGI']]
 
 def _aggregation(df):
 
