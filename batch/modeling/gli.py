@@ -69,9 +69,9 @@ def get_gli_model_beta(df_index):
         "Abs_Rate_z52",##
         #'Res_Ratio',
         #'WCUR_Ratio',##
-        #'Net_Liquidity_qoq',##
-        #'Net_Liquidity_z52',##
-        'SOFR_TB3MS_Spread',#-
+        'Net_Liquidity_qoq',##
+        'Net_Liquidity_z52',##
+        #'SOFR_TB3MS_Spread',#-
         #'spd_BBB_A',
         #'DXY_qoq',##
         #'VXTLT_z52',
@@ -81,10 +81,10 @@ def get_gli_model_beta(df_index):
         #'WCUR_qoq',
         #'PCEPI_yoy',
         #'PAYEMS_qoq',#諸刃
-        #"PAYEMS_qoq_sm13",#諸刃
+        #'PAYEMS_qoq_sm13",#諸刃
         #'DFII10',
-        #"Dollar_Squeeze_Index",
-        #'Burden_Ratio',##
+        "Dollar_Squeeze_Index",
+        'Burden_Ratio',##
         #'Burden_Ratio_z52',##
         #'Burden_diff13',#
         #"HY_diff13",##
@@ -107,8 +107,8 @@ def get_gli_model_beta(df_index):
 
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=3, gap=13,
-        n_estimators=1000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=65,
+        n_splits=2, gap=13,
+        n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
         reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
@@ -144,14 +144,14 @@ def get_gli_model_beta(df_index):
     pd.set_option("display.max_columns", None)
     print(df_oof_ev.value_counts())
     stats = combined.groupby("predict_label").agg({
-            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', lambda x: (x > 0).mean()],
+            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
             'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
         })
     print(stats)
     
     combined = combined.loc["2021-01-01":]
     stats = combined.groupby("predict_label").agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', lambda x: (x > 0).mean()],
+        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
         'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
     })
     print(stats)
@@ -663,7 +663,7 @@ def _make_label(target_monthly, df_index):
     # 週次にします
     target_lagged = target_monthly.shift(0)
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
-    print(target_weekly)
+    #print(target_weekly)
 
     #target_diff52 = target_weekly.diff(52)
     target_diff13 = target_weekly.diff(13)
@@ -712,7 +712,7 @@ def _analysis_label(df):
     print(stats)
 
     market_summary = df.groupby('gli_label').agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max'],
+        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
         'next_3m_ret_tlt': ['mean', 'std'],
         'next_3m_diff_hy': ['mean']
     }).round(4)

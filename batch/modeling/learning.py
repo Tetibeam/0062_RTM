@@ -485,7 +485,7 @@ def learning_lgbm_test_gli(
             eval_set=[(X_train, y_train), (X_test, y_test)],
             eval_names=['train', 'valid'], # グラフのラベル名
             eval_metric='multi_logloss',   # 評価指標を明示
-            sample_weight=weights.values,
+            #sample_weight=weights.values,
             # Early Stoppingで過学習を防ぐ
             # evals_result に学習の軌跡（スコアの履歴）を記録
             callbacks=[
