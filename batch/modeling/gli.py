@@ -65,32 +65,35 @@ def get_gli_model_beta(df_index):
 
     df_features = df_features[[
         #'Net_Liquidity',
-        #'Abs_Rate',#B
-        "Abs_Rate_z52",
+        'Abs_Rate',##
+        "Abs_Rate_z52",##
         #'Res_Ratio',
-        #'WCUR_Ratio',
-        'Net_Liquidity_qoq',#B
-        'Net_Liquidity_z52',#A
-        #'SOFR_TB3MS_Spread',
+        #'WCUR_Ratio',##
+        #'Net_Liquidity_qoq',##
+        #'Net_Liquidity_z52',##
+        'SOFR_TB3MS_Spread',#-
         #'spd_BBB_A',
-        #'DXY_qoq',
+        #'DXY_qoq',##
         #'VXTLT_z52',
         #'Bank_Dependency',
-        #'Loan_qoq',
+        #'Loan_qoq',##
         #'NFINCP_qoq',
         #'WCUR_qoq',
         #'PCEPI_yoy',
-        'PAYEMS_qoq',
-        #"PAYEMS_qoq_sm13",
-        'DFII10',
-        "Dollar_Squeeze_Index",
-        #'Burden_Ratio',
-        #'Burden_Ratio_z52',
-        #'Burden_diff13',
-        #"HY_diff13",
-        #"UUP_qoq",
-        #"UUP_diff13",
-        #"UUP_z52",
+        #'PAYEMS_qoq',#諸刃
+        #"PAYEMS_qoq_sm13",#諸刃
+        #'DFII10',
+        #"Dollar_Squeeze_Index",
+        #'Burden_Ratio',##
+        #'Burden_Ratio_z52',##
+        #'Burden_diff13',#
+        #"HY_diff13",##
+        #"UUP_qoq",##
+        #"UUP_diff13",##
+        #"UUP_z52",##
+        "PAYEMS_qoq_Abs_Rate_z52",
+        #"Burden_qoq",
+        "PAYEMS_qoq_DFII10"
     ]]
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
@@ -130,6 +133,32 @@ def get_gli_model_beta(df_index):
             })
 
         print(pd.DataFrame(logic_results))
+
+    assets = df[["^GSPC", "BAMLH0A0HYM2"]].dropna(how="all")
+    assets['next_3m_ret_sp500'] = assets["^GSPC"].pct_change(13).shift(-13)
+    assets['next_3m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(13).shift(-13)
+    combined = pd.concat([df_oof_ev, assets[[
+        'next_3m_ret_sp500', 'next_3m_diff_hy']]], axis=1).dropna()
+
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    print(df_oof_ev.value_counts())
+    stats = combined.groupby("predict_label").agg({
+            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', lambda x: (x > 0).mean()],
+            'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
+        })
+    print(stats)
+    
+    combined = combined.loc["2021-01-01":]
+    stats = combined.groupby("predict_label").agg({
+        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', lambda x: (x > 0).mean()],
+        'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
+    })
+    print(stats)
+
+
+
+
 
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
@@ -434,6 +463,8 @@ def _featuring(df):
     df_d = _featuring_d(df)
     
     df_b["Dollar_Squeeze_Index"] = df_b["DXY_qoq"] - df_a["Net_Liquidity_z52"]
+    df_d["PAYEMS_qoq_Abs_Rate_z52"] = df_d["PAYEMS_qoq"] * df_a["Abs_Rate_z52"]
+    df_d["PAYEMS_qoq_DFII10"] = df_d["PAYEMS_qoq"] * df_d["DFII10"]
 
     return df_a, df_b, df_c, df_d
 
@@ -559,6 +590,7 @@ def _featuring_d(df):
     df_feats['Burden_Ratio'] = (df_feats['B069RC1'] / df_feats['DSPI']) * 100
     df_feats["Burden_Ratio_z52"] = _featuring_z_score(df_feats['Burden_Ratio'], 52)
     df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
+    df_feats['Burden_qoq'] = df_feats['Burden_Ratio'].pct_change(13)
     
 
     df_feats = df_feats[[
@@ -568,7 +600,8 @@ def _featuring_d(df):
         'Burden_Ratio',
         'Burden_Ratio_z52',
         'Burden_diff13',
-        'PAYEMS_qoq_sm13'
+        'PAYEMS_qoq_sm13',
+        "Burden_qoq"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -656,7 +689,7 @@ def _make_label(target_monthly, df_index):
 
     #print(labels.value_counts())
 
-    """asset_clean = df_index["^GSPC"].dropna()
+    asset_clean = df_index["^GSPC"].dropna()
     future_ret = asset_clean.pct_change(13).shift(-13).dropna()
     df_index['next_3m_ret_sp500'] = future_ret
     asset_clean = df_index["TLT"].dropna()
@@ -667,12 +700,13 @@ def _make_label(target_monthly, df_index):
     df_index['next_3m_diff_hy'] = future_ret
     _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )"""
+    )
 
     return labels.dropna()
 
 def _analysis_label(df):
     # 分析・可視化
+    #df = df.loc["2021-01-01":]
     stats = df['gli_label'].value_counts().to_frame(name='Count')
     stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
     print(stats)

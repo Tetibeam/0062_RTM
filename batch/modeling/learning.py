@@ -452,6 +452,7 @@ def learning_lgbm_test_gli(
         #ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
+        
         clf = lgb.LGBMClassifier(
             objective=objective,
             #num_class=len(labels),
@@ -475,11 +476,16 @@ def learning_lgbm_test_gli(
         )
 
         # 学習
+
+        fold3_start = pd.to_datetime('2021-01-01')
+        weights = pd.Series(1.0, index=X_train.index)
+        weights.loc[X_train.index >= fold3_start] = 2.0
         clf.fit(
             X_train, y_train,
             eval_set=[(X_train, y_train), (X_test, y_test)],
             eval_names=['train', 'valid'], # グラフのラベル名
             eval_metric='multi_logloss',   # 評価指標を明示
+            sample_weight=weights.values,
             # Early Stoppingで過学習を防ぐ
             # evals_result に学習の軌跡（スコアの履歴）を記録
             callbacks=[
