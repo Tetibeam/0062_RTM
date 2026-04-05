@@ -605,7 +605,6 @@ def _featuring_d(df):
     #check_nan_time(df_feats,"1990-01-01")
     return df_feats
 
-
 def _add_features(df):
 
     #df["Financial_Stress_Index"] = df["diff_SOFR_sync"]*df["z52_yoy_Net_Liquidity_sync"]
@@ -622,6 +621,7 @@ def _featuring_z_score(df, window):
     z = (df - m) / (s + 1e-9)# ゼロ除算防止
 
     return z.clip(-5, 5)
+
 ########################################################
 # 回帰の変数
 ########################################################
@@ -658,11 +658,12 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 
 def _make_label(target, df_index):
     #LAG=8
-    #quantile_low
-    #quantile_high
-    #winsow=104
+    quantile_low=0.15
+    quantile_high=0.875
+    winsow=123
     
-    for LAG in [4, 8, 13]:
+    for LAG in [13]:
+        print(f"---------------- LAG:{LAG} ----------------")
         # Net Liquidity
         df_net_l = df_index[["RRPONTSYD", "WALCL", "WDTGAL", "WCURCIR"]].dropna(how="all")
         df_net_l['RRP_filled'] = df_net_l['RRPONTSYD'].fillna(0) * 1000
@@ -694,8 +695,8 @@ def _make_label(target, df_index):
         # ダイナミック閾値
         #q_low = df["future_change"].quantile(0.15)
         #q_high = df["future_change"].quantile(0.85)
-        df['dynamic_q_low'] = df['future_liq_eff'].rolling(window=104, min_periods=52).quantile(0.1)
-        df['dynamic_q_high'] = df['future_liq_eff'].rolling(window=104, min_periods=52).quantile(0.9)
+        df['dynamic_q_low'] = df['future_liq_eff'].rolling(window=winsow, min_periods=52).quantile(quantile_low)
+        df['dynamic_q_high'] = df['future_liq_eff'].rolling(window=winsow, min_periods=52).quantile(quantile_high)
 
         # ラベル
         df["Liq_eff_label"] = 2.0
@@ -735,13 +736,16 @@ def _make_label(target, df_index):
 def _analysis_label(df):
     # 分析・可視化
     terms = [
-        ("2004-01-01", "2007-01-01"),
-        ("2007-01-01", "2010-01-01"),
-        ("2010-01-01", "2013-01-01"),
-        ("2013-01-01", "2016-01-01"),
-        ("2016-01-01", "2019-01-01"),
-        ("2019-01-01", "2022-01-01"),
-        ("2022-01-01", "2025-01-01"),
+        ("2021-01-01", "2026-01-01"),
+        ("2010-01-01", "2021-01-01"),
+        ("2004-01-01", "2026-01-01"),
+        #("2004-01-01", "2007-01-01"),
+        #("2007-01-01", "2010-01-01"),
+        #("2010-01-01", "2013-01-01"),
+        #("2013-01-01", "2016-01-01"),
+        #("2016-01-01", "2019-01-01"),
+        #("2019-01-01", "2022-01-01"),
+        #("2022-01-01", "2025-01-01"),
         ]
     for start, end in terms:
         print(f"期間: {start} 〜 {end}")
