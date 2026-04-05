@@ -44,10 +44,10 @@ def get_gli_model_beta(df_index):
     #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df_target_var["Liq_eff"], df)
+    df_label = _make_label(df_target_var["NDFACBM027SBOG"].dropna(), df)
     #print(df_label)
     # --- 特徴量抽出 ---
-    #df_a, df_b, df_c, df_d =  _featuring(df)
+    df_a, df_b, df_c, df_d =  _featuring(df)
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量とGLIのラグ相関分析 ---
@@ -58,11 +58,12 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量を追加する ---
-    #df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
+    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
     #df_features = _add_features(df_features)
     #check_nan_time(df_features,"1990-01-01")
 
-    """df_features = df_features[[
+
+    df_features = df_features[[
         #'Net_Liquidity',
         'Abs_Rate',##
         "Abs_Rate_z52",##
@@ -94,18 +95,17 @@ def get_gli_model_beta(df_index):
         #"Burden_qoq",
         "PAYEMS_qoq_DFII10"
     ]]
-"""
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
-    #df_master = df_label.to_frame().join(df_features, how='left')
+    df_master = df_label.to_frame().join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
 
 
-    #print(f"特徴量のリスト: {df_features.columns}")
-    # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    print(f"特徴量のリスト: {df_features.columns}")
+
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
         n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
@@ -113,10 +113,8 @@ def get_gli_model_beta(df_index):
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
-
-    # --- リターン統計 ---
-    """for label, shap_df in df_shap.items():
+    )
+    for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -156,9 +154,8 @@ def get_gli_model_beta(df_index):
         'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
         'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
     })
-    print(stats)"""
+    print(stats)
 
-    # --- 保存 ---
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
     df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
@@ -170,7 +167,7 @@ def get_gli_model_beta(df_index):
     df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")"""
 
 
-    # --- ロジスティック回帰 ---
+
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,solver='saga',max_iter=5000,
@@ -183,18 +180,20 @@ def get_gli_model_beta(df_index):
     #return df_oof_all
 
 def _make_target_variable(df):
-    var = df[["NFCI", "NDFACBM027SBOG"]].copy().dropna(how="all")
-    # 週次>週次（週末）
-    var["NFCI"] = var["NFCI"].resample('W-FRI').mean().dropna()
-    # 月次>月次（週末）
-    var["NDFACBM027SBOG"] = var["NDFACBM027SBOG"].resample('W-FRI').interpolate(method='linear').dropna()
+    # スプレッド
+    df['SOFR_Spread'] = df['SOFR'].ffill() - df['DTB3'].ffill()
+    df['TED_Spread'] = df['TEDRATE'].ffill()
+    # つなぎ目
+    overlap_start, overlap_end = "2018-04-01", "2018-12-31"
+    offset = (df.loc[overlap_start:overlap_end, 'TED_Spread'] - 
+              df.loc[overlap_start:overlap_end, 'SOFR_Spread']).mean()
+    #print(f"Detected Level Shift (Offset): {offset:.4f}")
+    switch_date = "2018-04-01"
+    df['Final_Price_Stress'] = df['SOFR_Spread'] # 基本はSOFRベース
 
-    var["NFCI_z52"] = _featuring_z_score(var["NFCI"], window=52)
-    var["NDFACBM027SBOG_z52"] = _featuring_z_score(var["NDFACBM027SBOG"], 52)
-    var["Liq_eff"] = var["NDFACBM027SBOG_z52"] - var["NFCI_z52"]
-    #print(var[["Liq_eff"]].dropna())
+    df.loc[df.index < switch_date, 'Final_Price_Stress'] = df.loc[df.index < switch_date, 'TED_Spread'] - offset
 
-    return var[["Liq_eff"]].dropna()
+    return df[["NDFACBM027SBOG","Final_Price_Stress"]]
 
 def _aggregation(df):
 
@@ -656,66 +655,69 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 # 学習の変数
 ########################################################
 
-def _make_label(target, df_index):
-    LAG=8
-    # targetは週次。そのまま使う
-    df = target.copy().to_frame()
-    df["future_change"] = target.shift(-LAG).dropna()
-    #df = df.loc["2010-01-01":]
+def _make_label(target_monthly, df_index):
+    LAG=13
+    # 週次にします
+    target_lagged = target_monthly.shift(0)
+    target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
+    #print(target_weekly)
 
-    #q_low = df["future_change"].quantile(0.15)
-    #q_high = df["future_change"].quantile(0.85)
-    df['dynamic_q_low'] = df['future_change'].rolling(window=104, min_periods=52).quantile(0.1)
-    df['dynamic_q_high'] = df['future_change'].rolling(window=104, min_periods=52).quantile(0.9)
+    #target_diff52 = target_weekly.diff(52)
+    target_diff = target_weekly.diff(LAG)
+    target_diff = target_diff.loc["2010-01-01":]
 
-    # ラベル
-    df["Liq_eff_label"] = 2.0
-    #df.loc[df["future_change"] <= q_low, 'Liq_eff_label'] = 1.0
-    #df.loc[df["future_change"] >= q_high, 'Liq_eff_label'] = 3.0
-    df.loc[df["future_change"] <= df["dynamic_q_low"], 'Liq_eff_label'] = 1.0
-    df.loc[df["future_change"] >= df["dynamic_q_high"], 'Liq_eff_label'] = 3.0
+    # 3か月後予測
+    future_change = target_diff.shift(-LAG)
+    print(future_change.describe())
+    lower_threshold = -80
+    upper_threshold = 80
 
-    #print(df["Liq_eff_label"])
+
+    # 統計データから算出した閾値
+    labels = pd.cut(
+        future_change,
+        bins=[-np.inf, lower_threshold, upper_threshold, np.inf],
+        labels=[1, 2, 3]
+    ).rename("gli_label")
+
+    print(labels.value_counts())
 
     df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
+    """_analysis_label(
+        pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
+    )"""
 
-    _analysis_label(
-        pd.concat([df["Liq_eff_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )
-
-    return df[["Liq_eff_label"]].dropna()
+    return labels.dropna()
 
 def _analysis_label(df):
     # 分析・可視化
-    df = df.loc["2024-01-01":"2026-01-01"]
-    stats = df['Liq_eff_label'].value_counts().to_frame(name='Count')
-    stats['Percentage (%)'] = (df['Liq_eff_label'].value_counts(normalize=True) * 100).round(2)
+    df = df.loc["2021-01-01":]
+    stats = df['gli_label'].value_counts().to_frame(name='Count')
+    stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
     print(stats)
 
-    market_summary = df.groupby('Liq_eff_label').agg({
+    market_summary = df.groupby('gli_label').agg({
         'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
         'next_3m_ret_tlt': ['mean', 'std'],
         'next_3m_diff_hy': ['mean']
     }).round(4)
     print(market_summary)
-    
-    print(df[df["Liq_eff_label"]==1.0].index)
 
     """# 継続日数の算出
-    df['change'] = df['Liq_eff_label'] != df['Liq_eff_label'].shift()
+    df['change'] = df['gli_label'] != df['gli_label'].shift()
     df['regime_id'] = df['change'].cumsum()
 
     # 各期間の長さをカウント
-    duration_stats = df.groupby(['regime_id', 'Liq_eff_label']).size().reset_index(name='duration')
-    avg_duration = duration_stats.groupby('Liq_eff_label')['duration'].mean().round(1)
+    duration_stats = df.groupby(['regime_id', 'gli_label']).size().reset_index(name='duration')
+    avg_duration = duration_stats.groupby('gli_label')['duration'].mean().round(1)
     print(f"平均継続日数:\n{avg_duration}")
 
     # 遷移マトリクス（現在の状態 -> 次の状態）
     transition_matrix = pd.crosstab(
-        df['Liq_eff_label'], 
-        df['Liq_eff_label'].shift(-1), 
+        df['gli_label'], 
+        df['gli_label'].shift(-1), 
         normalize='index'
     ).round(2)
 
@@ -832,8 +834,7 @@ gli_index = [
     "DSPI",
     "EEM",
     "UUP",
-    "gli",
-    "NFCI"
+    "gli"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):
