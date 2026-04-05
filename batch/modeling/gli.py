@@ -64,13 +64,13 @@ def get_gli_model_beta(df_index):
 
     df_features = df_features[[
         #'Net_Liquidity',
-        #'Abs_Rate',##
-        "Abs_Rate_z52",##
+        'Abs_Rate',
+        "Abs_Rate_z52",
         #'Res_Ratio',
-        #'WCUR_Ratio',##
-        'Net_Liquidity_qoq',##
-        'Net_Liquidity_z52',##
-        'SOFR_TB3MS_Spread',#-
+        #'WCUR_Ratio',
+        'Net_Liquidity_qoq',
+        'Net_Liquidity_z52',
+        'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
         #'DXY_qoq',##
         #'VXTLT_z52',
@@ -79,27 +79,28 @@ def get_gli_model_beta(df_index):
         #'NFINCP_qoq',
         #'WCUR_qoq',
         #'PCEPI_yoy',
-        #'PAYEMS_qoq',#諸刃
-        #'PAYEMS_qoq_sm13",#諸刃
+        #'PAYEMS_qoq',
+        #"PAYEMS_qoq_sm13",
         #'DFII10',
         "Dollar_Squeeze_Index",
-        'Burden_Ratio',##
-        #'Burden_Ratio_z52',##
-        #'Burden_diff13',#
-        "HY_diff13",##
+        #'Burden_Ratio',
+        #'Burden_Ratio_z52',
+        #'Burden_diff13',
+        #"HY_diff13",
         #"UUP_qoq",##
-        #"UUP_diff13",##
-        #"UUP_z52",##
+        #"UUP_diff13",
+        #"UUP_z52",
         "PAYEMS_qoq_Abs_Rate_z52",
-        #"Burden_qoq",
+        #"Burden_qoq",##
         #"PAYEMS_qoq_DFII10",
-        "^MOVE_z52"
+        "^MOVE_z52",
+        #"Net_Liquidity_roc4"
     ]]
 
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
     df_master = df_label.join(df_features, how='left')
-    #df_master = df_master.loc["2010-01-01":]
+    df_master = df_master.loc["2010-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
 
@@ -109,7 +110,7 @@ def get_gli_model_beta(df_index):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=8000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=65,
+        n_estimators=5000,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
         reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
@@ -151,8 +152,8 @@ def get_gli_model_beta(df_index):
 
     print("=== リターン統計  ===")
     terms = [
-        ("2012-01-01","2026-01-01"), ("2012-01-01","2015-01-01"),("2015-01-01","2018-01-01"),
-        ("2018-01-01","2021-01-01"),("2021-01-01","2024-01-01"),("2024-01-01","2026-01-01")
+        ("2012-01-01","2026-01-01"),# ("2012-01-01","2015-01-01"),("2015-01-01","2018-01-01"),
+        #("2018-01-01","2021-01-01"),("2021-01-01","2024-01-01"),("2024-01-01","2026-01-01")
     ]
     for start,end in terms:
         print(f"\n--- 期間: {start} 〜 {end} ---")
@@ -507,11 +508,13 @@ def _featuring_a(df):
 
     # 特徴量
     df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
+    df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
     df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
 
     df_feats = df_feats[[
         'Net_Liquidity', 'Abs_Rate', "Abs_Rate_z52", 'Res_Ratio',
-        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52',"UUP_qoq","UUP_z52","UUP_diff13"
+        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52',"UUP_qoq","UUP_z52","UUP_diff13",
+        "Net_Liquidity_roc4"
         ]].dropna(how="all")
 
     #print(df_feats)
