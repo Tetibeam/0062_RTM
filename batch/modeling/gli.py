@@ -657,51 +657,107 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 
 def _make_label(target, df_index):
-    LAG=8
-    # targetは週次。そのまま使う
-    df = target.copy().to_frame()
-    df["future_change"] = target.shift(-LAG).dropna()
-    #df = df.loc["2010-01-01":]
+    #LAG=8
+    #quantile_low
+    #quantile_high
+    #winsow=104
+    
+    for LAG in [4, 8, 13]:
+        # Net Liquidity
+        df_net_l = df_index[["RRPONTSYD", "WALCL", "WDTGAL", "WCURCIR"]].dropna(how="all")
+        df_net_l['RRP_filled'] = df_net_l['RRPONTSYD'].fillna(0) * 1000
+        df_net_l["Net_Liquidity"] = (df_net_l['WALCL'] - (df_net_l['WDTGAL'] +  df_net_l['RRP_filled'] + df_net_l["WCURCIR"]))
+        df_net_l['net_liq_mom'] = df_net_l["Net_Liquidity"].pct_change(4).shift(-LAG)
+        #print(df_net_l)
 
-    #q_low = df["future_change"].quantile(0.15)
-    #q_high = df["future_change"].quantile(0.85)
-    df['dynamic_q_low'] = df['future_change'].rolling(window=104, min_periods=52).quantile(0.1)
-    df['dynamic_q_high'] = df['future_change'].rolling(window=104, min_periods=52).quantile(0.9)
+        # VIX
+        df_vix = df_index[["VIXCLS"]].shift(-LAG).dropna()
+        df_vix['vix_ma'] = df_vix['VIXCLS'].rolling(52).mean()
+        df_vix['is_fear'] = df_vix['VIXCLS'] > df_vix['vix_ma']  # 心理的に「怖い」状態か
+        df_vix = df_vix.dropna()
+        #print(df_vix)
 
-    # ラベル
-    df["Liq_eff_label"] = 2.0
-    #df.loc[df["future_change"] <= q_low, 'Liq_eff_label'] = 1.0
-    #df.loc[df["future_change"] >= q_high, 'Liq_eff_label'] = 3.0
-    df.loc[df["future_change"] <= df["dynamic_q_low"], 'Liq_eff_label'] = 1.0
-    df.loc[df["future_change"] >= df["dynamic_q_high"], 'Liq_eff_label'] = 3.0
+        # MOVE
+        df_move = df_index[['^MOVE']].shift(-LAG).dropna() # Ticker名は環境に合わせて調整
+        df_move['move_ma'] = df_move['^MOVE'].rolling(52).mean()
+        df_move['is_bond_stress'] = df_move['^MOVE'] > df_move['move_ma']
 
-    #print(df["Liq_eff_label"])
+        # Liq_eff
 
-    df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
-    df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
-    df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
+        df = pd.DataFrame(index=target.index)
+        df["future_liq_eff"] = target.shift(-LAG).dropna()
+        df = df.join(df_net_l["net_liq_mom"], how="left").join(df_vix["is_fear"], how="left").join(df_move["is_bond_stress"], how="left")
+        df = df.dropna()
+        #df = df.loc["2010-01-01":]
+        #print(df)
 
-    _analysis_label(
-        pd.concat([df["Liq_eff_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )
+        # ダイナミック閾値
+        #q_low = df["future_change"].quantile(0.15)
+        #q_high = df["future_change"].quantile(0.85)
+        df['dynamic_q_low'] = df['future_liq_eff'].rolling(window=104, min_periods=52).quantile(0.1)
+        df['dynamic_q_high'] = df['future_liq_eff'].rolling(window=104, min_periods=52).quantile(0.9)
+
+        # ラベル
+        df["Liq_eff_label"] = 2.0
+        #df.loc[df["future_change"] <= q_low, 'Liq_eff_label'] = 1.0
+        #df.loc[df["future_change"] >= q_high, 'Liq_eff_label'] = 3.0
+        #df.loc[df["future_change"] <= df["dynamic_q_low"], 'Liq_eff_label'] = 1.0
+        #df.loc[df["future_change"] >= df["dynamic_q_high"], 'Liq_eff_label'] = 3.0
+        stall_condition = (
+            (df["future_liq_eff"] <= df["dynamic_q_low"])# &
+            #((df['is_fear']) | (df['is_bond_stress']) | (df['net_liq_mom'] < 0))
+            #(df['is_fear'])
+            #(df['is_bond_stress']) 
+            #(df['net_liq_mom'] < 0)
+        )
+        df.loc[stall_condition, "Liq_eff_label"] = 1.0
+        lift_condition = (
+            (df["future_liq_eff"] >= df["dynamic_q_high"])# &
+            #((~df['is_fear']) | (~df['is_bond_stress']) | (df['net_liq_mom'] > 0))
+            #(~df['is_fear'])
+            #(~df['is_bond_stress'])
+            #(df['net_liq_mom'] > 0)
+        )
+        df.loc[lift_condition, "Liq_eff_label"] = 3.0
+
+        #print(df["Liq_eff_label"])
+
+        df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
+        df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
+        df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
+
+        _analysis_label(
+            pd.concat([df["Liq_eff_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
+        )
 
     return df[["Liq_eff_label"]].dropna()
 
 def _analysis_label(df):
     # 分析・可視化
-    df = df.loc["2024-01-01":"2026-01-01"]
-    stats = df['Liq_eff_label'].value_counts().to_frame(name='Count')
-    stats['Percentage (%)'] = (df['Liq_eff_label'].value_counts(normalize=True) * 100).round(2)
-    print(stats)
+    terms = [
+        ("2004-01-01", "2007-01-01"),
+        ("2007-01-01", "2010-01-01"),
+        ("2010-01-01", "2013-01-01"),
+        ("2013-01-01", "2016-01-01"),
+        ("2016-01-01", "2019-01-01"),
+        ("2019-01-01", "2022-01-01"),
+        ("2022-01-01", "2025-01-01"),
+        ]
+    for start, end in terms:
+        print(f"期間: {start} 〜 {end}")
+        df_term = df.loc[start:end]
+        stats = df_term['Liq_eff_label'].value_counts().to_frame(name='Count')
+        stats['Percentage (%)'] = (df_term['Liq_eff_label'].value_counts(normalize=True) * 100).round(2)
+        print(stats)
 
-    market_summary = df.groupby('Liq_eff_label').agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
-        'next_3m_ret_tlt': ['mean', 'std'],
-        'next_3m_diff_hy': ['mean']
-    }).round(4)
-    print(market_summary)
-    
-    print(df[df["Liq_eff_label"]==1.0].index)
+        market_summary = df_term.groupby('Liq_eff_label').agg({
+            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
+            'next_3m_ret_tlt': ['mean', 'std'],
+            'next_3m_diff_hy': ['mean']
+        }).round(4)
+        print(market_summary)
+
+        #print(df[df["Liq_eff_label"]==1.0].index)
 
     """# 継続日数の算出
     df['change'] = df['Liq_eff_label'] != df['Liq_eff_label'].shift()
@@ -833,7 +889,9 @@ gli_index = [
     "EEM",
     "UUP",
     "gli",
-    "NFCI"
+    "NFCI",
+    "VIXCLS",
+    "^MOVE"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):
