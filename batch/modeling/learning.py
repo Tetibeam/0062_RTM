@@ -601,9 +601,6 @@ def learning_lgbm_test_gli(
     # 8. 総合結果レポートの表示
     report_lgbm_total_result(all_y_test, all_y_pred, all_importances)
 
-    # 9. 期待値ベースの評価レポートを表示
-    print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-
     return df_oof_all, final_shap_dfs, df_oof_ev
 
 def learning_logistic_lasso_test(

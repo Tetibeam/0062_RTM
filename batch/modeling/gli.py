@@ -47,7 +47,7 @@ def get_gli_model_beta(df_index):
     df_label = _make_label(df_target_var["Liq_eff"], df)
     #print(df_label)
     # --- 特徴量抽出 ---
-    #df_a, df_b, df_c, df_d =  _featuring(df)
+    df_a, df_b, df_c, df_d =  _featuring(df)
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量とGLIのラグ相関分析 ---
@@ -58,19 +58,19 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_d,"1990-01-01")
 
     # --- 特徴量を追加する ---
-    #df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
+    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
     #df_features = _add_features(df_features)
     #check_nan_time(df_features,"1990-01-01")
 
-    """df_features = df_features[[
+    df_features = df_features[[
         #'Net_Liquidity',
-        'Abs_Rate',##
+        #'Abs_Rate',##
         "Abs_Rate_z52",##
         #'Res_Ratio',
         #'WCUR_Ratio',##
         'Net_Liquidity_qoq',##
         'Net_Liquidity_z52',##
-        #'SOFR_TB3MS_Spread',#-
+        'SOFR_TB3MS_Spread',#-
         #'spd_BBB_A',
         #'DXY_qoq',##
         #'VXTLT_z52',
@@ -86,18 +86,19 @@ def get_gli_model_beta(df_index):
         'Burden_Ratio',##
         #'Burden_Ratio_z52',##
         #'Burden_diff13',#
-        #"HY_diff13",##
+        "HY_diff13",##
         #"UUP_qoq",##
         #"UUP_diff13",##
         #"UUP_z52",##
         "PAYEMS_qoq_Abs_Rate_z52",
         #"Burden_qoq",
-        "PAYEMS_qoq_DFII10"
+        #"PAYEMS_qoq_DFII10",
+        "^MOVE_z52"
     ]]
-"""
+
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
-    #df_master = df_label.to_frame().join(df_features, how='left')
+    df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":]
     #print(df_master)
     #check_nan_time(df_master,"1990-01-01")
@@ -105,18 +106,18 @@ def get_gli_model_beta(df_index):
 
     #print(f"特徴量のリスト: {df_features.columns}")
     # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
-        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
-        n_splits=2, gap=13,
-        n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+        df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+        n_splits=2, gap=10,
+        n_estimators=8000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=65,
         reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
+    )
 
     # --- リターン統計 ---
-    """for label, shap_df in df_shap.items():
+    for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -136,27 +137,36 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))
 
-    assets = df[["^GSPC", "BAMLH0A0HYM2"]].dropna(how="all")
-    assets['next_3m_ret_sp500'] = assets["^GSPC"].pct_change(13).shift(-13)
-    assets['next_3m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(13).shift(-13)
+    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
+    assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
+    assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
     combined = pd.concat([df_oof_ev, assets[[
-        'next_3m_ret_sp500', 'next_3m_diff_hy']]], axis=1).dropna()
+        'next_2m_ret_sp500', "next_2m_ret_tlt",'next_2m_diff_hy']]], axis=1).dropna()
 
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
+    print("=== ラベル数の確認 ===")
     print(df_oof_ev.value_counts())
-    stats = combined.groupby("predict_label").agg({
-            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-            'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
-        })
-    print(stats)
-    
-    combined = combined.loc["2021-01-01":]
-    stats = combined.groupby("predict_label").agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-        'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
-    })
-    print(stats)"""
+
+    print("=== リターン統計  ===")
+    terms = [
+        ("2012-01-01","2026-01-01"), ("2012-01-01","2015-01-01"),("2015-01-01","2018-01-01"),
+        ("2018-01-01","2021-01-01"),("2021-01-01","2024-01-01"),("2024-01-01","2026-01-01")
+    ]
+    for start,end in terms:
+        print(f"\n--- 期間: {start} 〜 {end} ---")
+        combined_tmp = combined.loc[start:end]
+        stats = combined_tmp.groupby("predict_label").agg({
+            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
+            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
+            })
+        stats.columns = [
+            "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
+            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
+            "hy_mean", "hy_std", "hy_min", "hy_max"]
+        print(stats)
 
     # --- 保存 ---
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
@@ -511,7 +521,7 @@ def _featuring_a(df):
 
 def _featuring_b(df):
     # ------ Layer B: Market Stress & Costs (摩擦：配管の詰まり) ------
-    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2"]
+    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2", "^MOVE"]
     df_feats = df[col].dropna(how="all")
 
     df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
@@ -530,6 +540,8 @@ def _featuring_b(df):
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
     
     df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
+    
+    df_feats['^MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
 
     df_feats = df_feats[[
         'SOFR_TB3MS_Spread',
@@ -537,7 +549,8 @@ def _featuring_b(df):
         'spd_BBB_A',
         'DXY_qoq',
         'VXTLT_z52',
-        "HY_diff13"
+        "HY_diff13",
+        '^MOVE_z52'
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -660,9 +673,9 @@ def _make_label(target, df_index):
     #LAG=8
     quantile_low=0.15
     quantile_high=0.875
-    winsow=123
+    winsow=156
     
-    for LAG in [13]:
+    for LAG in [8]:
         print(f"---------------- LAG:{LAG} ----------------")
         # Net Liquidity
         df_net_l = df_index[["RRPONTSYD", "WALCL", "WDTGAL", "WCURCIR"]].dropna(how="all")
@@ -713,7 +726,7 @@ def _make_label(target, df_index):
         )
         df.loc[stall_condition, "Liq_eff_label"] = 1.0
         lift_condition = (
-            (df["future_liq_eff"] >= df["dynamic_q_high"])# &
+            (df["future_liq_eff"] >= df["dynamic_q_high"]) #&
             #((~df['is_fear']) | (~df['is_bond_stress']) | (df['net_liq_mom'] > 0))
             #(~df['is_fear'])
             #(~df['is_bond_stress'])
@@ -727,25 +740,25 @@ def _make_label(target, df_index):
         df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
         df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
 
-        _analysis_label(
+        """_analysis_label(
             pd.concat([df["Liq_eff_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-        )
+        )"""
 
     return df[["Liq_eff_label"]].dropna()
 
 def _analysis_label(df):
     # 分析・可視化
     terms = [
-        ("2021-01-01", "2026-01-01"),
-        ("2010-01-01", "2021-01-01"),
-        ("2004-01-01", "2026-01-01"),
-        #("2004-01-01", "2007-01-01"),
-        #("2007-01-01", "2010-01-01"),
-        #("2010-01-01", "2013-01-01"),
-        #("2013-01-01", "2016-01-01"),
-        #("2016-01-01", "2019-01-01"),
-        #("2019-01-01", "2022-01-01"),
-        #("2022-01-01", "2025-01-01"),
+        #("2021-01-01", "2026-01-01"),
+        #("2010-01-01", "2021-01-01"),
+        #("2004-01-01", "2026-01-01"),
+        ("2007-01-01", "2009-01-01"),
+        ("2009-01-01", "2013-01-01"),
+        ("2013-01-01", "2016-01-01"),
+        ("2016-01-01", "2019-01-01"),
+        ("2019-01-01", "2021-01-01"),
+        ("2021-01-01", "2024-01-01"),
+        ("2024-01-01", "2026-01-01"),
         ]
     for start, end in terms:
         print(f"期間: {start} 〜 {end}")
