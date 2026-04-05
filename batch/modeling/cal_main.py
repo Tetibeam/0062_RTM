@@ -138,8 +138,8 @@ def cal_main():
     #df_driver_prob = get_driver_beta(df_index, df_sp500)
     #df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
     #df_bond_driver_prob = get_bond_driver_beta(df_index, df_sp500)
-    #df_gli_prob = get_gli_model_beta(df_index)
-    df_dsr_prob = get_dsr_model_beta(df_index)
+    df_gli_prob = get_gli_model_beta(df_index)
+    #df_dsr_prob = get_dsr_model_beta(df_index)
     #df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
 
     #df_regional_pred = get_regional_bias_model_beta(df_index, regime_clf, df_regime_features, df_nikkei, df_sp500)

@@ -105,7 +105,7 @@ def get_gli_model_beta(df_index):
 
     print(f"特徴量のリスト: {df_features.columns}")
 
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
         n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
@@ -154,7 +154,7 @@ def get_gli_model_beta(df_index):
         'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
         'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
     })
-    print(stats)"""
+    print(stats)
 
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
@@ -680,14 +680,14 @@ def _make_label(target_monthly, df_index):
         labels=[1, 2, 3]
     ).rename("gli_label")
 
-    #print(labels.value_counts())
+    print(labels.value_counts())
 
     df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
-    _analysis_label(
+    """_analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )
+    )"""
 
     return labels.dropna()
 
