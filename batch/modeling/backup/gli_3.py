@@ -114,6 +114,7 @@ def get_gli_model_beta(df_index):
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
     )
+    # --- shap符号検証 ---
     for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
@@ -134,27 +135,41 @@ def get_gli_model_beta(df_index):
 
         print(pd.DataFrame(logic_results))
 
-    assets = df[["^GSPC", "BAMLH0A0HYM2"]].dropna(how="all")
-    assets['next_3m_ret_sp500'] = assets["^GSPC"].pct_change(13).shift(-13)
-    assets['next_3m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(13).shift(-13)
+    # --- リターン統計 ---
+    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
+    assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
+    assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
     combined = pd.concat([df_oof_ev, assets[[
-        'next_3m_ret_sp500', 'next_3m_diff_hy']]], axis=1).dropna()
+        'next_2m_ret_sp500', "next_2m_ret_tlt",'next_2m_diff_hy']]], axis=1).dropna()
 
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
+    print("=== ラベル数の確認 ===")
     print(df_oof_ev.value_counts())
-    stats = combined.groupby("predict_label").agg({
-            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-            'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
-        })
-    print(stats)
-    
-    combined = combined.loc["2021-01-01":]
-    stats = combined.groupby("predict_label").agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-        'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
-    })
-    print(stats)
+
+    print("=== リターン統計  ===")
+    terms = [
+        ("2012-01-01","2026-01-01"),
+        ("2021-01-01","2024-01-01"),
+        ("2024-01-01","2026-01-01"),
+        #("2018-01-01","2021-01-01"),
+        #("2021-01-01","2024-01-01"),
+        #("2024-01-01","2026-01-01")
+    ]
+    for start,end in terms:
+        print(f"\n--- 期間: {start} 〜 {end} ---")
+        combined_tmp = combined.loc[start:end]
+        stats = combined_tmp.groupby("predict_label").agg({
+            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
+            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
+            })
+        stats.columns = [
+            "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
+            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
+            "hy_mean", "hy_std", "hy_min", "hy_max"]
+        print(stats)
 
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
