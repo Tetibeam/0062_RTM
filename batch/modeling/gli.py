@@ -64,37 +64,37 @@ def get_gli_model_beta(df_index):
 
     df_features = df_features[[
         #'Net_Liquidity',
-        'Abs_Rate',
-        "Abs_Rate_z52",
+        #'Abs_Rate',
+        "Abs_Rate_z52",#
         #'Res_Ratio',
         #'WCUR_Ratio',
-        'Net_Liquidity_qoq',
-        'Net_Liquidity_z52',
-        'SOFR_TB3MS_Spread',
+        'Net_Liquidity_qoq',#
+        'Net_Liquidity_z52',#
+        #'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
-        #'DXY_qoq',##
+        #'DXY_qoq',
         #'VXTLT_z52',
         #'Bank_Dependency',
-        #'Loan_qoq',##
+        #'Loan_qoq',
         #'NFINCP_qoq',
         #'WCUR_qoq',
         #'PCEPI_yoy',
         #'PAYEMS_qoq',
         #"PAYEMS_qoq_sm13",
         #'DFII10',
-        "Dollar_Squeeze_Index",
+        #"Dollar_Squeeze_Index",
         #'Burden_Ratio',
         #'Burden_Ratio_z52',
         #'Burden_diff13',
         #"HY_diff13",
-        #"UUP_qoq",##
+        #"UUP_qoq",
         #"UUP_diff13",
         #"UUP_z52",
-        "PAYEMS_qoq_Abs_Rate_z52",
-        #"Burden_qoq",##
+        #"PAYEMS_qoq_Abs_Rate_z52",
+        #"Burden_qoq",
         #"PAYEMS_qoq_DFII10",
-        "^MOVE_z52",
-        #"Net_Liquidity_roc4"
+        #"^MOVE_z52",
+        "Net_Liquidity_roc4"#
     ]]
 
 
@@ -107,7 +107,7 @@ def get_gli_model_beta(df_index):
 
     #print(f"特徴量のリスト: {df_features.columns}")
     # --- LGBM学習 ---
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
         n_estimators=5000,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
@@ -115,10 +115,10 @@ def get_gli_model_beta(df_index):
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )
+    )"""
 
     # --- シャップ統計 ---
-    for label, shap_df in df_shap.items():
+    """for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -136,10 +136,10 @@ def get_gli_model_beta(df_index):
                 "相関係数": f"{correlation:.3f}"
             })
 
-        print(pd.DataFrame(logic_results))
+        print(pd.DataFrame(logic_results))"""
     
     # --- リターン統計 ---
-    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    """assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
     assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
     assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
     assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
@@ -172,7 +172,7 @@ def get_gli_model_beta(df_index):
             "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
             "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
             "hy_mean", "hy_std", "hy_min", "hy_max"]
-        print(stats)
+        print(stats)"""
 
     # --- 保存 ---
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
@@ -187,11 +187,11 @@ def get_gli_model_beta(df_index):
 
 
     # --- ロジスティック回帰 ---
-    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
-        df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+    mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+        df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,solver='saga',max_iter=5000,
-        C=0.5, penalty="l1",class_weight="balanced",
-    )"""
+        C=0.1, penalty="l1",class_weight="balanced",
+    )
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")

@@ -105,7 +105,7 @@ def get_gli_model_beta(df_index):
 
     print(f"特徴量のリスト: {df_features.columns}")
 
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="gli_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=13,
         n_estimators=500,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
@@ -113,9 +113,9 @@ def get_gli_model_beta(df_index):
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )
+    )"""
     # --- shap符号検証 ---
-    for label, shap_df in df_shap.items():
+    """for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
         original_X = df_master.loc[shap_df.index, df_features.columns]
@@ -133,10 +133,10 @@ def get_gli_model_beta(df_index):
                 "相関係数": f"{correlation:.3f}"
             })
 
-        print(pd.DataFrame(logic_results))
+        print(pd.DataFrame(logic_results))"""
 
     # --- リターン統計 ---
-    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    """assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
     assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
     assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
     assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
@@ -169,7 +169,7 @@ def get_gli_model_beta(df_index):
             "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
             "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
             "hy_mean", "hy_std", "hy_min", "hy_max"]
-        print(stats)
+        print(stats)"""
 
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
     df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
@@ -683,9 +683,9 @@ def _make_label(target_monthly, df_index):
 
     # 3か月後予測
     future_change = target_diff.shift(-LAG)
-    print(future_change.describe())
-    lower_threshold = -80
-    upper_threshold = 80
+    #print(future_change.describe())
+    lower_threshold = -55
+    upper_threshold = 70
 
 
     # 統計データから算出した閾値
@@ -700,9 +700,9 @@ def _make_label(target_monthly, df_index):
     df_index['next_3m_ret_sp500'] = df_index["^GSPC"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
     df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
-    """_analysis_label(
+    _analysis_label(
         pd.concat([labels, df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-    )"""
+    )
 
     return labels.dropna()
 
@@ -712,22 +712,20 @@ def _analysis_label(df):
         #("2021-01-01", "2026-01-01"),
         #("2010-01-01", "2021-01-01"),
         #("2004-01-01", "2026-01-01"),
-        ("2007-01-01", "2009-01-01"),
-        ("2009-01-01", "2013-01-01"),
+        ("2010-01-01", "2013-01-01"),
         ("2013-01-01", "2016-01-01"),
         ("2016-01-01", "2019-01-01"),
-        ("2019-01-01", "2021-01-01"),
-        ("2021-01-01", "2024-01-01"),
-        ("2024-01-01", "2026-01-01"),
+        ("2019-01-01", "2022-01-01"),
+        ("2023-01-01", "2026-01-01"),
         ]
     for start, end in terms:
         print(f"期間: {start} 〜 {end}")
         df_term = df.loc[start:end]
-        stats = df_term['Liq_eff_label'].value_counts().to_frame(name='Count')
-        stats['Percentage (%)'] = (df_term['Liq_eff_label'].value_counts(normalize=True) * 100).round(2)
+        stats = df_term['gli_label'].value_counts().to_frame(name='Count')
+        stats['Percentage (%)'] = (df_term['gli_label'].value_counts(normalize=True) * 100).round(2)
         print(stats)
 
-        market_summary = df_term.groupby('Liq_eff_label').agg({
+        market_summary = df_term.groupby('gli_label').agg({
             'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
             'next_3m_ret_tlt': ['mean', 'std'],
             'next_3m_diff_hy': ['mean']
