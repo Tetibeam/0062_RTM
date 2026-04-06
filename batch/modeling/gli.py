@@ -69,6 +69,8 @@ def get_gli_model_beta(df_index):
         'Burden_Ratio_z52',
         "PAYEMS_qoq_Abs_Rate_z52",
         "Liquidity_Divergence",
+        "MOVE_z52",
+        "NDFACB_z52",
         #'Net_Liquidity',
         #'Abs_Rate',
         #'Res_Ratio',
@@ -95,12 +97,12 @@ def get_gli_model_beta(df_index):
         #"UUP_z52",
         #"Burden_qoq",
         #"PAYEMS_qoq_DFII10",
-        "MOVE_z52",
+        
         #"Net_Liquidity_roc4",
         #"DFII10_diff4",
         #"NDFACB_z52_diff4",
         #"CCC_Spread_diff13",
-        "NDFACB_z52",
+        
         
     ]]
 
