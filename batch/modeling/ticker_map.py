@@ -50,6 +50,7 @@ ticker_map = {
     "名目可処分個人所得": ["DSPI", "fred", "DSPI"],
     "個人消費物価指数": ["PCEPI", "fred", "PCEPI"],
     "シカゴ連銀金融条件指数": ["NFCI", "fred", "NFCI"],
+    "CCC格スプレッド": ["BAMLH0A3HYC", "fred", "BAMLH0A3HYC"],
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
     "NASDAQ総合指数": ["nasdaq", "yfinance", "^IXIC"],

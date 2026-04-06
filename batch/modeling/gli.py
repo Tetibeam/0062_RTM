@@ -63,16 +63,21 @@ def get_gli_model_beta(df_index):
     #check_nan_time(df_features,"1990-01-01")
 
     df_features = df_features[[
+        "Abs_Rate_z52",
+        'Net_Liquidity_z52',
+        "Dollar_Squeeze_Index",
+        'Burden_Ratio_z52',
+        "PAYEMS_qoq_Abs_Rate_z52",
+        "Liquidity_Divergence",
         #'Net_Liquidity',
         #'Abs_Rate',
-        "Abs_Rate_z52",#
         #'Res_Ratio',
         #'WCUR_Ratio',
-        'Net_Liquidity_qoq',#
-        'Net_Liquidity_z52',#
+        #'Net_Liquidity_qoq',
         #'SOFR_TB3MS_Spread',
         #'spd_BBB_A',
         #'DXY_qoq',
+        #"DXY_qoq_diff4",
         #'VXTLT_z52',
         #'Bank_Dependency',
         #'Loan_qoq',
@@ -82,40 +87,42 @@ def get_gli_model_beta(df_index):
         #'PAYEMS_qoq',
         #"PAYEMS_qoq_sm13",
         #'DFII10',
-        #"Dollar_Squeeze_Index",
         #'Burden_Ratio',
-        #'Burden_Ratio_z52',
         #'Burden_diff13',
         #"HY_diff13",
         #"UUP_qoq",
         #"UUP_diff13",
         #"UUP_z52",
-        #"PAYEMS_qoq_Abs_Rate_z52",
         #"Burden_qoq",
         #"PAYEMS_qoq_DFII10",
-        #"^MOVE_z52",
-        "Net_Liquidity_roc4"#
+        "MOVE_z52",
+        #"Net_Liquidity_roc4",
+        #"DFII10_diff4",
+        #"NDFACB_z52_diff4",
+        #"CCC_Spread_diff13",
+        "NDFACB_z52",
+        
     ]]
 
 
     # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
     df_master = df_label.join(df_features, how='left')
-    df_master = df_master.loc["2010-01-01":]
+    #df_master = df_master.loc["2010-01-01":].ffill()
     #print(df_master)
-    #check_nan_time(df_master,"1990-01-01")
+    check_nan_time(df_master,"1990-01-01")
 
 
-    #print(f"特徴量のリスト: {df_features.columns}")
+    print(f"特徴量のリスト: {df_features.columns}")
     # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=5000,learning_rate=0.0005, num_leaves=31, min_data_in_leaf=65,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=3,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
+        n_estimators=10000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
+    )
 
     # --- シャップ統計 ---
     """for label, shap_df in df_shap.items():
@@ -139,7 +146,7 @@ def get_gli_model_beta(df_index):
         print(pd.DataFrame(logic_results))"""
     
     # --- リターン統計 ---
-    """assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
     assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
     assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
     assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
@@ -172,7 +179,7 @@ def get_gli_model_beta(df_index):
             "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
             "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
             "hy_mean", "hy_std", "hy_min", "hy_max"]
-        print(stats)"""
+        print(stats)
 
     # --- 保存 ---
     """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
@@ -187,11 +194,11 @@ def get_gli_model_beta(df_index):
 
 
     # --- ロジスティック回帰 ---
-    mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
+    """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=3, gap=13,solver='saga',max_iter=5000,
         C=0.1, penalty="l1",class_weight="balanced",
-    )
+    )"""
 
     # --- 学習結果の分析・可視化 ---
     #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
@@ -484,7 +491,7 @@ def _featuring(df):
 def _featuring_a(df):
     # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ------
 
-    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR","UUP"]
+    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR","UUP", "NDFACBM027SBOG", "NFCI"]
     df_feats = df[col].dropna(how="all")
 
     #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
@@ -515,11 +522,15 @@ def _featuring_a(df):
     df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
     df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
     df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
+    df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
+    df_feats["NDFACB_z52"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52)
+    df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
+    df_feats["Liquidity_Divergence"] = df_feats["NDFACB_z52"] - df_feats["NFCI_z52"]
 
     df_feats = df_feats[[
         'Net_Liquidity', 'Abs_Rate', "Abs_Rate_z52", 'Res_Ratio',
         'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52',"UUP_qoq","UUP_z52","UUP_diff13",
-        "Net_Liquidity_roc4"
+        "Net_Liquidity_roc4","NDFACB_z52_diff4","NDFACB_z52","Liquidity_Divergence"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -529,7 +540,7 @@ def _featuring_a(df):
 
 def _featuring_b(df):
     # ------ Layer B: Market Stress & Costs (摩擦：配管の詰まり) ------
-    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2", "^MOVE"]
+    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2", "^MOVE", "BAMLH0A3HYC"]
     df_feats = df[col].dropna(how="all")
 
     df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
@@ -543,13 +554,16 @@ def _featuring_b(df):
 
     # グローバルなドル圧迫
     df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
+    df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
 
     # 債券市場の恐怖
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
     
     df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
     
-    df_feats['^MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
+    df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
+    
+    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
 
     df_feats = df_feats[[
         'SOFR_TB3MS_Spread',
@@ -558,7 +572,9 @@ def _featuring_b(df):
         'DXY_qoq',
         'VXTLT_z52',
         "HY_diff13",
-        '^MOVE_z52'
+        'MOVE_z52',
+        "CCC_Spread_diff13",
+        "DXY_qoq_diff4"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -603,6 +619,7 @@ def _featuring_d(df):
 
     # 実質金利のレベル感
     df_feats['DFII10'] = df_feats['DFII10']
+    df_feats['DFII10_diff4'] = df_feats['DFII10'].diff(4)
 
     # 利払い負担率
     df_feats['Burden_Ratio'] = (df_feats['B069RC1'] / df_feats['DSPI']) * 100
@@ -619,7 +636,8 @@ def _featuring_d(df):
         'Burden_Ratio_z52',
         'Burden_diff13',
         'PAYEMS_qoq_sm13',
-        "Burden_qoq"
+        "Burden_qoq",
+        "DFII10_diff4"
         ]].dropna(how="all")
 
     #print(df_feats)
@@ -916,7 +934,8 @@ gli_index = [
     "gli",
     "NFCI",
     "VIXCLS",
-    "^MOVE"
+    "^MOVE",
+    "BAMLH0A3HYC"
     ]
 
 def check_nan_time(df, date:str="2006-01-01"):

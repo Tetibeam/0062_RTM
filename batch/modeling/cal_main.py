@@ -58,6 +58,7 @@ regime_index_list = [
     "名目可処分個人所得",
     "全世界株式",
     "シカゴ連銀金融条件指数",
+    "CCC格スプレッド",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -116,7 +117,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_5:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
