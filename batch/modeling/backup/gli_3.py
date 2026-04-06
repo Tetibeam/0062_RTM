@@ -693,17 +693,30 @@ def _make_label(target_monthly, df_index):
 
 def _analysis_label(df):
     # 分析・可視化
-    df = df.loc["2021-01-01":]
-    stats = df['gli_label'].value_counts().to_frame(name='Count')
-    stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
-    print(stats)
+    terms = [
+        #("2021-01-01", "2026-01-01"),
+        #("2010-01-01", "2021-01-01"),
+        #("2004-01-01", "2026-01-01"),
+        ("2007-01-01", "2009-01-01"),
+        ("2009-01-01", "2013-01-01"),
+        ("2013-01-01", "2016-01-01"),
+        ("2016-01-01", "2019-01-01"),
+        ("2019-01-01", "2021-01-01"),
+        ("2021-01-01", "2024-01-01"),
+        ("2024-01-01", "2026-01-01"),
+        ]
+    for start, end in terms:
+        df = df.loc["2021-01-01":]
+        stats = df['gli_label'].value_counts().to_frame(name='Count')
+        stats['Percentage (%)'] = (df['gli_label'].value_counts(normalize=True) * 100).round(2)
+        print(stats)
 
-    market_summary = df.groupby('gli_label').agg({
-        'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
-        'next_3m_ret_tlt': ['mean', 'std'],
-        'next_3m_diff_hy': ['mean']
-    }).round(4)
-    print(market_summary)
+        market_summary = df.groupby('gli_label').agg({
+            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
+            'next_3m_ret_tlt': ['mean', 'std'],
+            'next_3m_diff_hy': ['mean']
+        }).round(4)
+        print(market_summary)
 
     """# 継続日数の算出
     df['change'] = df['gli_label'] != df['gli_label'].shift()
