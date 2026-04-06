@@ -671,7 +671,7 @@ def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
 ########################################################
 
 def _make_label(target_monthly, df_index):
-    LAG=13
+    LAG=8
     # 週次にします
     target_lagged = target_monthly.shift(0)
     target_weekly = target_lagged.resample('W-FRI').interpolate(method='linear').dropna()
