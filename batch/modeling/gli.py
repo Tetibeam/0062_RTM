@@ -117,7 +117,7 @@ def get_gli_model_beta(df_index):
         learning_curve=True,
     )
 
-    # --- リターン統計 ---
+    # --- シャップ統計 ---
     for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
@@ -137,7 +137,8 @@ def get_gli_model_beta(df_index):
             })
 
         print(pd.DataFrame(logic_results))
-
+    
+    # --- リターン統計 ---
     assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
     assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
     assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
