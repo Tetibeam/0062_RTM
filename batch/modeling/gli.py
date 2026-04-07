@@ -113,73 +113,13 @@ def get_gli_model_beta(df_index):
     )
 
     # --- シャップ統計 ---
-    """for label, shap_df in df_shap.items():
-        print(f"\n=== レジーム: {label} の符号検証 ===")
-        # 検証データ期間の元の特徴量を取得
-        original_X = df_master.loc[shap_df.index, df_features.columns]
-
-        logic_results = []
-        for col in df_features.columns:
-            # 元の値とSHAP値の相関を計算
-            correlation = original_X[col].corr(shap_df[col])
-
-            # 方向性の判定
-            direction = "正の相関 (+)" if correlation > 0 else "負の相関 (-)"
-            logic_results.append({
-                "特徴量": col,
-                "方向性": direction,
-                "相関係数": f"{correlation:.3f}"
-            })
-
-        print(pd.DataFrame(logic_results))"""
+    shap_stats(df_master, df_features.cloumns, df_shap)
     
     # --- リターン統計 ---
-    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
-    assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-8)
-    assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-8)
-    assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-8)
-    combined = pd.concat([df_oof_ev, assets[[
-        'next_2m_ret_sp500', "next_2m_ret_tlt",'next_2m_diff_hy']]], axis=1).dropna()
-
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    print("=== ラベル数の確認 ===")
-    print(df_oof_ev.value_counts())
-
-    print("=== リターン統計  ===")
-    terms = [
-        ("2012-01-01","2026-01-01"),
-        ("2021-01-01","2024-01-01"),
-        ("2024-01-01","2026-01-01"),
-        #("2018-01-01","2021-01-01"),
-        #("2021-01-01","2024-01-01"),
-        #("2024-01-01","2026-01-01")
-    ]
-    for start,end in terms:
-        print(f"\n--- 期間: {start} 〜 {end} ---")
-        combined_tmp = combined.loc[start:end]
-        stats = combined_tmp.groupby("predict_label").agg({
-            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
-            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
-            })
-        stats.columns = [
-            "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
-            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
-            "hy_mean", "hy_std", "hy_min", "hy_max"]
-        print(stats)
-
+    return_stats(df, df_oof_ev, LAG):
+    
     # --- 保存 ---
-    """df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
-    df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
-    df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
-    df_shap["3:LIFT"].to_parquet("gli_shap_lift.parquet", engine="pyarrow")
-    df_oof_ev.to_parquet("gli_oof_ev.parquet", engine="pyarrow")
-    df.to_parquet("gli_raw.parquet", engine="pyarrow")
-    df_master.to_parquet("gli_master.parquet", engine="pyarrow")
-    df_features.to_parquet("gli_features.parquet", engine="pyarrow")
-    df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")"""
-
+    save_model(df_oof_all,df_shap,df_oof_ev,df,df_master,df_features,df_label)
 
     # --- ロジスティック回帰 ---
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
@@ -188,10 +128,6 @@ def get_gli_model_beta(df_index):
         C=0.1, penalty="l1",class_weight="balanced",
     )"""
 
-    # --- 学習結果の分析・可視化 ---
-    #plot_gli_trajectory(df_trajectory, df_index["gli"].ffill(),df_index["^GSPC"], start_date="2010-01-01")
-
-    #return df_oof_all
 
 def _make_target_variable(df):
     var = df[["NFCI", "NDFACBM027SBOG"]].copy().dropna(how="all")
@@ -497,9 +433,65 @@ def _analysis_label(df):
     print(transition_matrix)"""
 
 ########################################################
-# 実装確認・デバッグ
+# デバッグ・統計
 ########################################################
+def shap_stats(df_master, features_list, df_shap):
+    for label, shap_df in df_shap.items():
+        print(f"\n=== レジーム: {label} の符号検証 ===")
+        # 検証データ期間の元の特徴量を取得
+        original_X = df_master.loc[shap_df.index, df_features.columns]
 
+        logic_results = []
+        for col in df_features.columns:
+            # 元の値とSHAP値の相関を計算
+            correlation = original_X[col].corr(shap_df[col])
+
+            # 方向性の判定
+            direction = "正の相関 (+)" if correlation > 0 else "負の相関 (-)"
+            logic_results.append({
+                "特徴量": col,
+                "方向性": direction,
+                "相関係数": f"{correlation:.3f}"
+            })
+
+        print(pd.DataFrame(logic_results))
+        
+def return_stats(df, df_oof_ev, LAG):
+    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
+    assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-LAG)
+    assets['next_2m_ret_tlt'] = assets["TLT"].pct_change(8).shift(-LAG)
+    assets['next_2m_diff_hy'] = assets["BAMLH0A0HYM2"].diff(8).shift(-LAG)
+    combined = pd.concat([df_oof_ev, assets[[
+        'next_2m_ret_sp500', "next_2m_ret_tlt",'next_2m_diff_hy']]], axis=1).dropna()
+
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_columns", None)
+    print("=== ラベル数の確認 ===")
+    print(df_oof_ev.value_counts())
+
+    print("=== リターン統計  ===")
+    terms = [
+        ("2012-01-01","2026-01-01"),
+        ("2021-01-01","2024-01-01"),
+        ("2024-01-01","2026-01-01"),
+        #("2018-01-01","2021-01-01"),
+        #("2021-01-01","2024-01-01"),
+        #("2024-01-01","2026-01-01")
+    ]
+    for start,end in terms:
+        print(f"\n--- 期間: {start} 〜 {end} ---")
+        combined_tmp = combined.loc[start:end]
+        stats = combined_tmp.groupby("predict_label").agg({
+            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
+            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
+            })
+        stats.columns = [
+            "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
+            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
+            "hy_mean", "hy_std", "hy_min", "hy_max"]
+        print(stats)
+        
 def check_nan_time(df, date:str="2006-01-01"):
     df_s = df.apply(pd.Series.first_valid_index)
     df_e = df.apply(pd.Series.last_valid_index)
@@ -512,3 +504,14 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("")
     print("--- データが終わっている日付 ---")
     print(df_e)
+
+def save_model(df_oof_all,df_shap,df_oof_ev,df,df_master,df_features,df_label):
+    df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
+    df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
+    df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
+    df_shap["3:LIFT"].to_parquet("gli_shap_lift.parquet", engine="pyarrow")
+    df_oof_ev.to_parquet("gli_oof_ev.parquet", engine="pyarrow")
+    df.to_parquet("gli_raw.parquet", engine="pyarrow")
+    df_master.to_parquet("gli_master.parquet", engine="pyarrow")
+    df_features.to_parquet("gli_features.parquet", engine="pyarrow")
+    df_label.to_frame().to_parquet("gli_label.parquet", engine="pyarrow")
