@@ -65,39 +65,25 @@ gli_index = [
 # メインプロセス
 ########################################################
 def get_gli_model_beta(df_index):
-    # --- データの取得 ---
+    # --- データの取得：マスターデータからLiq_eff_modelに必要なデータを取り出す ---
     df = df_index[gli_index]
 
-    # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
+    # --- 目的変数の生成：Liq_eff = NDFACBM027SBOG_z52 - NFCI_z52 ---
     df_target_var = _make_target_variable(df)
-    #pd.set_option('display.max_rows', None)
-    #print(df.tail(300))
 
-    # --- データ集計-日次は月次に、四半期は月次に線形補完する ---
+    # --- データ集計：日時、週次、月次、四半期を、すべて週次にする ---
     df = _aggregation(df)
-    #check_nan_time(df,"1990-01-01")
-    #pd.set_option('display.max_rows', None)
-    #print(df["CP"].tail(300))
 
     # --- 教師ラベルの生成 ---
     df_label = _make_label(df_target_var["Liq_eff"], df)
-    #print(df_label)
-    # --- 特徴量抽出 ---
-    df_a, df_b, df_c, df_d =  _featuring(df)
-    #check_nan_time(df_d,"1990-01-01")
 
-    # --- 特徴量とGLIのラグ相関分析 ---
-    #_lag_corr_check(df_a, df_b, df_c, df_d, df["NDFACBM027SBOG"])
+    # --- 特徴量を作る ---
+    df_features =  _featuring(df)
 
-    # --- DFA前にラグを調整する ---
-    #df_a, df_b, df_c, df_d = _lag_adjustment(df_a, df_b, df_c, df_d)
-    #check_nan_time(df_d,"1990-01-01")
+    # --- 特徴量と目的変数のラグ相関分析 ---
+    #_lag_corr_check(df_features, df_target_var)
 
-    # --- 特徴量を追加する ---
-    df_features = pd.concat([df_a, df_b, df_c, df_d], axis=1)
-    #df_features = _add_features(df_features)
-    #check_nan_time(df_features,"1990-01-01")
-
+    # --- 特徴量の選択 ---
     df_features = df_features[[
         "Abs_Rate_z52",
         'Net_Liquidity_z52',
@@ -106,51 +92,19 @@ def get_gli_model_beta(df_index):
         "PAYEMS_qoq_Abs_Rate_z52",
         "Liquidity_Divergence",
         "MOVE_z52",
-        "NDFACB_z52",
-        #'Net_Liquidity',
-        #'Abs_Rate',
-        #'Res_Ratio',
-        #'WCUR_Ratio',
-        #'Net_Liquidity_qoq',
-        #'SOFR_TB3MS_Spread',
-        #'spd_BBB_A',
-        #'DXY_qoq',
-        #"DXY_qoq_diff4",
-        #'VXTLT_z52',
-        #'Bank_Dependency',
-        #'Loan_qoq',
-        #'NFINCP_qoq',
-        #'WCUR_qoq',
-        #'PCEPI_yoy',
-        #'PAYEMS_qoq',
-        #"PAYEMS_qoq_sm13",
-        #'DFII10',
-        #'Burden_Ratio',
-        #'Burden_diff13',
-        #"HY_diff13",
-        #"UUP_qoq",
-        #"UUP_diff13",
-        #"UUP_z52",
-        #"Burden_qoq",
-        #"PAYEMS_qoq_DFII10",
-        
-        #"Net_Liquidity_roc4",
-        #"DFII10_diff4",
-        #"NDFACB_z52_diff4",
-        #"CCC_Spread_diff13",
-        
-        
+        "NDFACB_z52"        
     ]]
+    print(f"特徴量のリスト: {df_features.columns}")
 
-
-    # --- 学習（1か月予測と3か月予測でgap設定をかえる） ---
+    # --- 学習用マスターデータの作成
     df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":].ffill()
     #print(df_master)
     check_nan_time(df_master,"1990-01-01")
 
-
-    print(f"特徴量のリスト: {df_features.columns}")
+    # --- LGBM学習（1か月予測と3か月予測でgap設定をかえる） ---
+    
+    
     # --- LGBM学習 ---
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
