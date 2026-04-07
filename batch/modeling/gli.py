@@ -301,6 +301,7 @@ def _featuring(df):
     df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
      # 現金の漏出スピード
     df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
+    df_feats['WCUR_qoq'] = df_feats['WCURCIR'].pct_change(13)
     
     # --- グローバル・ドル調達圧力（国際流動性） ---
     df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
@@ -310,163 +311,55 @@ def _featuring(df):
     df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
     df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
     df_feats["Dollar_Squeeze_Index"] = df_feats["DXY_qoq"] - df_feats["Net_Liquidity_z52"]
+    
+    df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
+    df_feats["NDFACB_z52"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52)
 
     # --- 民間部門の信用創造とレバレッジ（銀行の資金仲介) ---
+    df_feats['Loan_qoq'] = df_feats['BUSLOANS'].pct_change(13)
+    df_feats['NFINCP_qoq'] = df_feats['NFINCP'].pct_change(13)
+    # 銀行依存度指標 (Loan / CP 比率)
+    df_feats['Bank_Dependency'] = df_feats['BUSLOANS'] / df_feats['NFINCP']
+    
     # --- 資本コストと市場のリスク許容度（リスクプレミアム） ---
     df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
+    
     # 短期指標のスプレッド
     df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
     df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
     
-    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
-
+    # 信用スプレッド
     df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
     df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
-    
-    # --- 実体経済のファンダメンタルズと制約条件 ---
-    
+    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
 
-    df_a = _featuring_a(df)
-    df_b = _featuring_b(df)
-    df_c = _featuring_c(df)
-    df_d = _featuring_d(df)
-    
-    
-    df_d["PAYEMS_qoq_Abs_Rate_z52"] = df_d["PAYEMS_qoq"] * df_a["Abs_Rate_z52"]
-    df_d["PAYEMS_qoq_DFII10"] = df_d["PAYEMS_qoq"] * df_d["DFII10"]
-
-    return df_a, df_b, df_c, df_d
-
-def _featuring_a(df):
-    
-    
-    # 特徴量
-
-    df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
-    df_feats["NDFACB_z52"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52)
-    df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
-    df_feats["Liquidity_Divergence"] = df_feats["NDFACB_z52"] - df_feats["NFCI_z52"]
-
-    df_feats = df_feats[[
-        'Net_Liquidity', 'Abs_Rate', "Abs_Rate_z52", 'Res_Ratio',
-        'WCUR_Ratio', 'Net_Liquidity_qoq', 'Net_Liquidity_z52',"UUP_qoq","UUP_z52","UUP_diff13",
-        "Net_Liquidity_roc4","NDFACB_z52_diff4","NDFACB_z52","Liquidity_Divergence"
-        ]].dropna(how="all")
-
-    #print(df_feats)
-    #check_nan_time(df_feats,"1990-01-01")
-
-    return df_feats
-
-def _featuring_b(df):
-    # ------ Layer B: Market Stress & Costs (摩擦：配管の詰まり) ------
-    col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2", "^MOVE", "BAMLH0A3HYC"]
-    df_feats = df[col].dropna(how="all")
-
-    
-
-
-
-    # 信用リスクのスプレッド
-    
-
-
-
-    # 債券市場の恐怖
+    # 債券市場のボラ
+    df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
     
-    
-    
-    df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
-    
-    
-
-    df_feats = df_feats[[
-        'SOFR_TB3MS_Spread',
-        #'TED_Z52',
-        'spd_BBB_A',
-        'DXY_qoq',
-        'VXTLT_z52',
-        "HY_diff13",
-        'MOVE_z52',
-        "CCC_Spread_diff13",
-        "DXY_qoq_diff4"
-        ]].dropna(how="all")
-
-    #print(df_feats)
-    #check_nan_time(df_feats,"1990-01-01")
-
-    return df_feats
-
-def _featuring_c(df):
-    # ------ Layer C: Bank Activity & Leakage (現場：銀行の財布) ------
-    col=["BUSLOANS", "WCURCIR", "RESBALNS", "NFINCP"]
-    df_feats = df[col].dropna(how="all")
-
-    # 銀行依存度指標 (Loan / CP 比率)
-    df_feats['Bank_Dependency'] = df_feats['BUSLOANS'] / df_feats['NFINCP']
-
-    # qoq
-    df_feats['Loan_qoq'] = df_feats['BUSLOANS'].pct_change(13)
-    df_feats['NFINCP_qoq'] = df_feats['NFINCP'].pct_change(13)
-    df_feats['WCUR_qoq'] = df_feats['WCURCIR'].pct_change(13)
-
-    df_feats = df_feats[[
-        'Bank_Dependency',
-        'Loan_qoq',
-        'NFINCP_qoq',
-        'WCUR_qoq',
-        ]].dropna(how="all")
-
-    #print(df_feats)
-    #check_nan_time(df_feats,"1990-01-01")
-
-    return df_feats
-
-def _featuring_d(df):
-    # ------ Layer D: Macro Fundamentals (背景：天候) ------
-    col=["PCEPI", "PAYEMS", "DFII10", "DSPI", "B069RC1"]
-    df_feats = df[col].dropna(how="all")
+    # --- 実体経済のファンダメンタルズと制約条件 ---
+    # 実質金利のレベル感
+    df_feats['DFII10'] = df_feats['DFII10']
+    df_feats['DFII10_diff4'] = df_feats['DFII10'].diff(4)
 
     # インフレの勢い、雇用の勢い
     df_feats['PCEPI_yoy'] = df_feats['PCEPI'].pct_change(52) # 前年比
     df_feats['PAYEMS_qoq'] = df_feats['PAYEMS'].pct_change(13)     # 直近の加速
-    df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean()     # 直近の加速
-
-    # 実質金利のレベル感
-    df_feats['DFII10'] = df_feats['DFII10']
-    df_feats['DFII10_diff4'] = df_feats['DFII10'].diff(4)
+    df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean() 
 
     # 利払い負担率
     df_feats['Burden_Ratio'] = (df_feats['B069RC1'] / df_feats['DSPI']) * 100
     df_feats["Burden_Ratio_z52"] = _featuring_z_score(df_feats['Burden_Ratio'], 52)
     df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
     df_feats['Burden_qoq'] = df_feats['Burden_Ratio'].pct_change(13)
-    
 
-    df_feats = df_feats[[
-        'PCEPI_yoy',
-        'PAYEMS_qoq',
-        'DFII10',
-        'Burden_Ratio',
-        'Burden_Ratio_z52',
-        'Burden_diff13',
-        'PAYEMS_qoq_sm13',
-        "Burden_qoq",
-        "DFII10_diff4"
-        ]].dropna(how="all")
+    df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
+    df_feats["Liquidity_Divergence"] = df_feats["NDFACB_z52"] - df_feats["NFCI_z52"]
 
-    #print(df_feats)
-    #check_nan_time(df_feats,"1990-01-01")
-    return df_feats
-
-def _add_features(df):
-
-    #df["Financial_Stress_Index"] = df["diff_SOFR_sync"]*df["z52_yoy_Net_Liquidity_sync"]
-    #df["vol4_CP_yoy_sync"] = df["CP_yoy_sync"].rolling(window=4).std()
-    #df["vol4_yoy_PCE_sync"] = df["yoy_PCE_sync"].rolling(window=4).std()
-
-    return df.dropna(how="all")
+    # --- 交錯 ---
+    df_feats["PAYEMS_qoq_Abs_Rate_z52"] = df_feats["PAYEMS_qoq"] * df_feats["Abs_Rate_z52"]
+    df_feats["PAYEMS_qoq_DFII10"] = df_feats["PAYEMS_qoq"] * df_feats["DFII10"]
+    df_feats["Financial_Stress_Index"] = df_feats["diff_SOFR_sync"]*df_feats["z52_yoy_Net_Liquidity_sync"]
 
 def _featuring_z_score(df, window):
 
