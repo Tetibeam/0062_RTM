@@ -22,7 +22,7 @@ from batch.modeling.learning import (
 import pandas as pd
 import numpy as np
 
-gli_index = [
+liq_index = [
     "BUSLOANS",
     "PNFIC1",
     "SOFR",
@@ -64,21 +64,21 @@ gli_index = [
 ########################################################
 # メインプロセス
 ########################################################
-def get_gli_model_beta(df_index):
+def get_liq_index_model_beta(df_index):
     # --- データの取得：マスターデータからLiq_eff_modelに必要なデータを取り出す ---
-    df = df_index[gli_index]
+    df = df_index[liq_index]
 
     # --- 目的変数の生成：Liq_eff = NDFACBM027SBOG_z52 - NFCI_z52 ---
     df_target_var = _make_target_variable(df)
 
     # --- データ集計：日時、週次、月次、四半期を、すべて週次にする ---
-    df = _aggregation(df)
+    df_agg = _aggregation(df)
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df_target_var["Liq_eff"], df)
+    df_label = _make_label(df_target_var["Liq_eff"], df_agg)
 
     # --- 特徴量を作る ---
-    df_features =  _featuring(df)
+    df_features =  _featuring(df_agg)
 
     # --- 特徴量と目的変数のラグ相関分析 ---
     #_lag_corr_check(df_features, df_target_var)
@@ -116,10 +116,10 @@ def get_gli_model_beta(df_index):
     shap_stats(df_master, df_features.cloumns, df_shap)
     
     # --- リターン統計 ---
-    return_stats(df, df_oof_ev, LAG):
+    return_stats(df_agg, df_oof_ev, LAG):
     
     # --- 保存 ---
-    save_model(df_oof_all,df_shap,df_oof_ev,df,df_master,df_features,df_label)
+    save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
 
     # --- ロジスティック回帰 ---
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
