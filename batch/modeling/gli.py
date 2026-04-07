@@ -22,15 +22,51 @@ from batch.modeling.learning import (
 import pandas as pd
 import numpy as np
 
+gli_index = [
+    "BUSLOANS",
+    "PNFIC1",
+    "SOFR",
+    "TB3MS",
+    "BAMLC0A4CBBB",
+    "BAMLC0A3CA",
+    "DX-Y.NYB",
+    "RRPONTSYD",
+    "WALCL",
+    "RESBALNS",
+    "TOTRESNS",
+    "WDTGAL",
+    "PAYEMS",
+    "PCE",
+    "NDFACBM027SBOG",
+    "TEDRATE",
+    "DTB3",
+    "VXTLT",
+    "WCURCIR",
+    "DFF",
+    "NFINCP",
+    "PCEPI",
+    "DFII10",
+    "^GSPC",
+    "ACWI",
+    "TLT",
+    "BAMLH0A0HYM2",
+    "B069RC1",
+    "DSPI",
+    "EEM",
+    "UUP",
+    "gli",
+    "NFCI",
+    "VIXCLS",
+    "^MOVE",
+    "BAMLH0A3HYC"
+    ]
+
 ########################################################
 # メインプロセス
 ########################################################
 def get_gli_model_beta(df_index):
     # --- データの取得 ---
     df = df_index[gli_index]
-    #check_nan_time(df,"1990-01-01")
-    #pd.set_option('display.max_rows', None)
-    #print(df["CP"].tail(300))
 
     # --- 目的変数の生成:NDFACBM027SBOGはそのまま。通貨スワップ・ベーシスはSOFRとTEDRATE併用 ---
     df_target_var = _make_target_variable(df)
@@ -823,122 +859,9 @@ def _analysis_label(df):
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)"""
 
-
-def _make_featuring(factor_a, factor_b, factor_c, factor_d):
-
-    # lag調整した因子セットをつくる
-    fa_level = factor_a.shift(7-3).rename("a_level")
-    fb_level = factor_b.shift(14-3).rename("b_level")
-    fc_level = factor_c.shift(3-3).rename("c_level")
-    fd_level = factor_d.shift(38-3).rename("d_level")
-
-    # モメンタム
-    fa_mom1 = fa_level.diff().rename("a_mom1")
-    fb_mom1 = fb_level.diff().rename("b_mom1")
-    fc_mom1 = fc_level.diff().rename("c_mom1")
-    fd_mom1 = fd_level.diff().rename("d_mom1")
-
-    # モメンタム
-    fa_mom = fa_level.diff(3).rename("a_mom")
-    fb_mom = fb_level.diff(3).rename("b_mom")
-    fc_mom = fc_level.diff(3).rename("c_mom")
-    fd_mom = fd_level.diff(3).rename("d_mom")
-
-    # ボラ
-    fa_vol = fa_level.rolling(6).std().rename("a_vol")
-    fb_vol = fb_level.rolling(6).std().rename("b_vol")
-    fc_vol = fc_level.rolling(6).std().rename("c_vol")
-    fd_vol = fd_level.rolling(6).std().rename("d_vol")
-
-    # 変化の加速
-    fa_acc = fa_mom.diff(1).rename("a_acc")
-    fb_acc = fb_mom.diff(1).rename("b_acc")
-    fc_acc = fc_mom.diff(1).rename("c_acc")
-    fd_acc = fd_mom.diff(1).rename("d_acc")
-
-    # 交差項
-    ab_cross = (fa_level * fb_level).rename("a_b_cross")
-    ac_cross = (fa_level * fc_level).rename("a_c_cross")
-    ad_cross = (fa_level * fd_level).rename("a_d_cross")
-    bc_cross = (fb_level * fc_level).rename("b_c_cross")
-    bd_cross = (fb_level * fd_level).rename("b_d_cross")
-    cd_cross = (fc_level * fd_level).rename("c_d_cross")
-
-    df_featured = pd.concat([
-        fa_level,#
-        fb_level,#
-        fc_level,
-        fd_level,#
-        fa_mom1,
-        fb_mom1,
-        fc_mom1,
-        fd_mom1,
-        fa_mom,
-        fb_mom,#
-        fc_mom,
-        fd_mom,
-        #fa_vol,
-        #fb_vol,#
-        #fc_vol,
-        #fd_vol,#
-        #fa_acc,
-        #fb_acc,
-        #fc_acc,
-        #fd_acc,
-        #ab_cross
-        #ac_cross,
-        #ad_cross,
-        #bc_cross,
-        #bd_cross,
-        #cd_cross,
-        #ac_cross
-        ], axis=1).dropna()
-
-    #print(df_featured)
-    return df_featured
-
 ########################################################
 # 実装確認・デバッグ
 ########################################################
-
-gli_index = [
-    "BUSLOANS",
-    "PNFIC1",
-    "SOFR",
-    "TB3MS",
-    "BAMLC0A4CBBB",
-    "BAMLC0A3CA",
-    "DX-Y.NYB",
-    "RRPONTSYD",
-    "WALCL",
-    "RESBALNS",
-    "TOTRESNS",
-    "WDTGAL",
-    "PAYEMS",
-    "PCE",
-    "NDFACBM027SBOG",
-    "TEDRATE",
-    "DTB3",
-    "VXTLT",
-    "WCURCIR",
-    "DFF",
-    "NFINCP",
-    "PCEPI",
-    "DFII10",
-    "^GSPC",
-    "ACWI",
-    "TLT",
-    "BAMLH0A0HYM2",
-    "B069RC1",
-    "DSPI",
-    "EEM",
-    "UUP",
-    "gli",
-    "NFCI",
-    "VIXCLS",
-    "^MOVE",
-    "BAMLH0A3HYC"
-    ]
 
 def check_nan_time(df, date:str="2006-01-01"):
     df_s = df.apply(pd.Series.first_valid_index)
@@ -952,250 +875,3 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("")
     print("--- データが終わっている日付 ---")
     print(df_e)
-
-
-
-
-
-
-
-
-
-
-
-
-#----------------------------------------------------------------------------------------------
-def get_gli_dfa_modeling_beta(
-    dxy, vix, mkt_credit_spread, nfci_risk, frb_total_assets, on_rrp, tga_deposit, gli, m2
-    ):
-    # --- 前処理 ---
-    df = _preprocess_for_gli_dfa_modeling(
-        dxy, vix, mkt_credit_spread, nfci_risk,
-        frb_total_assets, on_rrp, tga_deposit, gli
-        )
-    #print(df)
-
-    # --- DFA ---
-    res_series, results, is_inverted = learning_dfa(
-        df, factors=1, factor_orders=2,
-        target_col="dxy_log_diff",
-        output_name="gli_dfa_model"
-        )   
-    #print(results.summary())
-    #print(results.params)
-    #print(res_series)
-
-    # --- 寄与度の計算 ---
-    contributions = df.copy()
-    loadings = results.params.filter(like='loading')
-    for i, col in enumerate(df.columns):
-        contributions[col] = df[col] * loadings.iloc[i]
-    contributions_rolling = contributions.rolling(window=4, min_periods=1).mean()
-    #pd.set_option('display.max_rows', None)
-    #print(contributions_rolling)
-
-    # --- 将来予測 ---
-    res_forecast, results_forecast, is_inverted_forecast = learning_dfa(
-        df, factors=1, factor_orders=1,
-        target_col="dxy_log_diff",
-        output_name="gli_dfa_model"
-        )
-    forecast_mean, forecast_ci = learning_forecast(results_forecast)
-    #print(results.summary())
-    #print(forecast_mean)
-    #print(forecast_ci)
-
-    # --- 後処理 ---
-    df_result = _postprocess_gli_dfa_modeling(res_series, forecast_mean, forecast_ci, gli, m2)
-    #print(df_result)
-
-    # --- 分析/可視化 ---
-    _plot_contribution(contributions_rolling)
-    #_plot_graphs(df_result["model_cumsum_z"],df_result["forecast_cumsum"])
-    #_plot_graphs(df_result["model_cumsum_z"],on_rrp)
-    #_plot_graphs(df_result["model_cumsum_z"],df_result["forecast_cumsum"])
-
-def _preprocess_for_gli_dfa_modeling(
-    dxy, vix, mkt_credit_spread, nfci_risk, frb_total_assets, on_rrp, tga_deposit, gli
-    ):
-    # --- ネットリクイディティの算出 ---
-    # 日次にし、単位を合わせる
-    frb_total_assets_d = frb_total_assets.resample("D").ffill()
-    on_rrp_d = on_rrp.resample("D").ffill()*1000
-    tga_deposit_d = tga_deposit.resample("D").ffill()
-    # 計算する
-    df_sub = pd.concat([frb_total_assets_d, on_rrp_d, tga_deposit_d], axis=1).dropna()
-    net_liquidity = df_sub["frb_total_assets"] - (df_sub["on_rrp"] + df_sub["tga_deposit"])
-    
-    # --- 対数処理 ---
-    dxy_log = np.log(dxy);dxy_log.name = "dxy_log"
-    vix_log = np.log(vix);vix_log.name = "vix_log"
-    net_liquidity_log = np.log(net_liquidity);net_liquidity_log.name = "net_liquidity_log"
-
-    # --- データフレーム統合 ---
-    df = pd.concat([dxy_log, vix_log, mkt_credit_spread, nfci_risk, net_liquidity_log], axis=1)
-    # tga_depositが最も取得開始が遅いのでtga_depositに合わせる
-    start_inedx = tga_deposit[tga_deposit.notna()].index[0]
-    df = df.loc[start_inedx:]
-    
-    # --- 週次サンプリングに統一する ---
-    df_w = df.resample('W-FRI').last().ffill()
-    
-    # --- diffをとる ---
-    df_processed = pd.DataFrame(index=df_w.index)
-    df_processed['dxy_log_diff'] = df_w['dxy_log'].diff()
-    df_processed['vix_log_diff'] = df_w['vix_log'].diff()
-    df_processed['net_liquidity_log_diff'] = df_w['net_liquidity_log'].diff()
-    df_processed['mkt_credit_spread_diff'] = df_w['mkt_credit_spread'].diff()
-    df_processed['nfci_risk_diff'] = df_w['nfci_risk'].diff()
-
-    df_processed = df_processed.dropna()
-
-    # --- 4半期データのGLI差分の結合 ---
-    # 差分をとって取得開始日を合わせる
-    gli_diff = gli.diff();gli_diff.name = "gli_diff"
-    gli_diff = gli_diff.loc[df.index[0]:]
-
-    # 最も近い週次の位置にデータをいれる- ffillせずにNanのままにする
-    df_processed = pd.merge_asof(
-        df_processed.sort_index(),
-        gli_diff.sort_index(),
-        left_index=True,
-        right_index=True,
-        direction='nearest',
-        tolerance=pd.Timedelta('3 days') # 1週間以上離れたデータは無視
-    )
-    df_processed.index = pd.to_datetime(df_processed.index)
-    df_processed = df_processed.asfreq('W-FRI')
-
-    return df_processed
-
-def _postprocess_gli_dfa_modeling(
-    res_series, forecast_mean, forecast_ci, gli, m2
-    ):
-
-    df_result = pd.DataFrame(index=res_series.index)
-
-    # --- モデルの累積和のZスコア ---
-    cumsum = res_series.cumsum()
-    cumsum = cumsum.rolling(window=4).mean()
-    df_result["model_cumsum_z"] = learning_standard_scalar(cumsum).dropna()
-
-    # --- 将来予測 ---
-    last_actual_val = df_result["model_cumsum_z"].iloc[-1]
-    first_forecast_date = df_result.index[-1]
-    initial_series = pd.Series([last_actual_val], index=[first_forecast_date])
-
-    forecast_cumsum = forecast_mean.iloc[:, 0].cumsum() + last_actual_val
-    forecast_cumsum = pd.concat([initial_series, forecast_cumsum])
-    forecast_cumsum.name = "forecast_cumsum"
-    df_result = pd.concat([df_result, forecast_cumsum], axis=1)
-
-    # --- GLI/M2の実績とZスコア ---
-    df_result["gli_actual"] = gli.reindex(index=res_series.index, method="ffill")
-    df_result["gli_z"] = learning_standard_scalar(df_result["gli_actual"])
-
-    df_result["m2_actual"] = m2.reindex(index=res_series.index, method="ffill")
-    df_result["m2_z"] = learning_standard_scalar(df_result["m2_actual"])
-
-    return df_result
-
-########################################################
-# 金利押し上げ圧力インデックスのモデリング
-########################################################
-    """
-    1.考え方
-
-    2.説明変数の選定理由
-
-    3.将来予測
-
-    """
-
-def get_macro_potential_index_dfa_modeling(
-    tnx, t5yifr, t10y2y, cpi_us_fred, move, uup, tlt, gold_future, copper_future, tips
-    ):
-    # --- 前処理 ---
-    df = _preprocess_macro_potential_index_dfa_modeling(
-        tnx, t5yifr, t10y2y, cpi_us_fred, move, uup, tlt, gold_future, copper_future,
-    )
-    # --- DFA ---
-    res_series, results, is_inverted = learning_dfa(
-        df, factors=1, factor_orders=2, 
-        sign_name="tnx_diff",
-        output_name="real_interest_rate__dfa_model"
-    )
-    # --- 後処理 ---
-    df_result = _postprocess_macro_potential_index_dfa_modeling(res_series, tnx, tips)
-    latest_spread = df_result['macro_spread'].iloc[-1]
-    histrical_percentage = (df_result['macro_spread'] < latest_spread).mean()
-
-    # --- グラフ描画 ---
-    #_compare_graphs(df_result["macro_spread"], df_result["macro_spread"])
-
-    return df_result, latest_spread, histrical_percentage
-
-def _preprocess_macro_potential_index_dfa_modeling(
-    tnx, t5yifr, t10y2y, cpi_us_fred, move, uup, tlt, gold_future, copper_future
-    ):
-
-    # リサンプリング前の処理
-    cpi_us_fred_mom = np.log(cpi_us_fred).diff()    # cpi_us_fred は月次発表なので先に処理をする
-    cpi_us_fred_mom.name = "cpi_us_fred_mom"
-
-    move_log = np.log(move)     # 指数急騰（スパイク）対策
-    move_log.name = "move_log"
-
-    uup_log = np.log(uup)       # 指数急騰（スパイク）対策
-    uup_log.name = "uup_log"
-
-    tlt_log = np.log(tlt)       # 指数急騰（スパイク）対策
-    tlt_log.name = "tlt_log"
-
-    cg_ratio = copper_future / gold_future     # Copper/Gold 比率
-    cg_log = np.log(cg_ratio)
-    cg_log.name = "cg_log"
-
-    # データフレーム統合
-    df = pd.concat([tnx, t5yifr, t10y2y, cpi_us_fred_mom, move_log, uup_log, tlt_log, cg_log], axis=1)
-    # uupが最も取得開始が遅いのでuupに合わせる
-    start_inedx = uup[uup.notna()].index[0]
-    df = df.loc[start_inedx:]
-    
-    # ほとんど日次データだがcpiだけ月次なので、間をとって週次サンプリングにする
-    df_w = df.resample('W-FRI').last().ffill()
-
-    df_processed = pd.DataFrame(index=df_w.index)
-
-    # diffをとる指標
-    df_processed["tnx_diff"] = df_w["tnx"].diff()
-    df_processed["t5yifr_diff"] = df_w["t5yifr"].diff()
-    df_processed["t10y2y_diff"] = df_w["t10y2y"].diff()
-    df_processed["move_log_diff"] = df_w["move_log"].diff()
-    df_processed["uup_log_diff"] = df_w["uup_log"].diff()
-    df_processed["tlt_log_diff"] = df_w["tlt_log"].diff()
-    df_processed["cg_log_diff"] = df_w["cg_log"].diff()
-
-    # 発表ラグの調整
-    df_processed["cpi_us_fred_mom"] = df_w["cpi_us_fred_mom"].shift(4)
-
-    df_processed = df_processed.dropna()
-
-    return df_processed
-
-def _postprocess_macro_potential_index_dfa_modeling(res_series, tnx, tips):
-    
-    df_result = pd.DataFrame(index=res_series.index)
-
-    # モデルの累積和のZスコア
-    cumsum = res_series.rolling(window=12,center=True).mean().cumsum()
-    df_result["model_cumsum_z"] = learning_standard_scalar(cumsum).dropna()
-
-    #TNXの実績とZスコア
-    df_result["tnx_actual"] = tnx.reindex(index=res_series.index, method="ffill")
-    df_result["tnx_z"] = learning_standard_scalar(df_result["tnx_actual"])
-
-    #Macro spread
-    df_result["macro_spread"] = df_result["model_cumsum_z"] - df_result["tnx_z"]
-    
-    return df_result
