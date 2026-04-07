@@ -90,14 +90,17 @@ def get_liq_index_model_beta(df_index):
         'Net_Liquidity_z52',
         "Dollar_Squeeze_Index",
         'Burden_Ratio_z52',
-        #"PAYEMS_qoq_Abs_Rate_z52",
+        "PAYEMS_qoq_Abs_Rate_z52",
         "Liquidity_Divergence",
         "MOVE_z52",
+        #"VXTLT_z52",
         "NDFACB_z52",
-        "VVIX_z52",
-        #"NFCI_z52",
+        #"VIX_z52",
+        #"VVIX_z52",
+        #"NFCI_diff4_z52",
         #"CCC_Spread_diff4",
-        #"NFCIRISK_x52",
+        #"NFCIRISK_diff13_z52",
+        #"HY_diff8_z52"
 
     ]]
     print(f"特徴量のリスト: {df_features.columns}")
@@ -110,8 +113,8 @@ def get_liq_index_model_beta(df_index):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=10000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,
+        n_estimators=12000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=100,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=6,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,
         #feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
@@ -249,12 +252,16 @@ def _featuring(df):
     # 信用スプレッド
     df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
     df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
+    df_feats['HY_diff8_z52'] = _featuring_z_score(df_feats['BAMLH0A0HYM2'].diff(8), 52)
     df_feats["CCC_Spread_diff4"] = df_feats['BAMLH0A3HYC'].diff(4)
 
     # 債券市場のボラ
     df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
-    df_feats["VVIX_z52"] = _featuring_z_score(df_feats['VIXCLS'], 52)
+    
+    df_feats["VIX_z52"] = _featuring_z_score(df_feats['VIXCLS'], 52)
+    ret = np.log(df_feats['VIXCLS']).diff()
+    df_feats["VVIX_z52"] = _featuring_z_score(ret.rolling(21).std() * np.sqrt(252), 52)
 
     # --- 実体経済のファンダメンタルズと制約条件 ---
     # 実質金利のレベル感
@@ -272,9 +279,9 @@ def _featuring(df):
     df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
     df_feats['Burden_qoq'] = df_feats['Burden_Ratio'].pct_change(13)
 
-    df_feats["NFCIRISK_x52"] = _featuring_z_score(df_feats['NFCIRISK'], 52)
+    df_feats["NFCIRISK_diff13_z52"] = _featuring_z_score(df_feats['NFCIRISK'].diff(4), 52)
     df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
-    df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
+    df_feats["NFCI_diff4_z52"] = _featuring_z_score(df_feats["NFCI"].diff(4), window=52)
     df_feats["Liquidity_Divergence"] = df_feats["NDFACB_z52"] - df_feats["NFCI_z52"]
 
     # --- 交錯 ---
@@ -335,7 +342,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 
 def _make_label(target, df_index):
     #LAG=8
-    quantile_low=0.15
+    quantile_low=0.125
     quantile_high=0.875
     winsow=156
 
@@ -399,7 +406,7 @@ def _make_label(target, df_index):
         df_index['next_2m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
 
         """_analysis_label(
-            pd.concat([df["Liq_eff_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
+            pd.concat([df["Liq_eff_label"], df_index['next_2m_ret_sp500'], df_index['next_2m_ret_tlt'], df_index['next_2m_diff_hy']], axis=1).dropna()
         )"""
 
     return df[["Liq_eff_label"]].dropna()
@@ -425,10 +432,14 @@ def _analysis_label(df):
         print(stats)
 
         market_summary = df_term.groupby('Liq_eff_label').agg({
-            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
-            'next_2m_ret_tlt': ['mean', 'std'],
-            'next_2m_diff_hy': ['mean']
+            'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
+            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
         }).round(4)
+        market_summary.columns = [
+            "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
+            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
+            "hy_mean", "hy_std", "hy_min", "hy_max"]
         print(market_summary)
 
         #print(df[df["Liq_eff_label"]==1.0].index)
