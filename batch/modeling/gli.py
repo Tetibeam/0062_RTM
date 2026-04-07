@@ -361,6 +361,8 @@ def _featuring(df):
     df_feats["PAYEMS_qoq_DFII10"] = df_feats["PAYEMS_qoq"] * df_feats["DFII10"]
     df_feats["Financial_Stress_Index"] = df_feats["diff_SOFR_sync"]*df_feats["z52_yoy_Net_Liquidity_sync"]
 
+    return df_feats.drop(how="all")
+
 def _featuring_z_score(df, window):
 
     m = df.rolling(window=window, min_periods=max(10, window//5)).mean()
@@ -371,37 +373,7 @@ def _featuring_z_score(df, window):
     return z.clip(-5, 5)
 
 ########################################################
-# 回帰の変数
-########################################################
-
-def _make_reg_y(df_gli):
-    #print(df_gli)
-    gli_monthly = df_gli.resample('ME').first().interpolate(method='linear')
-    #print(gli_monthly)
-    y = gli_monthly.shift(-3) - gli_monthly
-    y.name = 'target_gli_change'
-    #print(y)
-    return y
-
-def _make_reg_x(factor_a, factor_b, factor_c, factor_d):
-    # GLIとのLAGからミラにずらした分を引いてGLIと合わせる
-    fa = factor_a.shift(7-3)
-    fb = factor_b.shift(14-3)
-    fc = factor_c.shift(3-3)
-    fd = factor_d.shift(38-3)
-
-    x = pd.concat([fa, fb, fc, fd], axis=1).dropna(how="all")
-
-    # インデックスを合わせる
-    start = x.apply(pd.Series.first_valid_index).max()
-    end  = x.apply(pd.Series.last_valid_index).min()
-    x = x.loc[start:end]
-    #check_nan_time(x,"1990-01-01")
-    #print(x)
-    return x
-
-########################################################
-# 学習の変数
+# 教師ラベル
 ########################################################
 
 def _make_label(target, df_index):
@@ -441,17 +413,11 @@ def _make_label(target, df_index):
         #print(df)
 
         # ダイナミック閾値
-        #q_low = df["future_change"].quantile(0.15)
-        #q_high = df["future_change"].quantile(0.85)
         df['dynamic_q_low'] = df['future_liq_eff'].rolling(window=winsow, min_periods=52).quantile(quantile_low)
         df['dynamic_q_high'] = df['future_liq_eff'].rolling(window=winsow, min_periods=52).quantile(quantile_high)
 
         # ラベル
         df["Liq_eff_label"] = 2.0
-        #df.loc[df["future_change"] <= q_low, 'Liq_eff_label'] = 1.0
-        #df.loc[df["future_change"] >= q_high, 'Liq_eff_label'] = 3.0
-        #df.loc[df["future_change"] <= df["dynamic_q_low"], 'Liq_eff_label'] = 1.0
-        #df.loc[df["future_change"] >= df["dynamic_q_high"], 'Liq_eff_label'] = 3.0
         stall_condition = (
             (df["future_liq_eff"] <= df["dynamic_q_low"])# &
             #((df['is_fear']) | (df['is_bond_stress']) | (df['net_liq_mom'] < 0))
