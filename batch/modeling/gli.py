@@ -284,7 +284,26 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 # 特徴量
 ########################################################
 def _featuring(df):
-    # 
+    df_feats = df.dropna(how="all")
+    
+    # --- 中央銀行による流動性供給（ベースマネーの増減）---
+    df_feats['Unified_Reserves'] = df_feats['RESBALNS'].fillna(df_feats['TOTRESNS']) * 1000
+    df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
+    # Net Liquidity
+    df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
+    # 吸収率 (TGA+RRPが資産に占める割合)
+    df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
+    df_feats["Abs_Rate_z52"] = _featuring_z_score(df_feats["Abs_Rate"], 52)
+    # 準備預金の占有率
+    df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
+     # 現金の漏出スピード
+    df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
+    
+    # --- グローバル・ドル調達圧力（国際流動性） ---
+    # --- 民間部門の信用創造とレバレッジ（銀行の資金仲介) ---
+    # --- 資本コストと市場のリスク許容度（リスクプレミアム） ---
+    # --- 実体経済のファンダメンタルズと制約条件 ---
+    
 
     df_a = _featuring_a(df)
     df_b = _featuring_b(df)
@@ -304,24 +323,18 @@ def _featuring_a(df):
     df_feats = df[col].dropna(how="all")
 
     #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
-    df_feats['Unified_Reserves'] = df_feats['RESBALNS'].fillna(df_feats['TOTRESNS'])
-    df_feats['Unified_Reserves'] = df_feats['Unified_Reserves'] * 1000
 
-    # リバースレポ残高（市場からFRBへの預け入れ） - 2013/8/31から本格的に運用。空白を 0 で埋める (2013年以前対策)
-    df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
 
-    # Net Liquidity
-    df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
+    
+    
 
-    # 吸収率 (TGA+RRPが資産に占める割合)
-    df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
-    df_feats["Abs_Rate_z52"] = _featuring_z_score(df_feats["Abs_Rate"], 52)
+    
 
-    # 準備預金の占有率
-    df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
 
-    # 現金の漏出スピード
-    df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
+    
+    
+
+   
 
     df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
     df_feats['UUP_diff13'] = df_feats['UUP'].diff(13)
