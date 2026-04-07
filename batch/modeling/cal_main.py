@@ -1,6 +1,6 @@
 from batch.modeling.regime import get_market_regime_model_beta
 from batch.modeling.modeling_regional_bias import get_regional_bias_model_beta
-from batch.modeling.gli import get_gli_model_beta
+from batch.modeling.gli import get_liq_index_model_beta
 from batch.modeling.dsr import get_dsr_model_beta
 from batch.modeling.get_index import get_index_by_asset_class
 from batch.modeling.driver import get_driver_beta
