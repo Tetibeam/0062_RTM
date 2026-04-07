@@ -1,5 +1,5 @@
 ########################################################
-# GLI予測モデル
+# Liquidity予測モデル
 ########################################################
 from batch.modeling.featuring import (
     get_columns_by_frequency,
@@ -128,20 +128,9 @@ def get_liq_index_model_beta(df_index):
         C=0.1, penalty="l1",class_weight="balanced",
     )"""
 
-
-def _make_target_variable(df):
-    var = df[["NFCI", "NDFACBM027SBOG"]].copy().dropna(how="all")
-    # 週次>週次（週末）
-    var["NFCI"] = var["NFCI"].resample('W-FRI').mean().dropna()
-    # 月次>月次（週末）
-    var["NDFACBM027SBOG"] = var["NDFACBM027SBOG"].resample('W-FRI').interpolate(method='linear').dropna()
-
-    var["NFCI_z52"] = _featuring_z_score(var["NFCI"], window=52)
-    var["NDFACBM027SBOG_z52"] = _featuring_z_score(var["NDFACBM027SBOG"], 52)
-    var["Liq_eff"] = var["NDFACBM027SBOG_z52"] - var["NFCI_z52"]
-    #print(var[["Liq_eff"]].dropna())
-
-    return var[["Liq_eff"]].dropna()
+########################################################
+# データ集計
+########################################################
 
 def _aggregation(df):
 
@@ -183,38 +172,19 @@ def _aggregation(df):
 
     return df_combine.dropna(how="all")
 
-def _lag_corr_check(df_a, df_b, df_c, df_d, target):
+def _make_target_variable(df):
+    var = df[["NFCI", "NDFACBM027SBOG"]].copy().dropna(how="all")
+    # 週次>週次（週末）
+    var["NFCI"] = var["NFCI"].resample('W-FRI').mean().dropna()
+    # 月次>月次（週末）
+    var["NDFACBM027SBOG"] = var["NDFACBM027SBOG"].resample('W-FRI').interpolate(method='linear').dropna()
 
-    # GLI をdiffにする
-    target_diff = target.diff(13).dropna().rename("NDFACBM027SBOG_diff")
-    #target_diff = target_diff.loc["2008-01-01":]
-    target_diff = target_diff.loc["2010-01-01":]
+    var["NFCI_z52"] = _featuring_z_score(var["NFCI"], window=52)
+    var["NDFACBM027SBOG_z52"] = _featuring_z_score(var["NDFACBM027SBOG"], 52)
+    var["Liq_eff"] = var["NDFACBM027SBOG_z52"] - var["NFCI_z52"]
+    #print(var[["Liq_eff"]].dropna())
 
-    # GLI のインデックスに合わせる
-    df_a_all = pd.concat([df_a.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-
-    """for feat  in [
-        "level_SOFR","diff13_SOFR","diff52_SOFR",
-        "z52_diff13_SOFR","z52_diff52_SOFR", "z52_SOFR",
-        "z104_SOFR", "mom4_SOFR"
-        ]:
-        _plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all[feat])"""
-
-
-    # 特徴量とGLIのラグ相関分析
-    df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_b = lag_analysis(df_b_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_c = lag_analysis(df_c_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_d = lag_analysis(df_d_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-
-    # 結果の確認・デバッグ
-    #_plot_lag_correlation(df_lag_a)
-    #_plot_lag_correlation(df_lag_b)
-    #_plot_lag_correlation(df_lag_c)
-    _plot_lag_correlation(df_lag_d)
+    return var[["Liq_eff"]].dropna()
 
 ########################################################
 # 特徴量
@@ -309,6 +279,42 @@ def _featuring_z_score(df, window):
     return z.clip(-5, 5)
 
 ########################################################
+# ラグ分析
+########################################################
+def _lag_corr_check(df_a, df_b, df_c, df_d, target):
+
+    # GLI をdiffにする
+    target_diff = target.diff(13).dropna().rename("NDFACBM027SBOG_diff")
+    #target_diff = target_diff.loc["2008-01-01":]
+    target_diff = target_diff.loc["2010-01-01":]
+
+    # GLI のインデックスに合わせる
+    df_a_all = pd.concat([df_a.reindex(target_diff.index), target_diff, target], axis=1).dropna()
+    df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff, target], axis=1).dropna()
+    df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
+    df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
+
+    """for feat  in [
+        "level_SOFR","diff13_SOFR","diff52_SOFR",
+        "z52_diff13_SOFR","z52_diff52_SOFR", "z52_SOFR",
+        "z104_SOFR", "mom4_SOFR"
+        ]:
+        _plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all[feat])"""
+
+
+    # 特徴量とGLIのラグ相関分析
+    df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
+    df_lag_b = lag_analysis(df_b_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
+    df_lag_c = lag_analysis(df_c_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
+    df_lag_d = lag_analysis(df_d_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
+
+    # 結果の確認・デバッグ
+    #_plot_lag_correlation(df_lag_a)
+    #_plot_lag_correlation(df_lag_b)
+    #_plot_lag_correlation(df_lag_c)
+    _plot_lag_correlation(df_lag_d)
+    
+########################################################
 # 教師ラベル
 ########################################################
 
@@ -383,6 +389,9 @@ def _make_label(target, df_index):
 
     return df[["Liq_eff_label"]].dropna()
 
+########################################################
+# 統計
+########################################################
 def _analysis_label(df):
     # 分析・可視化
     terms = [
@@ -431,10 +440,7 @@ def _analysis_label(df):
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)"""
-
-########################################################
-# デバッグ・統計
-########################################################
+    
 def shap_stats(df_master, features_list, df_shap):
     for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
@@ -492,6 +498,9 @@ def return_stats(df, df_oof_ev, LAG):
             "hy_mean", "hy_std", "hy_min", "hy_max"]
         print(stats)
         
+########################################################
+# デバッグ・保存
+########################################################     
 def check_nan_time(df, date:str="2006-01-01"):
     df_s = df.apply(pd.Series.first_valid_index)
     df_e = df.apply(pd.Series.last_valid_index)
