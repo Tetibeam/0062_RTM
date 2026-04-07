@@ -51,6 +51,7 @@ ticker_map = {
     "個人消費物価指数": ["PCEPI", "fred", "PCEPI"],
     "シカゴ連銀金融条件指数": ["NFCI", "fred", "NFCI"],
     "CCC格スプレッド": ["BAMLH0A3HYC", "fred", "BAMLH0A3HYC"],
+    "シカゴ連銀Risk": ["NFCIRISK", "fred", "NFCIRISK"],
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
     "NASDAQ総合指数": ["nasdaq", "yfinance", "^IXIC"],

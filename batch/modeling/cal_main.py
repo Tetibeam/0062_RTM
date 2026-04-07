@@ -1,7 +1,7 @@
 from batch.modeling.regime import get_market_regime_model_beta
 from batch.modeling.modeling_regional_bias import get_regional_bias_model_beta
 from batch.modeling.gli import get_liq_index_model_beta
-from batch.modeling.dsr import get_dsr_model_beta
+from batch.modeling.dsr import get_mgi_index_model_beta
 from batch.modeling.get_index import get_index_by_asset_class
 from batch.modeling.driver import get_driver_beta
 
@@ -59,6 +59,7 @@ regime_index_list = [
     "全世界株式",
     "シカゴ連銀金融条件指数",
     "CCC格スプレッド",
+    "シカゴ連銀Risk",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -117,7 +118,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
@@ -140,7 +141,7 @@ def cal_main():
     #df_driver_prob = get_driver_beta(df_index, df_sp500)
     #df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
     #df_bond_driver_prob = get_bond_driver_beta(df_index, df_sp500)
-    df_gli_prob = get_gli_model_beta(df_index)
+    df_gli_prob = get_liq_index_model_beta(df_index)
     #df_dsr_prob = get_dsr_model_beta(df_index)
     #df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
 

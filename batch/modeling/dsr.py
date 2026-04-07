@@ -304,7 +304,7 @@ def _make_label(target, df_index):
         # MGI
 
         df = pd.DataFrame(index=target.index)
-        df["future_MGI"] = target..diff(LAG).shift(-LAG)
+        df["future_MGI"] = target.diff(LAG).shift(-LAG)
         df = df.dropna()
         #df = df.loc["2010-01-01":]
         #print(df)
