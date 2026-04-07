@@ -291,6 +291,9 @@ def _featuring(df):
     df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
     # Net Liquidity
     df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
+    df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
+    df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
+    df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
     # 吸収率 (TGA+RRPが資産に占める割合)
     df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
     df_feats["Abs_Rate_z52"] = _featuring_z_score(df_feats["Abs_Rate"], 52)
@@ -300,8 +303,26 @@ def _featuring(df):
     df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
     
     # --- グローバル・ドル調達圧力（国際流動性） ---
+    df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
+    df_feats['UUP_diff13'] = df_feats['UUP'].diff(13)
+    df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
+    # グローバルなドル圧迫
+    df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
+    df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
+    df_feats["Dollar_Squeeze_Index"] = df_feats["DXY_qoq"] - df_feats["Net_Liquidity_z52"]
+
     # --- 民間部門の信用創造とレバレッジ（銀行の資金仲介) ---
     # --- 資本コストと市場のリスク許容度（リスクプレミアム） ---
+    df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
+    # 短期指標のスプレッド
+    df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
+    df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
+    
+    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
+
+    df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
+    df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
+    
     # --- 実体経済のファンダメンタルズと制約条件 ---
     
 
@@ -310,40 +331,17 @@ def _featuring(df):
     df_c = _featuring_c(df)
     df_d = _featuring_d(df)
     
-    df_b["Dollar_Squeeze_Index"] = df_b["DXY_qoq"] - df_a["Net_Liquidity_z52"]
+    
     df_d["PAYEMS_qoq_Abs_Rate_z52"] = df_d["PAYEMS_qoq"] * df_a["Abs_Rate_z52"]
     df_d["PAYEMS_qoq_DFII10"] = df_d["PAYEMS_qoq"] * df_d["DFII10"]
 
     return df_a, df_b, df_c, df_d
 
 def _featuring_a(df):
-    # ------Layer A: Systemic Liquidity (供給源：ダムの放水量) ------
-
-    col = ["RRPONTSYD","WALCL","RESBALNS","TOTRESNS","WDTGAL","WCURCIR","UUP", "NDFACBM027SBOG", "NFCI"]
-    df_feats = df[col].dropna(how="all")
-
-    #　銀行がFRBに持ってる準備預金 - 2020/8/31までは RESBALNS, それ以降は TOTRESNS で埋める
-
-
     
     
-
-    
-
-
-    
-    
-
-   
-
-    df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
-    df_feats['UUP_diff13'] = df_feats['UUP'].diff(13)
-    df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
-
     # 特徴量
-    df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
-    df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
-    df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
+
     df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
     df_feats["NDFACB_z52"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52)
     df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
@@ -365,27 +363,23 @@ def _featuring_b(df):
     col=["SOFR", "TB3MS", "BAMLC0A4CBBB", "BAMLC0A3CA", "TEDRATE", "VXTLT", "DX-Y.NYB", "DFF", "BAMLH0A0HYM2", "^MOVE", "BAMLH0A3HYC"]
     df_feats = df[col].dropna(how="all")
 
-    df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
+    
 
-    # 短期指標のスプレッド
-    df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
-    df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
+
 
     # 信用リスクのスプレッド
-    df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
+    
 
-    # グローバルなドル圧迫
-    df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
-    df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
+
 
     # 債券市場の恐怖
     df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
     
-    df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
+    
     
     df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
     
-    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
+    
 
     df_feats = df_feats[[
         'SOFR_TB3MS_Spread',
