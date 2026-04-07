@@ -382,7 +382,7 @@ def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04
     ), row=2, col=1)
 
     # 45%以上の「聖杯」ゾーンのみを抽出
-    df_plot['is_high_lift'] = df_plot['3:LIFT'] >= 0.45
+    df_plot['is_high_lift'] = df_plot['1:STALL'] >= 0.4
     df_plot['high_lift_grp'] = (df_plot['is_high_lift'] != df_plot['is_high_lift'].shift()).cumsum()
     
     for _, g in df_plot[df_plot['is_high_lift']].groupby('high_lift_grp'):
@@ -410,7 +410,6 @@ def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04
     # レイアウト設定
     fig.update_layout(
         template="plotly_dark", 
-        height=900, 
         margin=dict(l=50, r=20, t=60, b=50), 
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
