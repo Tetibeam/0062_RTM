@@ -99,20 +99,16 @@ def get_gli_model_beta(df_index):
     # --- 学習用マスターデータの作成
     df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":].ffill()
-    #print(df_master)
-    check_nan_time(df_master,"1990-01-01")
-
-    # --- LGBM学習（1か月予測と3か月予測でgap設定をかえる） ---
-    
     
     # --- LGBM学習 ---
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=10000,learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,#feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,
+        n_estimators=10000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,
         class_weight="balanced",extra_trees="True",
-        importance_type="gain",stopping_rounds=30,#path_smooth=1.0,#min_gain_to_split=0.1,
+        importance_type="gain",stopping_rounds=30,
+        #feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         learning_curve=True,
     )
 
@@ -254,14 +250,11 @@ def _aggregation(df):
 def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 
     # GLI をdiffにする
-    #target = target.resample('ME').interpolate(method='linear').dropna()
-    #df_gli_yoy = target.pct_change(4).dropna().rename("gli_yoy")
     target_diff = target.diff(13).dropna().rename("NDFACBM027SBOG_diff")
     #target_diff = target_diff.loc["2008-01-01":]
     target_diff = target_diff.loc["2010-01-01":]
 
     # GLI のインデックスに合わせる
-    #df_a = standard_scalar_df(df_a)
     df_a_all = pd.concat([df_a.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff, target], axis=1).dropna()
     df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
@@ -282,192 +275,16 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     df_lag_d = lag_analysis(df_d_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
 
     # 結果の確認・デバッグ
-    #check_nan_time(df_b_all,"1990-01-01")
-    #plot_index(df_a_all)
-    #print(df_lag_a.columns)
-
     #_plot_lag_correlation(df_lag_a)
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
     _plot_lag_correlation(df_lag_d)
 
-    #pd.set_option('display.max_rows', None)
-    #print(df_lag_d)
-
-def _lag_adjustment(df_a, df_b, df_c, df_d):
-
-    # Layer A
-    #print(df_a.columns)
-    df_a_ = pd.DataFrame(index=df_a.index)
-    df_a_['level_BUSLOANS_sync'] = df_a['level_BUSLOANS'].shift(0)
-    df_a_['level_CP_sync'] = df_a['level_CP'] .shift(16)
-    df_a_['level_PNFIC1_sync'] = df_a['level_PNFIC1'].shift(5)
-    df_a_['qoq_BUSLOANS_sync'] = df_a['qoq_BUSLOANS'].shift(0)
-    df_a_['qoq_CP_sync'] = df_a['qoq_CP'].shift(25)
-    df_a_['qoq_PNFIC1_sync'] = df_a['qoq_PNFIC1'].shift(32)
-    df_a_['yoy_BUSLOANS_sync'] = df_a['yoy_BUSLOANS'].shift(0)
-    df_a_['yoy_CP_sync'] = df_a['yoy_CP'].shift(61)
-    df_a_['yoy_PNFIC1_sync'] = df_a['yoy_PNFIC1'].shift(10)
-    df_a_['z52_qoq_BUSLOANS_sync'] = df_a['z52_qoq_BUSLOANS'].shift(2)
-    df_a_['z52_qoq_CP_sync'] = df_a['z52_qoq_CP'].shift(15)
-    df_a_['z52_qoq_PNFIC1_sync'] = df_a['z52_qoq_PNFIC1'].shift(39)
-    df_a_['z52_yoy_BUSLOANS_sync'] = df_a['z52_yoy_BUSLOANS'].shift(0)
-    df_a_['z52_yoy_CP_sync'] = df_a['z52_yoy_CP'].shift(69)
-    #df_a_['z52_yoy_PNFIC1_sync'].shift()
-    df_a_['z52_BUSLOANS_sync'] = df_a['z52_BUSLOANS'].shift(1)
-    df_a_['z52_CP_sync'] = df_a['z52_CP'].shift(21)
-    df_a_['z52_PNFIC1_sync'] = df_a['z52_PNFIC1'].shift(17)
-    df_a_['z104_BUSLOANS_sync'] = df_a['z104_BUSLOANS'].shift(0)
-    df_a_['z104_CP_sync'] = df_a['z104_CP'].shift(18)
-    df_a_['z104_PNFIC1_sync'] = df_a['z104_PNFIC1'].shift(10)
-    df_a_['mom4_BUSLOANS_sync'] = df_a['mom4_BUSLOANS'].shift(0)
-    df_a_['mom4_CP_sync'] = df_a['mom4_CP'].shift(26)
-    df_a_['mom4_PNFIC1_sync'] = df_a['mom4_PNFIC1'].shift(14)
-
-    # Layer B
-    #print(df_b.columns)
-    df_b_ = pd.DataFrame(index=df_b.index)
-    df_b_['level_PAYEMS_sync'] = df_b['level_PAYEMS'].shift(13)
-    df_b_['level_PCE_sync'] = df_b['level_PCE'].shift(15)
-    df_b_['qoq_PAYEMS_sync'] = df_b['qoq_PAYEMS'].shift(13)
-    df_b_['qoq_PCE_sync'] = df_b['qoq_PCE'].shift(15)
-    df_b_['yoy_PAYEMS_sync'] = df_b['yoy_PAYEMS'].shift(13)
-    df_b_['yoy_PCE_sync'] = df_b['yoy_PCE'].shift(15)
-    df_b_['z52_qoq_PAYEMS_sync'] = df_b['z52_qoq_PAYEMS'].shift(17)
-    df_b_['z52_qoq_PCE_sync'] = df_b['z52_qoq_PCE'].shift(19)
-    df_b_['z52_yoy_PAYEMS_sync'] = df_b['z52_yoy_PAYEMS'].shift(16)
-    df_b_['z52_yoy_PCE_sync'] = df_b['z52_yoy_PCE'].shift(18)
-    df_b_['z52_PAYEMS_sync'] = df_b['z52_PAYEMS'].shift(15)
-    df_b_['z52_PCE_sync'] = df_b['z52_PCE'].shift(17)
-    df_b_['z104_PAYEMS_sync'] = df_b['z104_PAYEMS'].shift(14)
-    df_b_['z104_PCE_sync'] = df_b['z104_PCE'].shift(16)
-    df_b_['mom4_PAYEMS_sync'] = df_b['mom4_PAYEMS'].shift(16)
-    df_b_['mom4_PCE_sync'] = df_b['mom4_PCE'].shift(18)
-
-    # Layer C
-    #print(df_c.columns)
-    df_c_ = pd.DataFrame(index=df_c.index)
-    df_c_['level_SOFR_sync'] = df_c["level_SOFR"].shift(2)
-    df_c_['level_DXY_sync'] = df_c["level_DXY"].shift(27)
-    df_c_['spd_SOFR_TB3MS_sync'] = df_c["spd_SOFR_TB3MS"].shift(0)
-    df_c_['spd_BBB_A_sync'] = df_c["spd_BBB_A"].shift(16)
-
-    df_c_['diff13_SOFR_sync'] = df_c["diff13_SOFR"].shift(1)
-    df_c_['qoq_DXY_sync'] = df_c["qoq_DXY"].shift(20)
-    df_c_['diff13_DXY_sync'] = df_c["diff13_DXY"].shift()
-    df_c_['diff13_spd_SOFR_TB3MS_sync'] = df_c["diff13_spd_SOFR_TB3MS"].shift(20)
-    df_c_['diff13_spd_BBB_A_sync'] = df_c["diff13_spd_BBB_A"].shift(16)
-
-    df_c_['diff52_SOFR_sync'] = df_c["diff52_SOFR"].shift(0)
-    df_c_['yoy_DXY_sync'] = df_c["yoy_DXY"].shift(20)
-    #df_c_['diff52_DXY_sync'] = df_c["diff52_DXY"].shift()
-    df_c_['diff52_spd_SOFR_TB3MS_sync'] = df_c["diff52_spd_SOFR_TB3MS"].shift(0)
-    df_c_['diff52_spd_BBB_A_sync'] = df_c["diff52_spd_BBB_A"].shift(16)
-
-    df_c_['z52_diff13_SOFR_sync'] = df_c["z52_diff13_SOFR"].shift(2)
-    df_c_['z52_qoq_DXY_sync'] = df_c["z52_qoq_DXY"].shift(20)
-    #df_c_['z52_diff13_DXY_sync'] = df_c["z52_diff13_DXY"].shift()
-    df_c_['z52_diff13_spd_SOFR_TB3MS_sync'] = df_c["z52_diff13_spd_SOFR_TB3MS"].shift(21)
-    df_c_['z52_diff13_spd_BBB_A_sync'] = df_c["z52_diff13_spd_BBB_A"].shift(18)
-
-    df_c_['z52_diff52_SOFR_sync'] = df_c["z52_diff52_SOFR"].shift(2)
-    df_c_['z52_yoy_DXY_sync'] = df_c["z52_yoy_DXY"].shift(18)
-    #df_c_['z52_diff52_DXY_sync'] = df_c["z52_diff52_DXY"].shift()
-    df_c_['z52_diff52_spd_SOFR_TB3MS_sync'] = df_c["z52_diff52_spd_SOFR_TB3MS"].shift(18)
-    df_c_['z52_diff52_spd_BBB_A_sync'] = df_c["z52_diff52_spd_BBB_A"].shift(17)
-
-    df_c_['z52_SOFR_sync'] = df_c["z52_SOFR"].shift(0)
-    df_c_['z52_DXY_sync'] = df_c["z52_DXY"].shift(20)
-    df_c_['z52_spd_SOFR_TB3MS_sync'] = df_c["z52_spd_SOFR_TB3MS"].shift(0)
-    df_c_['z52_spd_BBB_A_sync'] = df_c["z52_spd_BBB_A"].shift(18)
-
-    df_c_['z104_SOFR_sync'] = df_c["z104_SOFR"].shift(0)
-    df_c_['z104_DXY_sync'] = df_c["z104_DXY"].shift(20)
-    df_c_['z104_spd_SOFR_TB3MS_sync'] = df_c["z104_spd_SOFR_TB3MS"].shift(0)
-    df_c_['z104_spd_BBB_A_sync'] = df_c["z104_spd_BBB_A"].shift(17)
-
-    df_c_['mom4_SOFR_sync'] = df_c["mom4_SOFR"].shift(5)
-    df_c_['mom4_DXY_sync'] = df_c["mom4_DXY"].shift(0)
-    df_c_['mom4_spd_SOFR_TB3MS_sync'] = df_c["mom4_spd_SOFR_TB3MS"].shift(25)
-    df_c_['mom4_spd_BBB_A_sync'] = df_c["mom4_spd_BBB_A"].shift(19)
-
-    # Layer D
-    #print(df_d.columns)
-    df_d_ = pd.DataFrame(index=df_d.index)
-    df_d_['Net_Liquidity_sync'] = df_d["Net_Liquidity"].shift(0)
-    df_d_['Res_Ratio_sync'] = df_d["Res_Ratio"].shift(0)
-    df_d_['Abs_Rate_sync'] = df_d["Abs_Rate"].shift(4)
-
-    df_d_['qoq_Net_Liquidity_sync'] = df_d["qoq_Net_Liquidity"].shift(0)
-    df_d_['qoq_Res_Ratio_sync'] = df_d["qoq_Res_Ratio"].shift(1)
-    df_d_['qoq_Abs_Rate_sync'] = df_d["qoq_Abs_Rate"].shift(42)
-
-    df_d_['yoy_Net_Liquidity_sync'] = df_d["yoy_Net_Liquidity"].shift(0)
-    df_d_['yoy_Res_Ratio_sync'] = df_d["yoy_Res_Ratio"].shift(0)
-    df_d_['yoy_Abs_Rate_sync'] = df_d["yoy_Abs_Rate"].shift(9)
-
-    df_d_['z52_qoq_Net_Liquidity_sync'] = df_d["z52_qoq_Net_Liquidity"].shift(1)
-    df_d_['z52_qoq_Res_Ratio_sync'] = df_d["z52_qoq_Res_Ratio"].shift(4)
-    df_d_['z52_qoq_Abs_Rate_sync'] = df_d["z52_qoq_Abs_Rate"].shift(42)
-
-    df_d_['z52_yoy_Net_Liquidity_sync'] = df_d["z52_yoy_Net_Liquidity"].shift(0)
-    df_d_['z52_yoy_Res_Ratio_sync'] = df_d["z52_yoy_Res_Ratio"].shift(2)
-    df_d_['z52_yoy_Abs_Rate_sync'] = df_d["z52_yoy_Abs_Rate"].shift(40)
-
-    df_d_['z52_Net_Liquidity_sync'] = df_d["z52_Net_Liquidity"].shift(1)
-    df_d_['z52_Res_Ratio_sync'] = df_d["z52_Res_Ratio"].shift(1)
-    df_d_['z52_Abs_Rate_sync'] = df_d["z52_Abs_Rate"].shift(40)
-
-    df_d_['z104_Net_Liquidity_sync'] = df_d["z104_Net_Liquidity"].shift(0)
-    df_d_['z104_Res_Ratio_sync'] = df_d["z104_Res_Ratio"].shift(0)
-    df_d_['z104_Abs_Rate_sync'] = df_d["z104_Abs_Rate"].shift(37)
-
-    df_d_['mom4_Net_Liquidity_sync'] = df_d["mom4_Net_Liquidity"].shift(3)
-    df_d_['mom4_Res_Ratio_sync'] = df_d["mom4_Res_Ratio"].shift(5)
-    df_d_['mom4_Abs_Rate_sync'] = df_d["mom4_Abs_Rate"].shift(7)
-
-    start = df_a_.apply(pd.Series.first_valid_index).max()
-    df_a_ = df_a_[start:]
-    start = df_b_.apply(pd.Series.first_valid_index).max()
-    df_b_ = df_b_[start:]
-    start = df_c_.apply(pd.Series.first_valid_index).max()
-    df_c_ = df_c_[start:]
-    start = df_d_.apply(pd.Series.first_valid_index).max()
-    df_d_ = df_d_[start:]
-
-    #print(df_a.head(10))
-    #print(df_b.head(10))
-    #print(df_c.head(10))
-    #print(df_d.head(10))
-
-    return df_a_, df_b_, df_c_, df_d_
-
-def _check_factor(df, gli, sp500):
-    # GLIとSP500を因子のインデックスに合わせる
-    df_gli = gli.resample('ME').interpolate(method='linear').reindex(df.index, method="ffill")
-    df_gli_diff = df_gli.diff(12).dropna().rename("GLI_diff")
-
-    df_sp500 = sp500.resample('ME').mean().dropna()
-    #sp500_ret_cumsum = df_sp500.pct_change().cumsum().dropna()
-    #sp500_ret_cumsum = sp500_ret_cumsum.reindex(df.index, method="ffill").rename("sp500_ret_cumsum")
-
-    #df = df.cumsum().dropna()
-
-    plot_df = pd.concat([df, df_gli_diff], axis=1).dropna()
-    
-    # Zスコア化
-    scaled_cols = standard_scalar_df(plot_df[['Factor_Supply', 'GLI_diff']])
-    plot_df['Factor_Z'] = scaled_cols['Factor_Supply']
-    plot_df['GLI_diff_Z'] = scaled_cols['GLI_diff']
-    plot_df = plot_df.drop(columns=['Factor_Supply', 'GLI_diff'])
-
-    # グラフ描画
-    plot_index(plot_df[["Factor_Z", "GLI_diff_Z"]])
-
 ########################################################
-# 特徴量抽出
+# 特徴量
 ########################################################
 def _featuring(df):
+    # 
 
     df_a = _featuring_a(df)
     df_b = _featuring_b(df)
