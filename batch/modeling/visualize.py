@@ -342,7 +342,7 @@ def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04
     colors = {
         'STALL': 'rgba(255, 159, 10, 0.25)',  # オレンジ（還流・注意）
         'LIFT': 'rgba(10, 132, 255, 0.25)',   # ブルー（浮揚・好機）
-        'LIFT_HIGH': 'rgba(0, 255, 127, 0.6)', # ネオン・スプリンググリーン（100%勝率地帯）
+        'STALL_HIGH': 'rgba(0, 255, 127, 0.6)', # ネオン・スプリンググリーン（100%勝率地帯）
         'PROB_STALL': 'rgba(255, 159, 10, 0.8)',
         'PROB_CRUISE': 'rgba(100, 100, 100, 0.6)',
         'PROB_LIFT': 'rgba(10, 132, 255, 0.8)',
@@ -353,8 +353,8 @@ def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04
         rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.04,
         row_heights=[0.33, 0.33, 0.34],
         subplot_titles=(
-            "<b>1. GLOBAL MACRO FLOW: STALL & LIFT Overlay</b>",
-            "<b>2. THE HOLY GRAIL: High Conviction LIFT (Prob >= 45%)</b>",
+            "<b>1. Liquidity Efficiency FLOW: STALL & LIFT Overlay</b>",
+            "<b>2. THE HOLY GRAIL: High Conviction STALL (Prob >= 40%)</b>",
             "<b>3. PROBABILITY COMPOSITION: Regime Transitions</b>"
         )
     )
@@ -388,7 +388,7 @@ def plot_gli_diagnostic_report(df_bt, start_date="2020-01-01", end_date="2026-04
     for _, g in df_plot[df_plot['is_high_lift']].groupby('high_lift_grp'):
         fig.add_vrect(
             x0=g.index[0], x1=g.index[-1], 
-            fillcolor=colors['LIFT_HIGH'], 
+            fillcolor=colors['STALL_HIGH'], 
             line_width=1, line_color='rgba(255,255,255,0.3)', 
             layer="below", row=2, col=1
         )

@@ -128,7 +128,7 @@ def get_liq_index_model_beta(df_index):
     return_stats(df_agg, df_oof_ev, 8)
 
     # --- 保存 ---
-    save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
+    #save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
 
     # --- ロジスティック回帰 ---
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
@@ -345,6 +345,7 @@ def _make_label(target, df_index):
     quantile_low=0.125
     quantile_high=0.875
     winsow=156
+    #plot_index(target.to_frame())
 
     for LAG in [8]:
         print(f"---------------- LAG:{LAG} ----------------")
