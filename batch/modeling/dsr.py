@@ -32,7 +32,8 @@ mgi_index = [
     "TDSP",
     "CP",
     "BAA",
-    "dsr"
+    "dsr",
+    "T10YIE"
     ]
 
 ########################################################
@@ -49,7 +50,7 @@ def get_mgi_index_model_beta(df_index):
     df_agg = _aggregation(df)
 
     # --- 教師ラベルの生成 ---
-    df_label = _make_label(df_target_var["MGI"], df_agg)
+    df_label = _make_label(df_target_var[["MGI"]], df_agg)
 
     # --- 特徴量を作る ---
     #df_features =  _featuring(df_agg)
@@ -60,7 +61,7 @@ def get_mgi_index_model_beta(df_index):
     # --- 特徴量の選択 ---
     #df_features = df_features[[       
     #]]
-    print(f"特徴量のリスト: {df_features.columns}")
+    #print(f"特徴量のリスト: {df_features.columns}")
 
     # --- 学習用マスターデータの作成
     #df_master = df_label.join(df_features, how='left')
@@ -104,7 +105,7 @@ def _aggregation(df):
     df_weekly = df[get_columns_by_frequency(df, target="weekly")]
     df_monthly = df[get_columns_by_frequency(df, target="monthly")]
     df_quarterly = df[get_columns_by_frequency(df, target="quarterly")]
-    #print(df_daily.columns,df_weekly.columns,df_monthly.columns,df_quarterly.columns)
+    print(df_daily.columns,df_weekly.columns,df_monthly.columns,df_quarterly.columns)
     #check_nan_time(df_quarterly,"1990-01-01")
     #pd.set_option("display.max_rows", None)
     #print(df_monthly.tail(10))
@@ -140,23 +141,26 @@ def _aggregation(df):
 
 def _make_target_variable(df):
     # スプレッド
-    df_target= df[["TDSP", "CP", "BAA", "dsr"]].copy()
+    df_target= df[["TDSP", "CP", "BAA", "dsr", "T10YIE"]].copy()
+    df_daily = df_target[get_columns_by_frequency(df_target, target="daily")]
     df_monthly = df_target[get_columns_by_frequency(df_target, target="monthly")]
     df_quarterly = df_target[get_columns_by_frequency(df_target, target="quarterly")]
     #print(df_monthly.columns,df_quarterly.columns)
     #check_nan_time(df_quarterly,"1990-01-01")
 
+    df_daily_w = df_daily.resample('W-FRI').mean().dropna(how="all")
     df_monthly_w = df_monthly.dropna(how="all").resample('W-FRI').interpolate(method='linear').dropna(how="all")
     q_w = df_quarterly.dropna(how="all")
     q_w.index = q_w.index + pd.offsets.MonthEnd(-1)
     df_quarterly_w = q_w.resample('W-FRI').interpolate(method='linear')
     df_quarterly_w = df_quarterly_w.dropna(how="all")
 
-    df_monthly_w["Corp_Stress"] = df_monthly_w["BAA"] / df_quarterly_w["CP"]
+    df_monthly_w["Corp_Stress"] = df_monthly_w["BAA"]# / df_quarterly_w["CP"]
     df_monthly_w["Corp_Stress_z52"] = _featuring_z_score(df_monthly_w["Corp_Stress"], 52)
     df_monthly_w["TDSP_z52"] = _featuring_z_score(df_quarterly_w["TDSP"], 52)
-    df_monthly_w["MGI"] = df_monthly_w["Corp_Stress_z52"]*0.6 + df_monthly_w["TDSP_z52"]*0.4
-
+    df_monthly_w["T10YIE_z52"] = _featuring_z_score(df_daily_w["T10YIE"], 52)
+    #df_monthly_w["MGI"] = df_monthly_w["Corp_Stress_z52"]*0.6 + df_monthly_w["TDSP_z52"]*0.4
+    df_monthly_w["MGI"] = df_monthly_w["TDSP_z52"]*0.5 - df_monthly_w["T10YIE_z52"]*0.5 + df_monthly_w["Corp_Stress_z52"]*0.5
     #_plot_graphs(df_monthly_w["MGI"], df_quarterly_w["dsr"])
 
     return df_monthly_w[['MGI']].dropna()
@@ -295,16 +299,17 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
 
 def _make_label(target, df_index):
     #LAG=8
-    quantile_low=0.15
+    quantile_low=0.2
     quantile_high=0.85
     window=156
-    
+
     for LAG in [8]:
         print(f"---------------- LAG:{LAG} ----------------")
         # MGI
-
         df = pd.DataFrame(index=target.index)
-        df["future_MGI"] = target.diff(LAG).shift(-LAG)
+        #df["future_MGI"] = target.diff(LAG).shift(-LAG)
+        df["future_MGI"] = target.shift(-LAG)
+        #df["future_MGI"] = target.rolling(window=4).mean().shift(-LAG)
         df = df.dropna()
         #df = df.loc["2010-01-01":]
         #print(df)
@@ -315,14 +320,14 @@ def _make_label(target, df_index):
 
         # ラベル
         df["MGI_label"] = 2.0
-        stall_condition = (
-            (df["future_MGI"] <= df["dynamic_q_low"])
-        )
-        df.loc[stall_condition, "MGI_label"] = 1.0
-        lift_condition = (
+        heavy_condition = (
             (df["future_MGI"] >= df["dynamic_q_high"])
         )
-        df.loc[lift_condition, "MGI_label"] = 3.0
+        df.loc[heavy_condition, "MGI_label"] = 1.0
+        light_condition = (
+            (df["future_MGI"] <= df["dynamic_q_low"])
+        )
+        df.loc[light_condition, "MGI_label"] = 3.0
 
         #print(df["MGI_label"])
 
@@ -330,9 +335,9 @@ def _make_label(target, df_index):
         df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
         df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
 
-        """_analysis_label(
+        _analysis_label(
             pd.concat([df["MGI_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-        )"""
+        )
 
     return df[["MGI_label"]].dropna()
 
@@ -342,14 +347,10 @@ def _make_label(target, df_index):
 def _analysis_label(df):
     # 分析・可視化
     terms = [
-        #("2021-01-01", "2026-01-01"),
-        #("2010-01-01", "2021-01-01"),
-        #("2004-01-01", "2026-01-01"),
-        ("2007-01-01", "2009-01-01"),
-        ("2009-01-01", "2013-01-01"),
-        ("2013-01-01", "2016-01-01"),
-        ("2016-01-01", "2019-01-01"),
-        ("2019-01-01", "2021-01-01"),
+        ("2012-01-01", "2026-01-01"),
+        ("2012-01-01", "2015-01-01"),
+        ("2015-01-01", "2018-01-01"),
+        ("2018-01-01", "2021-01-01"),
         ("2021-01-01", "2024-01-01"),
         ("2024-01-01", "2026-01-01"),
         ]
@@ -361,9 +362,9 @@ def _analysis_label(df):
         print(stats)
 
         market_summary = df_term.groupby('MGI_label').agg({
-            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count"],
-            'next_3m_ret_tlt': ['mean', 'std'],
-            'next_3m_diff_hy': ['mean']
+            'next_3m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
+            'next_3m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            'next_3m_diff_hy': ['mean', 'std', 'min', 'max']
         }).round(4)
         print(market_summary)
 
