@@ -464,7 +464,7 @@ def learning_lgbm_test_gli(
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
-            #feature_fraction=feature_fraction,
+            feature_fraction=feature_fraction,
             #bagging_fraction=bagging_fraction,
             #bagging_freq=bagging_freq,
             importance_type=importance_type,

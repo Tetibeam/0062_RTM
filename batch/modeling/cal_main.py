@@ -63,6 +63,7 @@ regime_index_list = [
     "シカゴ連銀金融条件指数",
     "CCC格スプレッド",
     "シカゴ連銀Risk",
+    "市場全体のストレス",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -121,7 +122,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_1:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_3:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
@@ -144,8 +145,8 @@ def cal_main():
     #df_driver_prob = get_driver_beta(df_index, df_sp500)
     #df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
     #df_bond_driver_prob = get_bond_driver_beta(df_index, df_sp500)
-    #df_gli_prob = get_liq_index_model_beta(df_index)
-    df_dsr_prob = get_mgi_index_model_beta(df_index)
+    df_gli_prob = get_liq_index_model_beta(df_index)
+    #df_dsr_prob = get_mgi_index_model_beta(df_index)
     #df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
 
     #df_regional_pred = get_regional_bias_model_beta(df_index, regime_clf, df_regime_features, df_nikkei, df_sp500)

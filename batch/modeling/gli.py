@@ -59,7 +59,8 @@ liq_index = [
     "VIXCLS",
     "^MOVE",
     "BAMLH0A3HYC",
-    "NFCIRISK"
+    "NFCIRISK",
+    "STLFSI4"
     ]
 
 ########################################################
@@ -86,21 +87,28 @@ def get_liq_index_model_beta(df_index):
 
     # --- 特徴量の選択 ---
     df_features = df_features[[
-        "Abs_Rate_z52",
+        #"Abs_Rate_z52",
         'Net_Liquidity_z52',
         "Dollar_Squeeze_Index",
         'Burden_Ratio_z52',
         "PAYEMS_qoq_Abs_Rate_z52",
-        "Liquidity_Divergence",
+        #"Liquidity_Divergence",
         "MOVE_z52",
         #"VXTLT_z52",
-        "NDFACB_z52",
-        #"VIX_z52",
+        #"NDFACB_z52",
+        "VIX_z52",
         #"VVIX_z52",
         #"NFCI_diff4_z52",
-        #"CCC_Spread_diff4",
+        "CCC_Spread_diff4",
         #"NFCIRISK_diff13_z52",
-        #"HY_diff8_z52"
+        #"HY_diff8_z52",
+        #"HY_z52",
+        #"Bank_Dependency_z52",
+        #"TED_Z52",
+        "DXY_z52",
+        #"DXY_diff13_z52",
+        "STLFSI4_z52"
+        
 
     ]]
     print(f"特徴量のリスト: {df_features.columns}")
@@ -113,16 +121,16 @@ def get_liq_index_model_beta(df_index):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=12000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=100,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=6,
+        n_estimators=12000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=5,
         class_weight="balanced",extra_trees="True",
-        importance_type="gain",stopping_rounds=30,
-        #feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
+        importance_type="gain",stopping_rounds=100,
+        feature_fraction=0.5,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         learning_curve=True,
     )
 
     # --- シャップ統計 ---
-    shap_stats(df_master, df_features.columns, df_shap)
+    #shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
     return_stats(df_agg, df_oof_ev, 8)
@@ -228,7 +236,8 @@ def _featuring(df):
     df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
     # グローバルなドル圧迫
     df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
-    df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
+    df_feats['DXY_diff13_z52'] = _featuring_z_score(df_feats['DXY_qoq'].diff(13),52)
+    df_feats['DXY_z52'] =  _featuring_z_score(df_feats['DX-Y.NYB'], 52)
     df_feats["Dollar_Squeeze_Index"] = df_feats["DXY_qoq"] - df_feats["Net_Liquidity_z52"]
 
     df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
@@ -241,6 +250,8 @@ def _featuring(df):
     # 銀行依存度指標 (Loan / CP 比率)
     df_feats['Bank_Dependency'] = df_feats['BUSLOANS'] / df_feats['NFINCP']
     df_feats['Bank_Dependency_z52'] = _featuring_z_score(df_feats['Bank_Dependency'], 52)
+    
+    df_feats["STLFSI4_z52"] = _featuring_z_score(df_feats["STLFSI4"], 52)
 
     # --- 資本コストと市場のリスク許容度（リスクプレミアム） ---
     df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
@@ -251,6 +262,7 @@ def _featuring(df):
 
     # 信用スプレッド
     df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
+    df_feats["HY_z52"] = _featuring_z_score(df_feats['BAMLH0A0HYM2'], 52)
     df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
     df_feats['HY_diff8_z52'] = _featuring_z_score(df_feats['BAMLH0A0HYM2'].diff(8), 52)
     df_feats["CCC_Spread_diff4"] = df_feats['BAMLH0A3HYC'].diff(4)
@@ -270,6 +282,7 @@ def _featuring(df):
 
     # インフレの勢い、雇用の勢い
     df_feats['PCEPI_yoy'] = df_feats['PCEPI'].pct_change(52) # 前年比
+    
     df_feats['PAYEMS_qoq'] = df_feats['PAYEMS'].pct_change(13)     # 直近の加速
     df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean() 
 

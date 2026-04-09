@@ -56,6 +56,7 @@ ticker_map = {
     "シカゴ連銀金融条件指数": ["NFCI", "fred", "NFCI"],
     "CCC格スプレッド": ["BAMLH0A3HYC", "fred", "BAMLH0A3HYC"],
     "シカゴ連銀Risk": ["NFCIRISK", "fred", "NFCIRISK"],
+    "市場全体のストレス": ["STLFSI4", "fred", "STLFSI4"],
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
     "NASDAQ総合指数": ["nasdaq", "yfinance", "^IXIC"],
