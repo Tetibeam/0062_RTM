@@ -27,6 +27,10 @@ ticker_map = {
     "個人貯蓄率": ["PSAVERT", "fred", "PSAVERT"],
     "非農業ビジネス部門の実質時間当たり報酬": ["COMPRNFB", "fred", "COMPRNFB"],
     "家計の利払い・元本返済負担": ["TDSP", "fred", "TDSP"],
+    "10年-3ヶ月スプレッド": ["T10Y3M", "fred", "T10Y3M"],
+    "WTI原油価格": ["DCOILWTICO", "fred", "DCOILWTICO"],
+    "ミシガン大消費者信頼感": ["UMCSENT", "fred", "UMCSENT"],
+
 
     "グローバル流動性": ["gli", "bis_quarterly", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_GLI/1.0/Q.USD.3P.N.A.I.B.771?startPeriod=2010-01-01&format=csv"],
     "家計・非営利団体の住宅ローン残高": ["hhmsdodns", "fred", "HHMSDODNS"],

@@ -33,7 +33,18 @@ mgi_index = [
     "CP",
     "BAA",
     "dsr",
-    "T10YIE"
+    "T10YIE",
+    "MORTGAGE30US",
+    "TERMCBCCALLNS",
+    "VIXCLS",
+    "^MOVE",
+    "T10Y2Y",
+    "T10Y3M",
+    "DCOILWTICO",
+    "DX-Y.NYB",
+    "NFCI",
+    "UMCSENT",
+    "DFII10"
     ]
 
 ########################################################
@@ -53,23 +64,24 @@ def get_mgi_index_model_beta(df_index):
     df_label = _make_label(df_target_var[["MGI"]], df_agg)
 
     # --- 特徴量を作る ---
-    #df_features =  _featuring(df_agg)
+    df_features =  _featuring(df_agg)
 
     # --- 特徴量と目的変数のラグ相関分析 ---
     #_lag_corr_check(df_features, df_target_var)
 
     # --- 特徴量の選択 ---
-    #df_features = df_features[[       
+    #df_features = df_features[[
     #]]
-    #print(f"特徴量のリスト: {df_features.columns}")
+    print(f"特徴量のリスト: {df_features.columns}")
 
     # --- 学習用マスターデータの作成
-    #df_master = df_label.join(df_features, how='left')
+    df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":].ffill()
-    
+    check_nan_time(df_master,"1990-01-01")
+
     # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
-        df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+        df_master, target_col="MGI_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
         n_estimators=10000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
         reg_alpha=0.5, reg_lambda=0.5, max_depth=4,
@@ -77,14 +89,14 @@ def get_mgi_index_model_beta(df_index):
         importance_type="gain",stopping_rounds=30,
         #feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
+    )
 
     # --- シャップ統計 ---
-    #shap_stats(df_master, df_features.cloumns, df_shap)
-    
+    shap_stats(df_master, df_features.columns, df_shap)
+
     # --- リターン統計 ---
-    #return_stats(df_agg, df_oof_ev, LAG):
-    
+    return_stats(df_agg, df_oof_ev, 8)
+
     # --- 保存 ---
     #save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
 
@@ -169,84 +181,44 @@ def _make_target_variable(df):
 # 特徴量
 ########################################################
 def _featuring(df):
-    df_feats = df.dropna(how="all")
-    
-    # --- 中央銀行による流動性供給（ベースマネーの増減）---
-    df_feats['Unified_Reserves'] = df_feats['RESBALNS'].fillna(df_feats['TOTRESNS']) * 1000
-    df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
-    # Net Liquidity
-    df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
-    df_feats['Net_Liquidity_qoq'] = df_feats['Net_Liquidity'].pct_change(13)
-    df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
-    df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
-    # 吸収率 (TGA+RRPが資産に占める割合)
-    df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
-    df_feats["Abs_Rate_z52"] = _featuring_z_score(df_feats["Abs_Rate"], 52)
-    # 準備預金の占有率
-    df_feats['Res_Ratio'] = df_feats['Unified_Reserves'] / df_feats['WALCL']
-     # 現金の漏出スピード
-    df_feats['WCUR_Ratio'] = df_feats['WCURCIR'] / df_feats['WALCL']
-    df_feats['WCUR_qoq'] = df_feats['WCURCIR'].pct_change(13)
-    
-    # --- グローバル・ドル調達圧力（国際流動性） ---
-    df_feats['UUP_qoq'] = df_feats['UUP'].pct_change(13)
-    df_feats['UUP_diff13'] = df_feats['UUP'].diff(13)
-    df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
-    # グローバルなドル圧迫
-    df_feats['DXY_qoq'] = df_feats['DX-Y.NYB'].pct_change(13)
-    df_feats['DXY_qoq_diff4'] = df_feats['DXY_qoq'].diff(4)
-    df_feats["Dollar_Squeeze_Index"] = df_feats["DXY_qoq"] - df_feats["Net_Liquidity_z52"]
-    
-    df_feats["NDFACB_z52_diff4"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52).diff(4)
-    df_feats["NDFACB_z52"] = _featuring_z_score(df_feats['NDFACBM027SBOG'], 52)
+    df_feats = pd.DataFrame(index=df.index)
 
-    # --- 民間部門の信用創造とレバレッジ（銀行の資金仲介) ---
-    df_feats['Loan_qoq'] = df_feats['BUSLOANS'].pct_change(13)
-    df_feats['NFINCP_qoq'] = df_feats['NFINCP'].pct_change(13)
-    # 銀行依存度指標 (Loan / CP 比率)
-    df_feats['Bank_Dependency'] = df_feats['BUSLOANS'] / df_feats['NFINCP']
-    
-    # --- 資本コストと市場のリスク許容度（リスクプレミアム） ---
-    df_feats["SOFR"] = df_feats["SOFR"].fillna(df_feats["DFF"])
-    
-    # 短期指標のスプレッド
-    df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
-    df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
-    
-    # 信用スプレッド
-    df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
-    df_feats['HY_diff13'] = df_feats['BAMLH0A0HYM2'].diff(13)
-    df_feats["CCC_Spread_diff13"] = df_feats['BAMLH0A3HYC'].diff(13)
+    # --- 消費者・家計の「予兆」セクター---
+    # 住宅ローン30年固定
+    df_feats['MORTGAGE30US_z52'] = _featuring_z_score(df['MORTGAGE30US'], 52)
+    # クレジットカード金利
+    df_feats['TERMCBCCALLNS_z52'] = _featuring_z_score(df['TERMCBCCALLNS'], 52)
 
-    # 債券市場のボラ
-    df_feats['MOVE_z52'] = _featuring_z_score(df_feats['^MOVE'], 52)
-    df_feats['VXTLT_z52'] = _featuring_z_score(df_feats['VXTLT'], 52)
-    
-    # --- 実体経済のファンダメンタルズと制約条件 ---
-    # 実質金利のレベル感
-    df_feats['DFII10'] = df_feats['DFII10']
-    df_feats['DFII10_diff4'] = df_feats['DFII10'].diff(4)
+    # --- クレジット・企業の「予兆」セクター ---
+    # ハイイールド債スプレッド
+    df_feats['BAMLH0A0HYM2_z52'] = _featuring_z_score(df['BAMLH0A0HYM2'], 52)
+    # VIX指数
+    df_feats['VIXCLS_z52'] = _featuring_z_score(df['VIXCLS'], 52)
+    # 債券ボラティリティ
+    df_feats['MOVE_z52'] = _featuring_z_score(df['^MOVE'], 52)
 
-    # インフレの勢い、雇用の勢い
-    df_feats['PCEPI_yoy'] = df_feats['PCEPI'].pct_change(52) # 前年比
-    df_feats['PAYEMS_qoq'] = df_feats['PAYEMS'].pct_change(13)     # 直近の加速
-    df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean() 
+    # --- マクロ構造・イールドカーブ ---
+    # 10年-2年スプレッド
+    df_feats['T10Y2Y_z52'] = _featuring_z_score(df['T10Y2Y'], 52)
+    # 10年-3ヶ月スプレッド
+    df_feats['T10Y3M_z52'] = _featuring_z_score(df['T10Y3M'], 52)
+    # 10年実質金利
+    df_feats['DFII10_z52'] = _featuring_z_score(df['DFII10'], 52)
 
-    # 利払い負担率
-    df_feats['Burden_Ratio'] = (df_feats['B069RC1'] / df_feats['DSPI']) * 100
-    df_feats["Burden_Ratio_z52"] = _featuring_z_score(df_feats['Burden_Ratio'], 52)
-    df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
-    df_feats['Burden_qoq'] = df_feats['Burden_Ratio'].pct_change(13)
+    # --- インフレ・コモディティ ---
+    # 10年-2年スプレッド
+    df_feats['DCOILWTICO_z52'] = _featuring_z_score(df['DCOILWTICO'], 52)
+    # ドルインデックス
+    df_feats['DXY_z52'] = _featuring_z_score(df['DX-Y.NYB'], 52)
 
-    df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
-    df_feats["Liquidity_Divergence"] = df_feats["NDFACB_z52"] - df_feats["NFCI_z52"]
+    # --- 金融条件・センチメント ---
+    # 10年-2年スプレッド
+    df_feats['NFCI_z52'] = _featuring_z_score(df['NFCI'], 52)
+    # ドルインデックス
+    df_feats['UMCSENT_z52'] = _featuring_z_score(df['UMCSENT'], 52)
 
-    # --- 交錯 ---
-    df_feats["PAYEMS_qoq_Abs_Rate_z52"] = df_feats["PAYEMS_qoq"] * df_feats["Abs_Rate_z52"]
-    df_feats["PAYEMS_qoq_DFII10"] = df_feats["PAYEMS_qoq"] * df_feats["DFII10"]
-    df_feats["Financial_Stress_Index"] = df_feats["diff_SOFR_sync"]*df_feats["z52_yoy_Net_Liquidity_sync"]
 
-    return df_feats.drop(how="all")
+    return df_feats.dropna(how="all")
 
 def _featuring_z_score(df, window):
 
@@ -292,7 +264,7 @@ def _lag_corr_check(df_a, df_b, df_c, df_d, target):
     #_plot_lag_correlation(df_lag_b)
     #_plot_lag_correlation(df_lag_c)
     _plot_lag_correlation(df_lag_d)
-    
+
 ########################################################
 # 教師ラベル
 ########################################################
@@ -335,9 +307,9 @@ def _make_label(target, df_index):
         df_index['next_3m_ret_tlt'] = df_index["TLT"].dropna().pct_change(LAG).shift(-LAG).dropna()
         df_index['next_3m_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LAG).shift(-LAG).dropna()
 
-        _analysis_label(
+        """_analysis_label(
             pd.concat([df["MGI_label"], df_index['next_3m_ret_sp500'], df_index['next_3m_ret_tlt'], df_index['next_3m_diff_hy']], axis=1).dropna()
-        )
+        )"""
 
     return df[["MGI_label"]].dropna()
 
@@ -388,15 +360,15 @@ def _analysis_label(df):
 
     print("遷移マトリクス（行：現在 -> 列：次）:")
     print(transition_matrix)"""
-    
+
 def shap_stats(df_master, features_list, df_shap):
     for label, shap_df in df_shap.items():
         print(f"\n=== レジーム: {label} の符号検証 ===")
         # 検証データ期間の元の特徴量を取得
-        original_X = df_master.loc[shap_df.index, df_features.columns]
+        original_X = df_master.loc[shap_df.index, features_list]
 
         logic_results = []
-        for col in df_features.columns:
+        for col in features_list:
             # 元の値とSHAP値の相関を計算
             correlation = original_X[col].corr(shap_df[col])
 
@@ -409,7 +381,7 @@ def shap_stats(df_master, features_list, df_shap):
             })
 
         print(pd.DataFrame(logic_results))
-        
+
 def return_stats(df, df_oof_ev, LAG):
     assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
     assets['next_2m_ret_sp500'] = assets["^GSPC"].pct_change(8).shift(-LAG)
@@ -425,12 +397,12 @@ def return_stats(df, df_oof_ev, LAG):
 
     print("=== リターン統計  ===")
     terms = [
-        ("2012-01-01","2026-01-01"),
-        ("2021-01-01","2024-01-01"),
-        ("2024-01-01","2026-01-01"),
-        #("2018-01-01","2021-01-01"),
-        #("2021-01-01","2024-01-01"),
-        #("2024-01-01","2026-01-01")
+        ("2012-01-01", "2026-01-01"),
+        ("2012-01-01", "2015-01-01"),
+        ("2015-01-01", "2018-01-01"),
+        ("2018-01-01", "2021-01-01"),
+        ("2021-01-01", "2024-01-01"),
+        ("2024-01-01", "2026-01-01"),
     ]
     for start,end in terms:
         print(f"\n--- 期間: {start} 〜 {end} ---")
@@ -445,10 +417,10 @@ def return_stats(df, df_oof_ev, LAG):
             "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
             "hy_mean", "hy_std", "hy_min", "hy_max"]
         print(stats)
-        
+
 ########################################################
 # デバッグ・保存
-########################################################     
+########################################################
 def check_nan_time(df, date:str="2006-01-01"):
     df_s = df.apply(pd.Series.first_valid_index)
     df_e = df.apply(pd.Series.last_valid_index)
