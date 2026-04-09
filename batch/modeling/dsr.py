@@ -70,21 +70,33 @@ def get_mgi_index_model_beta(df_index):
     #_lag_corr_check(df_features, df_target_var)
 
     # --- 特徴量の選択 ---
-    #df_features = df_features[[
-    #]]
+    df_features = df_features[[
+        'MORTGAGE30US_z52',
+        'TERMCBCCALLNS_z52',
+        'BAMLH0A0HYM2_z52',
+        'VIXCLS_z52',
+        'MOVE_z52',
+        'T10Y2Y_z52',
+        'T10Y3M_z52',
+        'DFII10_z52',
+        'DCOILWTICO_z52',
+        'DXY_z52',
+        'NFCI_z52',
+        'UMCSENT_z52'
+        ]]
     print(f"特徴量のリスト: {df_features.columns}")
 
     # --- 学習用マスターデータの作成
     df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":].ffill()
-    check_nan_time(df_master,"1990-01-01")
+    #check_nan_time(df_master,"1990-01-01")
 
     # --- LGBM学習 ---
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="MGI_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=10000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,
+        n_estimators=10000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=45,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=5,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=30,
         #feature_fraction=0.6,bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
