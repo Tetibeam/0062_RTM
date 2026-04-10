@@ -477,9 +477,9 @@ def learning_lgbm_test_gli(
 
         # 学習
 
-        fold3_start = pd.to_datetime('2021-01-01')
+        wait_start = pd.to_datetime('2019-01-18')
         weights = pd.Series(1.0, index=X_train.index)
-        weights.loc[X_train.index >= fold3_start] = 2.0
+        weights.loc[X_train.index >= wait_start] = 3.0
         clf.fit(
             X_train, y_train,
             eval_set=[(X_train, y_train), (X_test, y_test)],
