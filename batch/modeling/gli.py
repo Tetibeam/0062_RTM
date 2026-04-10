@@ -61,7 +61,9 @@ liq_index = [
     "BAMLH0A3HYC",
     "NFCIRISK",
     "STLFSI4",
-    "CPN3M"
+    "CPN3M",
+    "T10YIE",
+    "T10Y2Y",
     ]
 
 ########################################################
@@ -89,22 +91,23 @@ def get_liq_index_model_beta(df_index):
     # --- 特徴量の選択 ---
     df_features = df_features[[
         # 流動性供給
-        'Net_Liquidity_z52',
-        "Net_Liquidity_roc4",
-        #"Net_Liquidity_roc13",
+        #'Net_Liquidity_z52',
+        #"Net_Liquidity_roc4",
+        "Net_Liquidity_roc13",
         #"WCUR_Ratio",
         #"Res_Ratio",
-        "Abs_Rate_z52",
+        #"Abs_Rate_z52",
 
         # ドル圧迫
-        "UUP_z52",
-        "UUP_diff4",
+        #"UUP_z52",
+        #"UUP_diff4",
         #"UUP_diff13",
-        #"DXY_z52",
-        "Dollar_Squeeze_Index",
+        "DXY_z52",
+        "DXY_diff13_z52",
+        #"Dollar_Squeeze_Index",
 
         # ボラ
-        #"MOVE_z52",
+        "MOVE_z52",
         #"VXTLT_z52",
         #"VIX_z52",
         #"VVIX_z52",
@@ -118,18 +121,20 @@ def get_liq_index_model_beta(df_index):
         #"CPN3M_TB3MS_Spread_z52",
 
         # 信用スプレッド
-        #"HY_z52",
+        "HY_z52",
         #"HY_diff13",
         #"spd_BBB_A",
         #"CCC_Spread_diff4",
 
         #金利
-        #"DFII10_z52",
+        "DFII10_z52",
         #"DFII10_diff13",
-        "PAYEMS_qoq_DFII10",
+        #"PAYEMS_qoq_DFII10",
 
         #インフレ
-        "PAYEMS_z52",
+        #"PAYEMS_z52",
+        "T10YIE_z52",
+        "T10Y2Y_z52",
 
         #"PAYEMS_qoq_Abs_Rate_z52",
         #"SOFR",
@@ -148,7 +153,7 @@ def get_liq_index_model_beta(df_index):
     #df_master = df_master.loc["2010-01-01":].ffill()
 
     # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
         n_estimators=12000, learning_rate=0.005, num_leaves=48, min_data_in_leaf=35,
@@ -157,13 +162,13 @@ def get_liq_index_model_beta(df_index):
         importance_type="gain",stopping_rounds=100,
         feature_fraction=0.5,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         learning_curve=True,
-    )"""
+    )
 
     # --- シャップ統計 ---
     #shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
-    #return_stats(df_agg, df_oof_ev, 8)
+    return_stats(df_agg, df_oof_ev, 8)
 
     # --- 保存 ---
     #save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
@@ -310,6 +315,9 @@ def _featuring(df):
     ret = np.log(df_feats['VIXCLS']).diff()
     df_feats["VVIX_z52"] = _featuring_z_score(ret.rolling(21).std() * np.sqrt(252), 52)
     df_feats["VIX_z52-MOVE_z52"] = df_feats["VIX_z52"] - df_feats["MOVE_z52"]
+    
+    df_feats["T10YIE_z52"] = _featuring_z_score(df_feats["T10YIE"], 52)
+    df_feats["T10Y2Y_z52"] = _featuring_z_score(df_feats["T10Y2Y"], 52)
 
     # --- 実体経済のファンダメンタルズと制約条件 ---
     # 実質金利のレベル感
