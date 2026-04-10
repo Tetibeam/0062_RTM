@@ -87,29 +87,27 @@ def get_liq_index_model_beta(df_index):
 
     # --- 特徴量の選択 ---
     df_features = df_features[[
-        #"Abs_Rate_z52",
         'Net_Liquidity_z52',
+        "UUP_z52",
+        #"DXY_z52",
         "Dollar_Squeeze_Index",
-        'Burden_Ratio_z52',
-        "PAYEMS_qoq_Abs_Rate_z52",
-        #"Liquidity_Divergence",
-        "MOVE_z52",
-        #"VXTLT_z52",
-        #"NDFACB_z52",
-        "VIX_z52",
-        #"VVIX_z52",
-        #"NFCI_diff4_z52",
-        "CCC_Spread_diff4",
-        #"NFCIRISK_diff13_z52",
-        #"HY_diff8_z52",
+        "STLFSI4_z52",
         #"HY_z52",
-        #"Bank_Dependency_z52",
-        #"TED_Z52",
-        "DXY_z52",
-        #"DXY_diff13_z52",
-        "STLFSI4_z52"
+        #"HY_diff13",
+        "MOVE_z52",
+        "VXTLT_z52",
+        "VIX_z52",
+        "VVIX_z52",
+        "VIX_z52-MOVE_z52",
+        #"Abs_Rate_z52",
+        "PAYEMS_qoq_Abs_Rate_z52",
+        "PAYEMS_qoq_DFII10",
+        "NFCIRISK_diff13_z52",
+        "NFCIRISK_z52",
+        "Burden_Ratio_z52",
+        #"SOFR_TB3MS_Spread",
+        "TED_Z52"
         
-
     ]]
     print(f"特徴量のリスト: {df_features.columns}")
 
@@ -122,7 +120,7 @@ def get_liq_index_model_beta(df_index):
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
         n_estimators=12000, learning_rate=0.001, num_leaves=31, min_data_in_leaf=35,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=5,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=6,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=100,
         feature_fraction=0.5,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
@@ -151,40 +149,29 @@ def get_liq_index_model_beta(df_index):
 
 def _aggregation(df):
 
-    df_daily = df[get_columns_by_frequency(df, target="daily")]
-    df_weekly = df[get_columns_by_frequency(df, target="weekly")]
-    df_monthly = df[get_columns_by_frequency(df, target="monthly")]
+    df_daily = df[get_columns_by_frequency(df, target="daily")] # 2日発表タグあり
+    df_weekly = df[get_columns_by_frequency(df, target="weekly")]   # 7日発表ラグあり
+    df_monthly = df[get_columns_by_frequency(df, target="monthly")] # 1か月発表ラグあり
     df_quarterly = df[get_columns_by_frequency(df, target="quarterly")]
-    #print(df_daily.columns,df_weekly.columns,df_monthly.columns,df_quarterly.columns)
-    #check_nan_time(df_quarterly,"1990-01-01")
-    #pd.set_option("display.max_rows", None)
-    #print(df_monthly.tail(10))
+    #print(f"日次: {df_daily.columns.tolist()}")
+    #print(f"週次: {df_weekly.columns.tolist()}")
+    #print(f"月次: {df_monthly.columns.tolist()}")
+    #print(f"四半期: {df_quarterly.columns.tolist()}")
 
     df_daily_w = df_daily.resample('W-FRI').mean()
-    df_daily_w_s = df_daily_w.rolling(window=4).mean().dropna(how="all")
+    df_daily_w = df_daily_w.dropna(how="all").iloc[:-1]
 
     df_weekly_w = df_weekly.resample('W-FRI').mean()
-    df_weekly_w_s = df_weekly_w.rolling(window=4).mean().dropna(how="all")
+    df_weekly_w = df_weekly_w.dropna(how="all").iloc[:-1]
 
-    df_monthly_w = df_monthly.dropna(how="all").resample('W-FRI').interpolate(method='linear')
-    df_monthly_w_lagged = df_monthly_w.shift(4).dropna(how="all")
-
-    q_m = df_quarterly.dropna(how="all")
-    q_m.index = q_m.index + pd.offsets.MonthEnd(-1)
-    q_m_lagged = q_m.shift(1)
-    df_quarterly_w = q_m_lagged.resample('W-FRI').interpolate(method='linear')
-    df_quarterly_w = df_quarterly_w.dropna(how="all")
-
-    #pd.set_option("display.max_rows", None)
-    #print(df_daily_w_s.tail(10))
-    #check_nan_time(df_monthly_w_lagged)
+    df_monthly.index = df_monthly.index + pd.offsets.MonthEnd(0) # 月末にインデックスを揃える
+    df_monthly_w = df_monthly.dropna(how="all").resample('W-FRI').ffill() # 週次にする
+    df_monthly_w_lagged = df_monthly_w.shift(4).dropna(how="all") # 公表ラグ
+    df_monthly_w_lagged = df_monthly_w_lagged.ewm(span=4, adjust=False).mean().dropna(how="all") # 平滑化
+    #check_nan_time(df_monthly_w_lagged,"1990-01-01")
 
     # 結合
-    df_combine = pd.concat([df_daily_w_s, df_weekly_w_s, df_monthly_w_lagged, df_quarterly_w], axis=1)
-
-    #pd.set_option("display.max_rows", None)
-    #pd.set_option("display.max_columns", None)
-    #print(df_combine.dropna(how="all").tail(20))
+    df_combine = pd.concat([df_daily_w, df_weekly_w, df_monthly_w_lagged], axis=1)
     #check_nan_time(df_combine,"1990-01-01")
 
     return df_combine.dropna(how="all")
@@ -246,6 +233,8 @@ def _featuring(df):
     # --- 民間部門の信用創造とレバレッジ（銀行の資金仲介) ---
 
     df_feats['Loan_qoq'] = df_feats['BUSLOANS'].pct_change(13)
+    df_feats['Loan_z52'] = _featuring_z_score(df_feats['BUSLOANS'], 52)
+
     df_feats['NFINCP_qoq'] = df_feats['NFINCP'].pct_change(13)
     # 銀行依存度指標 (Loan / CP 比率)
     df_feats['Bank_Dependency'] = df_feats['BUSLOANS'] / df_feats['NFINCP']
@@ -274,6 +263,7 @@ def _featuring(df):
     df_feats["VIX_z52"] = _featuring_z_score(df_feats['VIXCLS'], 52)
     ret = np.log(df_feats['VIXCLS']).diff()
     df_feats["VVIX_z52"] = _featuring_z_score(ret.rolling(21).std() * np.sqrt(252), 52)
+    df_feats["VIX_z52-MOVE_z52"] = df_feats["VIX_z52"] - df_feats["MOVE_z52"]
 
     # --- 実体経済のファンダメンタルズと制約条件 ---
     # 実質金利のレベル感
@@ -292,6 +282,7 @@ def _featuring(df):
     df_feats['Burden_diff13'] = df_feats['Burden_Ratio'].diff(13)
     df_feats['Burden_qoq'] = df_feats['Burden_Ratio'].pct_change(13)
 
+    df_feats["NFCIRISK_z52"] = _featuring_z_score(df_feats['NFCIRISK'], 52)
     df_feats["NFCIRISK_diff13_z52"] = _featuring_z_score(df_feats['NFCIRISK'].diff(4), 52)
     df_feats["NFCI_z52"] = _featuring_z_score(df_feats['NFCI'], 52)
     df_feats["NFCI_diff4_z52"] = _featuring_z_score(df_feats["NFCI"].diff(4), window=52)
@@ -316,38 +307,19 @@ def _featuring_z_score(df, window):
 ########################################################
 # ラグ分析
 ########################################################
-def _lag_corr_check(df_a, df_b, df_c, df_d, target):
+def _lag_corr_check(features, target):
 
     # GLI をdiffにする
-    target_diff = target.diff(13).dropna().rename("NDFACBM027SBOG_diff")
-    #target_diff = target_diff.loc["2008-01-01":]
-    target_diff = target_diff.loc["2010-01-01":]
+    #target = target.loc["2010-01-01":]
 
     # GLI のインデックスに合わせる
-    df_a_all = pd.concat([df_a.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_b_all = pd.concat([df_b.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_c_all = pd.concat([df_c.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-    df_d_all = pd.concat([df_d.reindex(target_diff.index), target_diff, target], axis=1).dropna()
-
-    """for feat  in [
-        "level_SOFR","diff13_SOFR","diff52_SOFR",
-        "z52_diff13_SOFR","z52_diff52_SOFR", "z52_SOFR",
-        "z104_SOFR", "mom4_SOFR"
-        ]:
-        _plot_graphs(df_c_all["NDFACBM027SBOG_diff"], df_c_all[feat])"""
-
+    df_all = pd.concat([features.reindex(target.index), target], axis=1).dropna()
 
     # 特徴量とGLIのラグ相関分析
-    df_lag_a = lag_analysis(df_a_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_b = lag_analysis(df_b_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_c = lag_analysis(df_c_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
-    df_lag_d = lag_analysis(df_d_all, target_col="NDFACBM027SBOG_diff", max_lag=156)
+    df_lag = lag_analysis(df_all, target_col="Liq_eff", max_lag=52)
 
     # 結果の確認・デバッグ
-    #_plot_lag_correlation(df_lag_a)
-    #_plot_lag_correlation(df_lag_b)
-    #_plot_lag_correlation(df_lag_c)
-    _plot_lag_correlation(df_lag_d)
+    _plot_lag_correlation(df_lag)
 
 ########################################################
 # 教師ラベル
@@ -514,8 +486,8 @@ def return_stats(df, df_oof_ev, LAG):
     print("=== リターン統計  ===")
     terms = [
         ("2012-01-01", "2026-01-01"),
-        ("2012-01-01", "2015-01-01"),
-        ("2015-01-01", "2018-01-01"),
+        #("2012-01-01", "2015-01-01"),
+        #("2015-01-01", "2018-01-01"),
         ("2018-01-01", "2021-01-01"),
         ("2021-01-01", "2024-01-01"),
         ("2024-01-01", "2026-01-01"),
@@ -525,13 +497,14 @@ def return_stats(df, df_oof_ev, LAG):
         combined_tmp = combined.loc[start:end]
         stats = combined_tmp.groupby("predict_label").agg({
             'next_2m_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],
-            'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
-            'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
+            #'next_2m_ret_tlt': ['mean', 'std', 'min', 'max'],
+            #'next_2m_diff_hy': ['mean', 'std', 'min', 'max']
             })
         stats.columns = [
             "sp500_mean", "sp500_std", "sp500_min", "sp500_max", "counts", "勝率",
-            "tlt_mean", "tlt_std", "tlt_min", "tlt_max",
-            "hy_mean", "hy_std", "hy_min", "hy_max"]
+            #"tlt_mean", "tlt_std", "tlt_min", "tlt_max",
+            #"hy_mean", "hy_std", "hy_min", "hy_max"
+            ]
         print(stats)
 
 ########################################################
