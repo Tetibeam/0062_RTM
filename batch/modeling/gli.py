@@ -375,18 +375,15 @@ def _lag_corr_check(features, target):
 
 def _make_label(target, df_index):
     #LAG=8
-    quantile_low=0.125
-    quantile_high=0.875
+    quantile_low=0.1
+    quantile_high=0.85
     winsow=156
     #plot_index(target.to_frame())
 
-    for LAG in [13]:
+    for LAG in [8]:
         print(f"---------------- LAG:{LAG} ----------------")
         # Net Liquidity
-        df_net_l = df_index[["RRPONTSYD", "WALCL", "WDTGAL", "WCURCIR"]].dropna(how="all")
-        df_net_l['RRP_filled'] = df_net_l['RRPONTSYD'].fillna(0) * 1000
-        df_net_l["Net_Liquidity"] = (df_net_l['WALCL'] - (df_net_l['WDTGAL'] +  df_net_l['RRP_filled'] + df_net_l["WCURCIR"]))
-        df_net_l['net_liq_mom'] = df_net_l["Net_Liquidity"].pct_change(4).shift(-LAG)
+        target_mom = target.pct_change(4).shift(-LAG).rename("net_liq_mom").dropna()
         #print(df_net_l)
 
         # VIX
@@ -405,7 +402,7 @@ def _make_label(target, df_index):
 
         df = pd.DataFrame(index=target.index)
         df["future_liq_eff"] = target.shift(-LAG).dropna()
-        df = df.join(df_net_l["net_liq_mom"], how="left").join(df_vix["is_fear"], how="left").join(df_move["is_bond_stress"], how="left")
+        df = df.join(target_mom, how="left").join(df_vix["is_fear"], how="left").join(df_move["is_bond_stress"], how="left")
         df = df.dropna()
         #df = df.loc["2010-01-01":]
         #print(df)
@@ -417,8 +414,8 @@ def _make_label(target, df_index):
         # ラベル
         df["Liq_eff_label"] = 2.0
         stall_condition = (
-            (df["future_liq_eff"] <= df["dynamic_q_low"])# &
-            #((df['is_fear']) | (df['is_bond_stress']) | (df['net_liq_mom'] < 0))
+            (df["future_liq_eff"] <= df["dynamic_q_low"]) &
+            ((df['is_fear']) | (df['is_bond_stress']) | (df['net_liq_mom'] < 0))
             #(df['is_fear'])
             #(df['is_bond_stress']) 
             #(df['net_liq_mom'] < 0)
@@ -440,9 +437,9 @@ def _make_label(target, df_index):
         df_index['next_xm_ret_tlt'] = df_index["TLT"].dropna().pct_change(LLAG).shift(-LLAG).dropna()
         df_index['next_xm_diff_hy'] = df_index["BAMLH0A0HYM2"].dropna().diff(LLAG).shift(-LLAG).dropna()
 
-        _analysis_label(
+        """_analysis_label(
             pd.concat([df["Liq_eff_label"], df_index['next_xm_ret_sp500'], df_index['next_xm_ret_tlt'], df_index['next_xm_diff_hy']], axis=1).dropna()
-        )
+        )"""
 
     return df[["Liq_eff_label"]].dropna()
 
