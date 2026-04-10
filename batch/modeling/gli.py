@@ -185,10 +185,10 @@ def _aggregation(df):
     df_weekly = df[get_columns_by_frequency(df, target="weekly")]   # 7日発表ラグあり
     df_monthly = df[get_columns_by_frequency(df, target="monthly")] # 1か月発表ラグあり
     df_quarterly = df[get_columns_by_frequency(df, target="quarterly")]
-    #print(f"日次: {df_daily.columns.tolist()}")
-    #print(f"週次: {df_weekly.columns.tolist()}")
-    #print(f"月次: {df_monthly.columns.tolist()}")
-    #print(f"四半期: {df_quarterly.columns.tolist()}")
+    print(f"日次: {df_daily.columns.tolist()}")
+    print(f"週次: {df_weekly.columns.tolist()}")
+    print(f"月次: {df_monthly.columns.tolist()}")
+    print(f"四半期: {df_quarterly.columns.tolist()}")
 
     df_daily_w = df_daily.resample('W-FRI').mean()
     df_daily_w = df_daily_w.dropna(how="all").iloc[:-1]
@@ -209,6 +209,17 @@ def _aggregation(df):
     return df_combine.dropna(how="all")
 
 def _make_target_variable(df):
+    # --- Net_Liquidity_z52 - NFCI_z52 ---
+    var = df[["RRPONTSYD", "WALCL", "WDTGAL", "WCURCIR", "NFCI"]].copy().dropna(how="all")
+    var = var.resample('W-FRI').mean() # すべて日次・週次なのでこれ一発で週次
+    var = var.dropna(how="all")
+    var['RRP_filled'] = var['RRPONTSYD'].fillna(0) * 1000
+    var["Net_Liquidity"] = (var['WALCL'] - (var['WDTGAL'] +  var['RRP_filled'] + var["WCURCIR"]))
+    var['Net_Liquidity_z52'] = _featuring_z_score(var["Net_Liquidity"], 52)
+    var["NFCI_z52"] = _featuring_z_score(var["NFCI"], window=52)
+    var["Liq_eff"] = var["Net_Liquidity_z52"] - var["NFCI_z52"]
+
+    """# NDFACBM027SBOG_z52 - NFCI_z52
     var = df[["NFCI", "NDFACBM027SBOG"]].copy().dropna(how="all")
     # 週次>週次（週末）
     var["NFCI"] = var["NFCI"].resample('W-FRI').mean().dropna()
@@ -217,7 +228,7 @@ def _make_target_variable(df):
 
     var["NFCI_z52"] = _featuring_z_score(var["NFCI"], window=52)
     var["NDFACBM027SBOG_z52"] = _featuring_z_score(var["NDFACBM027SBOG"], 52)
-    var["Liq_eff"] = var["NDFACBM027SBOG_z52"] - var["NFCI_z52"]
+    var["Liq_eff"] = var["NDFACBM027SBOG_z52"] - var["NFCI_z52"]"""
     #print(var[["Liq_eff"]].dropna())
 
     return var[["Liq_eff"]].dropna()
