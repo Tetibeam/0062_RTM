@@ -60,7 +60,8 @@ liq_index = [
     "^MOVE",
     "BAMLH0A3HYC",
     "NFCIRISK",
-    "STLFSI4"
+    "STLFSI4",
+    "CPN3M"
     ]
 
 ########################################################
@@ -106,7 +107,9 @@ def get_liq_index_model_beta(df_index):
         "NFCIRISK_z52",
         "Burden_Ratio_z52",
         #"SOFR_TB3MS_Spread",
-        "TED_Z52"
+        "TED_Z52",
+        #"CPN3M_z52",
+        #"CPN3M_TB3MS_Spread_z52",
         
     ]]
     print(f"特徴量のリスト: {df_features.columns}")
@@ -248,6 +251,8 @@ def _featuring(df):
     # 短期指標のスプレッド
     df_feats['SOFR_TB3MS_Spread'] = df_feats['SOFR'] - df_feats['TB3MS']
     df_feats["TED_Z52"] = _featuring_z_score(df_feats["TEDRATE"], 52)
+    df_feats["CPN3M_z52"] = _featuring_z_score(df_feats["CPN3M"], 52)
+    df_feats["CPN3M_TB3MS_Spread_z52"] = _featuring_z_score(df_feats["CPN3M"] - df_feats["TB3MS"], 52)
 
     # 信用スプレッド
     df_feats['spd_BBB_A'] = df_feats['BAMLC0A4CBBB'] - df_feats['BAMLC0A3CA']
