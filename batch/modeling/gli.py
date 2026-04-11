@@ -64,6 +64,8 @@ liq_index = [
     "CPN3M",
     "T10YIE",
     "T10Y2Y",
+    "T10Y3M",
+    "UMCSENT"
     ]
 
 ########################################################
@@ -90,7 +92,16 @@ def get_liq_index_model_beta(df_index):
 
     # --- 特徴量の選択 ---
     df_features = df_features[[
-        "TB3MS_DFF_Spread",
+        #"TB3MS_DFF_Spread",
+        "CPN3M_TB3MS_Spread",
+        "DXY_roc13",
+        "T10Y3M_z52",
+        #"Net_Liquidity_roc13",
+        "PAYEMS_qoq_z52",
+        "UMCSENT_z52",
+        "MOVE_z52"
+        ]]
+        
         # 流動性供給
         #'Net_Liquidity_z52',
         #"Net_Liquidity_roc4",
@@ -146,32 +157,36 @@ def get_liq_index_model_beta(df_index):
         #"NFCIRISK_z52",
         #"NFCIRISK_diff13_z52",
 
-    ]]
-    print(f"特徴量のリスト: {df_features.columns}")
-    pd.set_option("display_max_rows", None)
-    print(df_features)
+    print(f"特徴量: {df_features.tail()}")
+    #pd.set_option("display.max_rows", None)
+    #print(df_features)
+    #check_nan_time(df_features, "1900-01-01")
 
     # --- 学習用マスターデータの作成
     df_master = df_label.join(df_features, how='left')
     #df_master = df_master.loc["2010-01-01":].ffill()
 
+    df_master = df_master.dropna(subset=["DXY_roc13"])
+    #check_nan_time(df_master, "1900-01-01")
+
     # --- LGBM学習 ---
-    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="Liq_eff_label",labels=["1:STALL", "2:CRUISE", "3:LIFT"],
         n_splits=2, gap=10,
-        n_estimators=12000, learning_rate=0.005, num_leaves=48, min_data_in_leaf=35,
-        reg_alpha=0.5, reg_lambda=0.5, max_depth=5,
+        n_estimators=12000, learning_rate=0.005, num_leaves=25, min_data_in_leaf=45,
+        reg_alpha=0.5, reg_lambda=0.5, max_depth=4,
         class_weight="balanced",extra_trees="True",
         importance_type="gain",stopping_rounds=100,
-        feature_fraction=0.5,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
+        feature_fraction=0.6,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
+        monotone_constraints=(1, 1, -1, 0, 0, 1) ,monotone_constraints_method="advanced",
         learning_curve=True,
-    )"""
+    )
 
     # --- シャップ統計 ---
-    #shap_stats(df_master, df_features.columns, df_shap)
+    shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
-    #return_stats(df_agg, df_oof_ev, 8)
+    return_stats(df_agg, df_oof_ev, 8)
 
     # --- 保存 ---
     #save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
@@ -246,9 +261,13 @@ def _make_target_variable(df):
 ########################################################
 def _featuring(df):
     df_feats = df.dropna(how="all")
-    
-    df_feats["TB3MS_DFF_Spread"] = df_feats["TB3MS"] - df_feats["DFF"]
 
+    df_feats["TB3MS_DFF_Spread"] = df_feats["TB3MS"] - df_feats["DFF"]
+    df_feats["CPN3M_TB3MS_Spread"] = df_feats["CPN3M"] - df_feats["TB3MS"]
+    df_feats["DXY_roc13"] = df_feats['DX-Y.NYB'].pct_change(13)
+    df_feats["T10Y3M_z52"] = _featuring_z_score(df_feats["T10Y3M"], 52)
+    df_feats["UMCSENT_z52"] = _featuring_z_score(df_feats["UMCSENT"], 52)
+    
 
     # --- 中央銀行による流動性供給（ベースマネーの増減）---
 
@@ -256,8 +275,9 @@ def _featuring(df):
     df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
     # Net Liquidity
     df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
-    df_feats['Net_Liquidity_roc13'] = df_feats['Net_Liquidity'].pct_change(13)
+    
     df_feats['Net_Liquidity_roc4'] = df_feats['Net_Liquidity'].pct_change(4)
+    df_feats['Net_Liquidity_roc13'] = df_feats['Net_Liquidity'].pct_change(13)
     df_feats['Net_Liquidity_z52'] = _featuring_z_score(df_feats['Net_Liquidity'], 52)
     # 吸収率 (TGA+RRPが資産に占める割合)
     df_feats["Abs_Rate"] = ((df_feats['WDTGAL'] + df_feats['RRP_filled']) / df_feats['WALCL']).rename("Abs_Rate")
@@ -335,6 +355,7 @@ def _featuring(df):
     df_feats['PCEPI_yoy'] = df_feats['PCEPI'].pct_change(52) # 前年比
     
     df_feats['PAYEMS_qoq'] = df_feats['PAYEMS'].pct_change(13)     # 直近の加速
+    df_feats["PAYEMS_qoq_z52"] = _featuring_z_score(df_feats['PAYEMS_qoq'], 52) # 加速の勢い
     df_feats['PAYEMS_qoq_sm13'] = df_feats['PAYEMS'].rolling(window=13).mean()
     df_feats['PAYEMS_z52'] = _featuring_z_score(df_feats['PAYEMS'], 52)
 

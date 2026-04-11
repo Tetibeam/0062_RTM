@@ -409,6 +409,7 @@ def learning_lgbm_test_gli(
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
     objective="multiclass",max_depth=2,stopping_rounds=20,extra_trees="True",
     feature_fraction=0.7,bagging_fraction=0.8,bagging_freq=1,path_smooth=1.0,
+    monotone_constraints=None, monotone_constraints_method="basic",
     #min_gain_to_split=0.1,
     # 学習曲線の表示
     learning_curve=False,
@@ -452,7 +453,6 @@ def learning_lgbm_test_gli(
         #ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
 
         # モデル設定
-        
         clf = lgb.LGBMClassifier(
             objective=objective,
             #num_class=len(labels),
@@ -472,7 +472,9 @@ def learning_lgbm_test_gli(
             random_state=42,
             #path_smooth=path_smooth,
             extra_trees=extra_trees,
-            verbose=-1
+            verbose=-1,
+            monotone_constraints=monotone_constraints,
+            monotone_constraints_method=monotone_constraints_method,
         )
 
         # 学習
