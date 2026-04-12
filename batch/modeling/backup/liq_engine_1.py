@@ -70,7 +70,7 @@ def get_liq_index_model_beta(df_index):
     #_lag_corr_check(df_features, df_target_var)
 
     # --- 特徴量の選択 ---
-    """df_features = df_features[[
+    df_features = df_features[[
         "Liq_eff",
         "Liq_eff_diff20",
         #"NFCI_z252",
@@ -85,7 +85,7 @@ def get_liq_index_model_beta(df_index):
         #"HY_Spread_Momentum",
         #"Net_Liquidity_z252",
         #"DTB3_DFF_Spread",
-        ]]"""
+        ]]
 
     print(f"特徴量: {df_features.tail()}")
     #pd.set_option("display.max_rows", None)
@@ -102,7 +102,7 @@ def get_liq_index_model_beta(df_index):
     #print(df_master)
 
     # --- LGBM学習 ---
-    """#df_master['target_label'] = df_master['target_label'].replace({1.0: 0, 3.0: 1})
+    #df_master['target_label'] = df_master['target_label'].replace({1.0: 0, 3.0: 1})
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="target_label",labels=["1:Bear","2:Neutral", "3:Bull"],
         n_splits=2, gap=50,
@@ -113,20 +113,20 @@ def get_liq_index_model_beta(df_index):
         feature_fraction=1.0,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         #monotone_constraints=(1,1,-1) ,monotone_constraints_method="advanced",
         learning_curve=True,
-    )"""
+    )
 
     # --- シャップ統計 ---
     #shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
-    #return_stats(df_agg, df_oof_ev, weeks_ahead=13)
+    return_stats(df_agg, df_oof_ev, weeks_ahead=13)
 
     # --- Bearの確率ごとのリターン統計 ---
     #return_prob_stats(df_agg, df_oof_all, "1:Bear", weeks_ahead=8)
     # --- BULLの確率ごとのリターン統計 ---
 
     # --- 保存 ---
-    save_model(df_agg,df_features)
+    #save_model(df_oof_all, df_shap, df_oof_ev, df_agg, df_master, df_features, df_label)
 
     # --- ロジスティック回帰 ---
     """mean_coefs, all_y_probs, all_y_test = learning_logistic_lasso_test(
@@ -477,7 +477,13 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("--- データが終わっている日付 ---")
     print(df_e)
 
-def save_model(df_agg, df_features):
-    df_agg.to_parquet("liq_engine_agg.parquet", engine="pyarrow")
-    df_features.to_parquet("liq_engine_feats.parquet", engine="pyarrow")
-
+def save_model(df_oof_all,df_shap,df_oof_ev,df,df_master,df_features,df_label):
+    df_oof_all.to_parquet("gli_oof.parquet", engine="pyarrow")
+    df_shap["1:STALL"].to_parquet("gli_shap_stall.parquet", engine="pyarrow")
+    df_shap["2:CRUISE"].to_parquet("gli_shap_cruise.parquet", engine="pyarrow")
+    df_shap["3:LIFT"].to_parquet("gli_shap_lift.parquet", engine="pyarrow")
+    df_oof_ev.to_parquet("gli_oof_ev.parquet", engine="pyarrow")
+    df.to_parquet("gli_raw.parquet", engine="pyarrow")
+    df_master.to_parquet("gli_master.parquet", engine="pyarrow")
+    df_features.to_parquet("gli_features.parquet", engine="pyarrow")
+    df_label.to_parquet("gli_label.parquet", engine="pyarrow")
