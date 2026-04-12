@@ -473,8 +473,8 @@ def learning_lgbm_test_gli(
             #path_smooth=path_smooth,
             extra_trees=extra_trees,
             verbose=-1,
-            monotone_constraints=monotone_constraints,
-            monotone_constraints_method=monotone_constraints_method,
+            #monotone_constraints=monotone_constraints,
+            #monotone_constraints_method=monotone_constraints_method,
         )
 
         # 学習
