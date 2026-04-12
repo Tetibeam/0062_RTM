@@ -498,6 +498,7 @@ def learning_lgbm_test_gli(
 
         # 1. クラスIDからラベル名へのマッピングを作成
         class_id_to_label = {int(l.split(':')[0]): l for l in labels}
+        #class_id_to_label = {i: l for i, l in enumerate(labels)}
 
         # 2. 予測確率の取得
         y_prob = clf.predict_proba(X_test)
@@ -620,8 +621,8 @@ def learning_logistic_lasso_test(
     df_ready = df_ready.dropna(subset=[target_col])
     X = df_ready.drop(columns=[target_col])
     y = df_ready[target_col]
-    label_map = {i+1: name for i, name in enumerate(labels)} if isinstance(labels, list) else labels
-
+    #label_map = {i+1: name for i, name in enumerate(labels)} if isinstance(labels, list) else labels
+    label_map = {i: name for i, name in enumerate(labels)} if isinstance(labels, list) else labels
     print("=== VIF Check (Pre-flight) ===")
     vif_df = check_vif(X)
     print(vif_df)
@@ -675,13 +676,13 @@ def learning_logistic_lasso_test(
             coefs = np.vstack([est.coef_ for est in clf.estimators_])
             display_names = [label_map[c] for c in clf.classes_]
             if len(clf.classes_) <= 2: # 二値分類の場合
-                display_names = [label_map[clf.classes_[1]]]
+                display_names = [label_map[1]]
         else:
             # 通常の LogisticRegression の場合
             coefs = clf.coef_
             if len(clf.classes_) <= 2:
                 # 二値分類の場合 (1, n_features)
-                display_names = [label_map[clf.classes_[1]]]
+                display_names = [label_map[1]]
             else:
                 # 多クラス分類の場合 (n_classes, n_features)
                 display_names = [label_map[c] for c in clf.classes_]
@@ -705,6 +706,8 @@ def learning_logistic_lasso_test(
 
     unique_ids = sorted(np.unique(all_y_test))
     target_names = [label_map[i] for i in unique_ids]
+    #target_names = [label_map[i] for i, l in enumerate(labels)]
+    
     print(classification_report(all_y_test, all_y_pred, target_names=target_names))
 
     print("\n=== 全フォールド総合の混同行列 ===")
