@@ -42,6 +42,10 @@ liq_index = {
     "INDPRO":31,
     "THREEFYTP10":1,
     "DFII10":1,
+
+    "NDFACBM027SBOG":1,
+    "UUP":1,
+    "BUSLOANS":1
 }
 
 ########################################################
@@ -57,7 +61,7 @@ def get_liq_index_model_beta(df_index):
 
     # --- 教師ラベルの生成 ---
     # 教師ラベルは発表ラグは関係ないので生値でつくる
-    df_label = _make_label(df_agg, target_col="^GSPC", weeks_ahead=8, low_th=0.1, high_th=0.9)
+    df_label = _make_label(df_agg, target_col="^GSPC", weeks_ahead=13, low_th=0.2, high_th=0.8)
 
     # --- 特徴量を作る ---
     df_features =  _featuring(df_agg)
@@ -69,15 +73,17 @@ def get_liq_index_model_beta(df_index):
     df_features = df_features[[
         "Liq_eff",
         "Liq_eff_diff20",
-        "NFCI_z252",
-        #"DXY_roc65",
+        #"NFCI_z252",
+        "UUP_z52",
+        "DXY_roc65",
+        "NDFACBM027SBOG_z52",
         #"Marshallian_K",
         #"Credit_Growth_z252",
-        "Cu_Au_Ratio_z252",
+        #"Cu_Au_Ratio_z252",
         #"Real_Rate_Gravity",
         #"Term_Premium",
-        "HY_Spread_Momentum",
-        "Net_Liquidity_z252",
+        #"HY_Spread_Momentum",
+        #"Net_Liquidity_z252",
         #"DTB3_DFF_Spread",
         ]]
 
@@ -113,7 +119,7 @@ def get_liq_index_model_beta(df_index):
     #shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
-    return_stats(df_agg, df_oof_ev, weeks_ahead=8)
+    return_stats(df_agg, df_oof_ev, weeks_ahead=13)
 
     # --- Bearの確率ごとのリターン統計 ---
     #return_prob_stats(df_agg, df_oof_all, "1:Bear", weeks_ahead=8)
@@ -238,6 +244,9 @@ def _featuring(df):
 
     # Copper/Gold Ratio (リスクオンセンチメント)
     df_feats["Cu_Au_Ratio_z252"] = _featuring_z_score(df_feats["HG=F"] / df_feats["GC=F"], 252)
+    
+    df_feats['UUP_z52'] = _featuring_z_score(df_feats['UUP'], 52)
+    df_feats["NDFACBM027SBOG_z52"] = _featuring_z_score(df_feats["NDFACBM027SBOG"], 52)
 
     # --- [Layer 1b] 重力 (Gravity) の算出 ---
 
