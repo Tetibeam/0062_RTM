@@ -57,6 +57,11 @@ ticker_map = {
     "CCC格スプレッド": ["BAMLH0A3HYC", "fred", "BAMLH0A3HYC"],
     "シカゴ連銀Risk": ["NFCIRISK", "fred", "NFCIRISK"],
     "市場全体のストレス": ["STLFSI4", "fred", "STLFSI4"],
+    "資金供給の総量":["M2SL","fred", "M2SL"],
+    "米国内銀行の総融資額":["TOTBKCR","fred", "TOTBKCR"],
+    "実体経済の需要":["INDPRO","fred", "INDPRO"],
+    "10年国債の期間プレミアム":["THREEFYTP10","fred", "THREEFYTP10"],
+    
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
     "NASDAQ総合指数": ["nasdaq", "yfinance", "^IXIC"],

@@ -37,7 +37,11 @@ liq_index = {
     "HG=F":1,
     "GC=F":1,
     "DFII10":1,
-    "BAMLH0A0HYM2":1
+    "M2SL":31,
+    "TOTBKCR":7,
+    "INDPRO":31,
+    "THREEFYTP10":1,
+    "DFII10":1,
 }
 
 ########################################################
@@ -53,7 +57,7 @@ def get_liq_index_model_beta(df_index):
 
     # --- 教師ラベルの生成 ---
     # 教師ラベルは発表ラグは関係ないので生値でつくる
-    df_label = _make_label(df, target_col="^GSPC", weeks_ahead=13, num_classes=3)
+    df_label = _make_label(df, target_col="^GSPC", weeks_ahead=8, num_classes=3)
 
     # --- 特徴量を作る ---
     df_features =  _featuring(df_agg)
@@ -63,14 +67,18 @@ def get_liq_index_model_beta(df_index):
 
     # --- 特徴量の選択 ---
     df_features = df_features[[
-        #"Liq_eff_ma5",
-        #"Liq_eff_diff20",
-        "Net_Liquidity_z252",
-        "NFCI_z252",
-        "DTB3_DFF_Spread",
+        "Liq_eff",
+        "Liq_eff_diff20",
+        #"Net_Liquidity_z252",
+        #"NFCI_z252",
+        #"DTB3_DFF_Spread",
         "DXY_roc65",
-
-        
+        #"Marshallian_K",
+        "Credit_Growth_z252",
+        "Cu_Au_Ratio_z252",
+        #"Real_Rate_Gravity",
+        #"Term_Premium",
+        "HY_Spread_Momentum",
         ]]
 
     print(f"特徴量: {df_features.tail()}")
@@ -82,30 +90,31 @@ def get_liq_index_model_beta(df_index):
     df_master = df_label[["target_label"]].join(df_features, how='left')
     df_master = df_master.dropna(subset=["target_label"])
     start = df_master.apply(pd.Series.first_valid_index).max()
+    #start = "2010-01-01"
     df_master = df_master.loc[start:]
-    #check_nan_time(df_master, "1900-01-01")
+    check_nan_time(df_master, "1900-01-01")
 
     # --- LGBM学習 ---
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
+    """df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_gli(
         df_master, target_col="target_label",labels=["1:Bear", "2:Neutral", "3:Bull"],
         n_splits=3, gap=50,
-        n_estimators=3000, learning_rate=0.01, num_leaves=10, min_data_in_leaf=65,
-        reg_alpha=1.0, reg_lambda=1.0, max_depth=3,
+        n_estimators=5000, learning_rate=0.001, num_leaves=21, min_data_in_leaf=65,
+        reg_alpha=1, reg_lambda=1, max_depth=4,
         class_weight="balanced",extra_trees="True",
-        importance_type="gain",stopping_rounds=150,
+        importance_type="gain",stopping_rounds=100,
         feature_fraction=1.0,#bagging_fraction=0.5,bagging_freq=1,path_smooth=1.0,min_gain_to_split=0.1,
         #monotone_constraints=(1, 1, -1, 0) ,monotone_constraints_method="advanced",
         learning_curve=True,
-    )
+    )"""
 
     # --- シャップ統計 ---
     #shap_stats(df_master, df_features.columns, df_shap)
 
     # --- リターン統計 ---
-    #return_stats(df_agg, df_oof_ev, 8)
+    #return_stats(df_agg, df_oof_ev, weeks_ahead=8)
 
     # --- Bearの確率ごとのリターン統計 ---
-    #return_prob_stats(df_agg, df_oof_all, "1:Bear", LAG=13)
+    #return_prob_stats(df_agg, df_oof_all, "1:Bear", weeks_ahead=8)
     # --- BULLの確率ごとのリターン統計 ---
 
     # --- 保存 ---
@@ -134,6 +143,8 @@ def _aggregation(df):
     print(f"週次: {df_weekly.columns.tolist()}")
     print(f"月次: {df_monthly.columns.tolist()}")
     print(f"四半期: {df_quarterly.columns.tolist()}\n")
+    #pd.set_option("display.max_rows", None)
+    #print(df_monthly.dropna(how="all").tail(10))
 
     # 日次営業日をマスターにする
     master_index = df["^GSPC"].dropna().index
@@ -152,16 +163,19 @@ def _aggregation(df):
         df_lagged = pd.concat(lagged_series_list, axis=1)
         return df_lagged.dropna(how="all")
 
-
+    # 日次、週次
     df_daily_d_lagged = adj_lag(df_daily, df_daily.columns)
     df_weekly_d_lagged = adj_lag(df_weekly, df_weekly.columns)
+    # 月次
+    df_monthly.index = df_monthly.index + pd.offsets.MonthEnd(0)
+    df_monthly_lagged = adj_lag(df_monthly, df_monthly.columns)
 
-    #check_nan_time(df_weekly_lagged,"1990-01-01")
     #pd.set_option("display.max_rows", None)
-    #print(df_weekly_lagged.tail(20))
+    #check_nan_time(df_weekly_d_lagged,"1990-01-01")
+    #print(df_weekly_d_lagged.tail(20))
 
     # 結合
-    df_combine = pd.concat([df_daily_d_lagged, df_weekly_d_lagged], axis=1)
+    df_combine = pd.concat([df_daily_d_lagged, df_weekly_d_lagged, df_monthly_lagged], axis=1)
     #check_nan_time(df_combine,"1990-01-01")
 
     return df_combine.dropna(how="all")
@@ -184,6 +198,30 @@ def _featuring(df):
     df_feats["Liq_eff"] = df_feats["Net_Liquidity_z252"] - df_feats["NFCI_z252"]
     df_feats["Liq_eff_ma5"] = df_feats["Liq_eff"].rolling(window=5).mean()
     df_feats["Liq_eff_diff20"] = df_feats["Liq_eff"].diff(20)
+
+    # --- [Layer 1a] 浮力 (Buoyancy) の算出 ---
+
+    # Marshallian K (余剰資金の勢い)
+    m2_growth = df_feats["M2SL"].pct_change(252)
+    ip_growth = df_feats["INDPRO"].pct_change(252)
+    df_feats["Marshallian_K"] = m2_growth - ip_growth
+
+    # Bank Credit Growth (信用の拡大)
+    df_feats["Credit_Growth_z252"] = _featuring_z_score(df_feats["TOTBKCR"].pct_change(252), 252)
+
+    # Copper/Gold Ratio (リスクオンセンチメント)
+    df_feats["Cu_Au_Ratio_z252"] = _featuring_z_score(df_feats["HG=F"] / df_feats["GC=F"], 252)
+
+    # --- [Layer 1b] 重力 (Gravity) の算出 ---
+
+    # 5. Real Rate (10年実質金利) -> 2022年以降の重力の主犯
+    df_feats["Real_Rate_Gravity"] = df_feats["DFII10"]
+
+    # 6. Term Premium (タームプレミアム)
+    df_feats["Term_Premium"] = df_feats["THREEFYTP10"]
+
+    # 8. Credit Stress (ハイイールド債スプレッド)
+    df_feats["HY_Spread_Momentum"] = df_feats["BAMLH0A0HYM2"].diff(20)
 
     # TB3MS_DFF
     df_feats["DTB3_DFF_Spread"] = df_feats["DTB3"] - df_feats["DFF"]
@@ -224,47 +262,29 @@ def _lag_corr_check(features, target):
 # 教師ラベル
 ########################################################
 
-def _make_label(df, target_col="^GSPC", weeks_ahead=8, num_classes=3):
+def _make_label(df, target_col="^GSPC", weeks_ahead=8, low_th=0.25, high_th=0.75):
     # 営業日換算のシフト日数を計算（1週間 = 5営業日）
     shift_days = weeks_ahead * 5
 
     df_out = df[[target_col]].dropna().copy()
 
     # 1. 指定期間先（未来）のフォワード・リターンを計算
-    master_index = df_out[target_col].dropna().index
-    future_price = df_out[target_col].dropna().shift(-shift_days)
-    current_price = df_out[target_col].dropna()
-    df_out["fwd_ret"] = (future_price / current_price) - 1.0
+    df_out['future_return'] = df['Close'].pct_change(shift_days).shift(-shift_days)
     valid_idx = df_out["fwd_ret"].dropna().index
 
-    if num_classes == 3:
-        labels = [1.0, 2.0, 3.0] # 1:Bear, 2:Neutral, 3:Bull
-    elif num_classes == 2:
-        labels = [0.0, 1.0]      # 0:Bear/Neutral, 1:Bull (または独自定義)
-    else:
-        # 任意の数のラベルを自動生成
-        labels = [float(i) for i in range(1, num_classes + 1)]
+    # 境界値の算出
+    lower_bound = df['future_return'].quantile(low_th)
+    upper_bound = df['future_return'].quantile(high_th)
 
-    # qcut でデータを分位数ごとに分割
-    try:
-        df_out.loc[valid_idx, 'target_label'], bins = pd.qcut(
-            df_out.loc[valid_idx, 'fwd_ret'],
-            q=num_classes,
-            labels=labels,
-            retbins=True
-        )
-        # クラスの境界値をコンソールに出力（どれくらいのリターンでBull/Bearになるか確認用）
-        print(f"--- ターゲット作成情報 ({target_col}の将来リターン / {weeks_ahead}週間先 / {num_classes}クラス) ---")
-        if num_classes == 3:
-             print(f"クラス 1 (Bear) : ~ {bins[1]*100:.2f}% 以下")
-             print(f"クラス 2 (Neutral): {bins[1]*100:.2f}% ~ {bins[2]*100:.2f}%")
-             print(f"クラス 3 (Bull) : {bins[2]*100:.2f}% 以上 ~")
-    except ValueError as e:
-        print(f"qcut エラー: データが少なすぎるか、同じ値が多すぎます。詳細: {e}")
+    # ラベル付け: Bear(1.0), Bull(3.0), それ以外は NaN
+    df['target_label'] = np.nan
+    df.loc[df['future_return'] <= lower_bound, 'target_label'] = 1.0
+    df.loc[df['future_return'] >= upper_bound, 'target_label'] = 3.0
 
-    # 3. 直近のデータ（未来が未確定でターゲットが NaN になる部分）の情報を出力
-    nan_count = df_out['target_label'].isna().sum()
-    print(f"未確定（推論用）データ数: {nan_count} 行 (直近 {shift_days} 営業日分)\n")
+    print(f"Bear (<= {lower_bound:.2%}) / Bull (>= {upper_bound:.2%})")
+    print(f"学習対象データ数: {df['target_label'].notna().sum()} / 全体: {len(df)}")
+    
+    return df
 
     return df_out
 
@@ -341,13 +361,15 @@ def shap_stats(df_master, features_list, df_shap):
 
         print(pd.DataFrame(logic_results))
 
-def return_stats(df, df_oof_ev, LAG):
-    assets = df[["^GSPC", "BAMLH0A0HYM2", "TLT"]].dropna(how="all")
-    assets['next_xm_ret_sp500'] = assets["^GSPC"].pct_change(LAG).shift(-LAG)
-    assets['next_xm_ret_tlt'] = assets["TLT"].pct_change(LAG).shift(-LAG)
-    assets['next_xm_diff_hy'] = assets["BAMLH0A0HYM2"].diff(LAG).shift(-LAG)
-    combined = pd.concat([df_oof_ev, assets[[
-        'next_xm_ret_sp500', "next_xm_ret_tlt",'next_xm_diff_hy']]], axis=1).dropna()
+def return_stats(df, df_oof_ev, weeks_ahead):
+    # 営業日換算のシフト日数を計算（1週間 = 5営業日）
+    shift_days = weeks_ahead * 5
+
+    assets = df[["^GSPC"]].dropna() # 営業日カウントになる
+    assets['next_xm_ret_sp500'] = assets["^GSPC"].pct_change(shift_days).shift(-shift_days)
+
+    combined = pd.concat([df_oof_ev, assets[
+        'next_xm_ret_sp500']], axis=1).dropna()
 
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_columns", None)
@@ -378,19 +400,23 @@ def return_stats(df, df_oof_ev, LAG):
             ]
         print(stats)
 
-def return_prob_stats(df, df_oof_all, label, LAG):
+def return_prob_stats(df, df_oof_all, label, weeks_ahead):
 
+    # 営業日換算のシフト日数を計算（1週間 = 5営業日）
+    shift_days = weeks_ahead * 5
+
+    assets = df[["^GSPC"]].dropna() # 営業日カウントになる
+    assets['next_xm_ret_sp500'] = assets["^GSPC"].pct_change(shift_days).shift(-shift_days)
+    
     print("=== 基本統計量 ===")
     print(df_oof_all[label].describe())
-    bins = [0, 0.3, 0.4, 1.1]
+    bins = [0, 0.28, 0.35, 1.1]
     df_oof_all['ev_rank'] = pd.cut(
         df_oof_all[label],
         bins=bins,
         labels=['Low', 'Middle', 'High'],
         include_lowest=True
     )
-    assets = df[["^GSPC"]].dropna(how="all")
-    assets['next_xm_ret_sp500'] = assets["^GSPC"].pct_change(LAG).shift(-LAG)
     combined = pd.concat([df_oof_all, assets['next_xm_ret_sp500']], axis=1).dropna()
     stats = combined.groupby("ev_rank").agg({
             'next_xm_ret_sp500': ['mean', 'std', 'min', 'max', "count", lambda x: (x > 0).mean()],

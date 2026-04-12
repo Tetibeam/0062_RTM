@@ -96,6 +96,10 @@ regime_index_list = [
     "3ヶ月物国債利回り",
     "米国債 3ヶ月金利",
     "米国債2年利回り",
+    "資金供給の総量",
+    "米国内銀行の総融資額",
+    "実体経済の需要",
+    "10年国債の期間プレミアム",
  
     # 地域バイアスモデル
     "日経平均",
@@ -122,7 +126,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_2:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
