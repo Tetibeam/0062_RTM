@@ -61,6 +61,7 @@ ticker_map = {
     "米国内銀行の総融資額":["TOTBKCR","fred", "TOTBKCR"],
     "実体経済の需要":["INDPRO","fred", "INDPRO"],
     "10年国債の期間プレミアム":["THREEFYTP10","fred", "THREEFYTP10"],
+    "金融機関の調達コスト": ["CPF3M", "fred", "CPF3M"],
     
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],
