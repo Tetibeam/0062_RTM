@@ -88,7 +88,7 @@ def _aggregation_weekly(df):
     lagged_series_list = []
     for col in df_daily.columns:
         # オリジナル
-        s = df_daily[col].dropna().copy()  
+        s = df_daily[col].dropna().copy()
         # ラグ
         lag_days = liq_index.get(col, 2)
         s.index = s.index + pd.Timedelta(days=lag_days)
@@ -111,12 +111,12 @@ def _aggregation_weekly(df):
         s.index = s.index + pd.Timedelta(days=lag_days)
         s = s.dropna()
         # 週次>週次
-        s_w = s.resample("W-FRI").mean()
+        s_w = s.resample("W-FRI").ffill()
         #print(s_w.tail(20))
         lagged_series_list.append(s_w)
     df_weekly_w_lagged = pd.concat(lagged_series_list, axis=1)
-    #check_nan_time(df_daily_w_lagged,"1990-01-01")
-    #print(df_daily_w_lagged.tail(20))
+    #check_nan_time(df_weekly_w_lagged,"1990-01-01")
+    #print(df_weekly_w_lagged.tail(20))
 
     # 月次>週次
     df_monthly.index = df_monthly.index + pd.offsets.MonthEnd(0)
