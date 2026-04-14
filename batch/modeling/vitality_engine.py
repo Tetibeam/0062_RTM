@@ -38,7 +38,11 @@ vitality_index = {
     "CPF3M":1,
     "STLFSI4":5,
     "PERMIT":20,
-    "ANFCI":5
+    "ANFCI":5,
+    "T10YIE":0,
+    "gli":0,
+    "credit _gap":0
+    
 }
 
 ########################################################
