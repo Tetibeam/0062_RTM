@@ -22,10 +22,8 @@ from batch.modeling.learning import (
 import pandas as pd
 import numpy as np
 
-liq_index = {
+vitality_index = {
     "^GSPC": 1,
-    "TLT": 1,
-    "BAMLH0A0HYM2": 1,
     "RRPONTSYD":1,
     "WALCL":1,
     "WDTGAL":1,
@@ -37,15 +35,18 @@ liq_index = {
     "GC=F":1,
     "DFII10":1,
     "NDFACBM027SBOG":1,
-    "CPF3M":1
+    "CPF3M":1,
+    "STLFSI4":5,
+    "PERMIT":20,
+    "ANFCI":5
 }
 
 ########################################################
 # メインプロセス
 ########################################################
-def get_liq_index_model_beta(df_index):
+def get_vitality_engine_beta(df_index):
     # --- データの取得：マスターデータからLiq_eff_modelに必要なデータを取り出す ---
-    keys_list = list(liq_index.keys())
+    keys_list = list(vitality_index.keys())
     df = df_index[keys_list]
 
     # --- データ集計：日時、週次、月次、四半期を、すべて週次にする ---
@@ -90,7 +91,7 @@ def _aggregation_weekly(df):
         # オリジナル
         s = df_daily[col].dropna().copy()
         # ラグ
-        lag_days = liq_index.get(col, 2)
+        lag_days = vitality_index.get(col, 2)
         s.index = s.index + pd.Timedelta(days=lag_days)
         # 日次>週次
         s_w = s.resample("W-FRI").mean()
@@ -107,7 +108,7 @@ def _aggregation_weekly(df):
         s = df_weekly[col].dropna().copy()
         #print(s.tail(20))
         # ラグ
-        lag_days = liq_index.get(col, 7)
+        lag_days = vitality_index.get(col, 7)
         s.index = s.index + pd.Timedelta(days=lag_days)
         s = s.dropna()
         # 週次>週次
@@ -126,7 +127,7 @@ def _aggregation_weekly(df):
         s = df_monthly[col].dropna().copy()
         #print(s.tail(20))
         # ラグ
-        lag_days = liq_index.get(col, 31)
+        lag_days = vitality_index.get(col, 31)
         s.index = s.index + pd.Timedelta(days=lag_days)
         s = s.dropna()
         # 月次>週次
@@ -167,7 +168,7 @@ def _aggregation_daily(df):
         s = df_daily[col].dropna().copy()
         #print(s.tail(20))
         # ラグ
-        lag_days = liq_index.get(col, 2)
+        lag_days = vitality_index.get(col, 2)
         s.index = s.index + pd.Timedelta(days=lag_days)
         # 日次>週次
         s_d = s.reindex(master_index, method="ffill")
@@ -184,7 +185,7 @@ def _aggregation_daily(df):
         s = df_weekly[col].dropna().copy()
         #print(s.tail(20))
         # ラグ
-        lag_days = liq_index.get(col, 7)
+        lag_days = vitality_index.get(col, 7)
         s.index = s.index + pd.Timedelta(days=lag_days)
         s = s.dropna()
         # 週次>週次
@@ -203,7 +204,7 @@ def _aggregation_daily(df):
         s = df_monthly[col].dropna().copy()
         #print(s.tail(20))
         # ラグ
-        lag_days = liq_index.get(col, 31)
+        lag_days = vitality_index.get(col, 31)
         s.index = s.index + pd.Timedelta(days=lag_days)
         s = s.dropna()
         # 月次>週次
@@ -227,6 +228,7 @@ def _aggregation_daily(df):
 def _featuring(df, window):
     df_feats = df.dropna(how="all")
 
+    # ------ Plumbing (配管) - 流動性の血流 ---
     # Net Liquidity
     df_feats['RRP_filled'] = df_feats['RRPONTSYD'].fillna(0) * 1000
     df_feats["Net_Liquidity"] = (df_feats['WALCL'] - (df_feats['WDTGAL'] +  df_feats['RRP_filled'] + df_feats["WCURCIR"]))
@@ -238,22 +240,32 @@ def _featuring(df, window):
     # Liq_eff
     df_feats["Liq_eff"] = df_feats[f"Net_Liquidity_z{window}"] - df_feats[f"NFCI_z{window}"]
 
-    # Copper/Gold Ratio (リスクオンセンチメント)
-    df_feats[f"Cu_Au_Ratio_z{window}"] = _featuring_z_score(df_feats["HG=F"] / df_feats["GC=F"], window)
-
-    df_feats[f"NDFACBM027SBOG_z{window}"] = _featuring_z_score(df_feats["NDFACBM027SBOG"], window)
-
-    # --- [Layer 1b] 重力 (Gravity) の算出 ---
-
-    # 5. Real Rate (10年実質金利) -> 2022年以降の重力の主犯
-    df_feats[f"DFII10_z{window}"] = _featuring_z_score(df_feats["DFII10"], window=window)
-
     # TB3MS_DFF
     df_feats["CPF3M_DTB3_Spread"] = df_feats["CPF3M"] - df_feats["DTB3"]
     df_feats[f"CPF3M_DTB3_Spread_z{window}"] = _featuring_z_score(df_feats["CPF3M_DTB3_Spread"], window=window)
 
+    df_feats[f"NDFACBM027SBOG_z{window}"] = _featuring_z_score(df_feats["NDFACBM027SBOG"], window)
+
+    # 金融ストレス指数
+    df_feats[f"STLFSI4_z{window}"] = _featuring_z_score(df_feats["STLFSI4"], window)
+
+    # ------ Vitality (体温) - 成長への熱量 ------
+
+    # Copper/Gold Ratio (リスクオンセンチメント)
+    df_feats["Cu_Au_Ratio"] = df_feats["HG=F"] / df_feats["GC=F"]
+    df_feats[f"Cu_Au_Ratio_z{window}"] = _featuring_z_score(df_feats["HG=F"] / df_feats["GC=F"], window)
+
+    # 住宅着工件数 / GOLD
+    df_feats["PERMIT_GOLD_ratio"] = df_feats["PERMIT"] / df_feats["GC=F"]
+    df_feats[f"PERMIT_GOLD_ratio_z{window}"] = _featuring_z_score(df_feats["PERMIT"] / df_feats["GC=F"], window)
+
+    # ------ Gravity (重力) - コストと摩擦 ------
     # DXY
     df_feats[f"DXY_z{window}"] = _featuring_z_score(df_feats["DX-Y.NYB"], window=window)
+
+    df_feats[f"DFII10_z{window}"] = _featuring_z_score(df_feats["DFII10"], window=window)
+
+    df_feats[f"ANFCI_z{window}"] = _featuring_z_score(df_feats["ANFCI"], window=window)
 
     df_feats = df_feats.dropna(how="all")
     #check_nan_time(df_feats, "1990-01-01")

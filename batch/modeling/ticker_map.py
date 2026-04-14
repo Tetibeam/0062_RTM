@@ -62,6 +62,8 @@ ticker_map = {
     "実体経済の需要":["INDPRO","fred", "INDPRO"],
     "10年国債の期間プレミアム":["THREEFYTP10","fred", "THREEFYTP10"],
     "金融機関の調達コスト": ["CPF3M", "fred", "CPF3M"],
+    "建築許可件数": ["PERMIT", "fred", "PERMIT"],
+    "シカゴ連銀全米金融コンディション指数（調整済み）": ["ANFCI", "fred", "ANFCI"],
     
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],

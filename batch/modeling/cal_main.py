@@ -1,7 +1,6 @@
 from batch.modeling.regime import get_market_regime_model_beta
 from batch.modeling.modeling_regional_bias import get_regional_bias_model_beta
-from batch.modeling.liq_engine import get_liq_index_model_beta
-from batch.modeling.dsr import get_mgi_index_model_beta
+from batch.modeling.vitality_engine import get_vitality_engine_beta
 from batch.modeling.get_index import get_index_by_asset_class
 from batch.modeling.driver import get_driver_beta
 
@@ -65,6 +64,8 @@ regime_index_list = [
     "シカゴ連銀Risk",
     "市場全体のストレス",
     "金融機関の調達コスト",
+    "建築許可件数",
+    "シカゴ連銀全米金融コンディション指数（調整済み）",
 
     # 市場レジュームモデル
     "S&P500指数",
@@ -127,7 +128,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_2:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_1:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
@@ -148,22 +149,7 @@ def cal_main():
 
     # --- Macro学習モデルの作成 ---
     #df_driver_prob = get_driver_beta(df_index, df_sp500)
-    #df_credit_driver_prob = get_credit_driver_beta(df_index, df_sp500)
-    #df_bond_driver_prob = get_bond_driver_beta(df_index, df_sp500)
-    df_gli_prob = get_liq_index_model_beta(df_index)
-    #df_dsr_prob = get_mgi_index_model_beta(df_index)
-    #df_regime_prob = get_market_regime_model_beta(df_index, df_sp500)
-
-    #df_regional_pred = get_regional_bias_model_beta(df_index, regime_clf, df_regime_features, df_nikkei, df_sp500)
-
-    """
-    save_model(
-        regime_clf, df_regime_trajectory, df_regime["regime"], df_regime.index.min(), df_regime.index.max(),
-        len(df_regime), "0.1.0", 'regime_prism_v0_1_0.joblib')
-    save_model(
-        driver_clf, df_driver_trajectory, df_driver["driver"], df_driver.index.min(), df_driver.index.max(),
-        len(df_driver),"0.1.0", 'driver_profiler_v0_1_0.joblib')
-    """
+    df_gli_prob = get_vitality_engine_beta(df_index)
 
 def save_model(model, trajectory, label, start_date, end_date, row_count, version, filename):
     # 保存したい情報を一つの辞書にまとめる
