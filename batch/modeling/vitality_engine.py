@@ -41,7 +41,7 @@ vitality_index = {
     "ANFCI":5,
     "T10YIE":0,
     "gli":0,
-    "credit _gap":0
+    "credit_gap":0
     
 }
 

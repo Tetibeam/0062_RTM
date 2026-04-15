@@ -33,7 +33,7 @@ ticker_map = {
 
 
     "グローバル流動性": ["gli", "bis_quarterly", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_GLI/1.0/Q.USD.3P.N.A.I.B.771?startPeriod=2010-01-01&format=csv"],
-    "クレジットギャップ": ["credit _gap", "bis_quarterly", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CREDIT_GAP/1.0/Q.US.P.A.C?startPeriod=1995-01-01&format=csv"],
+    "クレジットギャップ": ["credit_gap", "bis_quarterly", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CREDIT_GAP/1.0/Q.US.P.A.C?startPeriod=1995-01-01&format=csv"],
     "家計・非営利団体の住宅ローン残高": ["hhmsdodns", "fred", "HHMSDODNS"],
     "平均時給": ["ahe", "fred", "CES0500000003"],
     "米ドル建ての代表的代替リスクフリーレート": ["sofr", "fred", "SOFR"],
