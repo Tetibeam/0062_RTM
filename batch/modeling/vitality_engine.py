@@ -41,9 +41,9 @@ vitality_index = {
     "ANFCI":5,
     "T10YIE":0,
     "gli":0,
-    "credit_gap":0
-    
-}
+    "credit_gap":0,
+    "dsr":0
+    }
 
 ########################################################
 # メインプロセス
@@ -68,7 +68,7 @@ def get_vitality_engine_beta(df_index):
     #check_nan_time(df_features_daily, "1990-01-01")
 
     # --- 保存 ---
-    save_model(df_features_weekly, df_features_daily)
+    save_model(df, df_features_weekly, df_features_daily)
 
 ########################################################
 # データ集計
@@ -300,8 +300,9 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("--- データが終わっている日付 ---")
     print(df_e)
 
-def save_model(df_features_weekly, df_features_daily):
+def save_model(df_raw, df_features_weekly, df_features_daily):
 
+    df_raw.to_parquet("liq_engine_raw.parquet", engine="pyarrow")
     df_features_weekly.to_parquet("liq_engine_feats_w.parquet", engine="pyarrow")
     df_features_daily.to_parquet("liq_engine_feats_d.parquet", engine="pyarrow")
 
