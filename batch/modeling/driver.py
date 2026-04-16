@@ -114,11 +114,6 @@ def get_driver_beta(df_index, df_sp500):
     df_features.to_parquet("driver_features.parquet", engine="pyarrow")
     df_label.to_parquet("driver_label.parquet", engine="pyarrow")"""
 
-    #_chk_ev_hist(df_oof_ev)
- 
-
-    #return driver_clf, df_driver_trajectory, df_driver
-    #return df_oof_all
 
 ########################################################
 # 特徴量抽出
@@ -162,7 +157,7 @@ def _vol_feats(df, feats, master_index):
     vix = df['VIXCLS'].dropna()
     vvix = df["VVIX"].dropna()
     move = df["^MOVE"].dropna()
-
+    print(df['VIXCLS'].dropna())
     # 異常性
     feats["VIX_z252"] = _featuring_z_score(vix, window=252).reindex(master_index, method="ffill")
     feats["VVIX_z252"] = _featuring_z_score(vvix, window=252).reindex(master_index, method="ffill")

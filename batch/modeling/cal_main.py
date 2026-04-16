@@ -68,8 +68,8 @@ def cal_main():
     #df_index = get_index_for_learning(months=360)
 
     # --- Macro学習モデルの作成 ---
-    #df_driver_prob = get_driver_beta(df_index, df_sp500)
-    df_gli_prob = get_vitality_engine_beta(df_index)
+    df_driver_prob = get_driver_beta(df_index, df_sp500)
+    #df_gli_prob = get_vitality_engine_beta(df_index)
 
 def save_model(model, trajectory, label, start_date, end_date, row_count, version, filename):
     # 保存したい情報を一つの辞書にまとめる
