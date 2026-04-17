@@ -26,51 +26,20 @@ def get_driver_beta(df_index, df_sp500):
     df_features = _featuring_all(df_daily, df_sp500)
 
     features_refined = [
-        'VIX_z252',#
-        'VVIX_z252',#
-        'MOVE_z252',#
-        'VIX_diff5_z252',
-        'MOVE_diff5_z252',
-        'MOVE_VIX_ratio_z252',
-        'VIX_gap_z252',
-        'VIX_rv_z252',
-        "MOVE_vov",#
-        "MOVE_accel",
-        
-        #'HY_diff5_z252',
-        #'hy_z252',
-        #"HY_Acceleration_z252",
-        #'TED_spread_z252',
-        #'TED_diff5_z252',
-        'SOFR_vol_spike',
-        'Term_Premium_z252',
-        'Credit_Equity_Divergence',
-        #'Term_Premium_diff5',
-        "Term_Premium_diff5_z252",
-
-        'DFII10_diff5_z252',
-        #'DFII10_z252',
-        #'Curve_10Y2Y_z252', 
-        #'Curve_10Y3M_z252',
-        #'T10YIE_diff5_z252',
-        #'Real_Nominal_ratio_z252',
-        #'Curve_flattening_speed_z252',
-
-        'DXY_diff5_z252',######
-        #'DXY_z252',
-        #'Stock_Bond_Corr_10d_z252',
-        'Stock_Bond_Corr_z252',
-        #"Gold_z252",
-        'Equity_Gold_Ratio_z252',
-        'Flight_to_Safety_z252',
-        #'SP500_Ret_Z',
-        #"tlt_z252",
-        #"tlt_ret_z252",
-        "tlt_diff_z252",######
-        "tlt_hy_ratio_z252",
-        #"tlt_hy_diff_z252",
-        #"oil_ret_z252",
-        #"SPX_vs_SMA200"
+        #"VIX_Accel",
+        "MOVE_to_VIX_Ratio_z252",
+        "VVIX_z252",
+        #"HY_diff5_z252",
+        "OAS_to_VIX_Ratio_z252",
+        #"cp_spread_z252",
+        #"rate_shock_z252",
+        #"DFII10_diff5_z252",
+        "Term_Premium_Momentum_z252",
+        "Curve_Steepening_Accel_z252",
+        "Stock_Bond_Corr_z252",
+        #"Stock_Bond_Corr_raw",
+        "Copper_Gold_Momentum_z252",
+        #"Equity_Gold_Ratio_z252",
         ]
     df_features = df_features[features_refined]
 
@@ -86,7 +55,13 @@ def get_driver_beta(df_index, df_sp500):
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
     df_driver = df_features.join(df_label[["driver", "next_20d_ret_sp500"]])
+    start = df_driver.apply(pd.Series.first_valid_index).max()
+    end = df_driver.apply(pd.Series.last_valid_index).min()
+    df_driver = df_driver.loc[start:end]
+
     #df_driver = df_driver.loc["2010-01-01":]
+    
+    #check_nan_time(df_driver, date="2005-01-01")
 
     """driver_clf, df_driver_trajectory = learning_lgbm_final(
         df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
@@ -97,10 +72,10 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
-        n_estimators=3500,learning_rate=0.001,num_leaves=35, min_data_in_leaf=90,
+        n_estimators=3500,learning_rate=0.001,num_leaves=7, min_data_in_leaf=90,
         class_weight="balanced",
-        sample_weight=df_label["sample_weight"],
-        reg_alpha=0.1, reg_lambda=0.1, learning_curve=True,
+        sample_weight=None,#df_label["sample_weight"],
+        reg_alpha=0.5, reg_lambda=0.5, learning_curve=True,
         )
 
      # --- ファイル保存 ---
@@ -158,10 +133,18 @@ def _vol_feats(df, feats, master_index):
     vix = df['VIXCLS'].dropna()
     vvix = df["VVIX"].dropna()
     move = df["^MOVE"].dropna()
+
+    feats["VIX_Accel"] = vix.rolling(5).mean() / vix.rolling(21).mean() -1
+    ratio = move / vix
+    ratio = ratio.ffill()
+    feats['MOVE_to_VIX_Ratio_z252'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+    feats["VVIX_z252"] = _featuring_z_score(vvix, window=252).reindex(master_index, method="ffill")
     
+    #print(feats[["VIX_Accel", "MOVE_to_VIX_Ratio_z252", "VVIX_z252"]].dropna(how="all"))
+
+    # --- old ---
     # 異常性
     feats["VIX_z252"] = _featuring_z_score(vix, window=252).reindex(master_index, method="ffill")
-    feats["VVIX_z252"] = _featuring_z_score(vvix, window=252).reindex(master_index, method="ffill")
     feats["MOVE_z252"] = _featuring_z_score(move, window=252).reindex(master_index, method="ffill")
 
     # 加速
@@ -170,12 +153,6 @@ def _vol_feats(df, feats, master_index):
     feats['VIX_diff5_z252'] = _featuring_z_score(vix_diff, window=252).reindex(master_index, method="ffill")
     feats['MOVE_diff5_z252'] = _featuring_z_score(move_diff, window=252).reindex(master_index, method="ffill")
     feats['MOVE_accel'] = feats['MOVE_z252'].diff(1).diff(5).reindex(master_index, method="ffill")
-
-    # 格差
-    ratio = move / vix
-    ratio = ratio.ffill()
-    #feats['MOVE_VIX_ratio'] = ratio.reindex(master_index, method="ffill")
-    feats['MOVE_VIX_ratio_z252'] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
 
     # VIXの期間構造(VIX3Mの代用)
     vix_gap = vix / vix.rolling(window=60).mean()
@@ -192,14 +169,32 @@ def _credit_liq_feats(df, feats, master_index):
     # 指標
     hy = df['BAMLH0A0HYM2'].dropna()
     sofr = df["SOFR"].dropna()
+    effr = df["EFFR"].dropna()
     tedrate = df["TEDRATE"].dropna()
-    dgs10 = df["DGS10"].dropna()
-    dgs3mo = df["DGS3MO"].dropna()
-    vix = df["VIXCLS"].dropna()
 
-    # クレジットの加速
+    vix = df["VIXCLS"].dropna()
+    cpf3m = df["CPF3M"].dropna()
+    dtb3 = df["DTB3"].dropna()
+
     hy_diff = hy.diff(5)
     feats['HY_diff5_z252'] = _featuring_z_score(hy_diff, window=252).reindex(master_index, method="ffill")
+    ratio = hy / vix
+    ratio = ratio.ffill()
+    feats["OAS_to_VIX_Ratio_z252"] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
+    cpf3m.index = cpf3m.index + pd.offsets.MonthEnd(0)
+    cpf3m_d = cpf3m.resample("D").ffill().ewm(span=4, adjust=False).mean()
+    feats["cp_spread_z252"] = _featuring_z_score((cpf3m_d - dtb3).dropna(), window=252).clip(lower=0).reindex(master_index, method="ffill")
+    idx = sofr.index.union(effr.index)
+    short_rate = sofr.reindex(idx).combine_first(effr.reindex(idx))
+    rate_diff_5d = short_rate.diff(5)
+    feats['rate_shock_z252'] = _featuring_z_score(rate_diff_5d, window=252).clip(lower=0).reindex(master_index, method="ffill")
+    #pd.set_option("display.max.rows", None)
+    #print(feats["rate_shock_z"].dropna().head(100))
+
+    # --- old ---
+
+    # クレジットの加速
+    
     feats["hy_z252"] = _featuring_z_score(hy, window=252).reindex(master_index, method="ffill")
     smoothed_hy = hy.ewm(span=5, adjust=False).mean()
     acceleration = smoothed_hy.diff().diff()
@@ -216,12 +211,6 @@ def _credit_liq_feats(df, feats, master_index):
     sofr_rolling_std = sofr.rolling(20).std().replace(0, np.nan)
     feats['SOFR_vol_spike'] = ((sofr - sofr_rolling_mean) / sofr_rolling_std).reindex(master_index, method="ffill")
 
-    # 金融機関の「収益性・貸出意欲」の悪化
-    term_premium = dgs10 - dgs3mo
-    feats['Term_Premium_z252'] = _featuring_z_score(term_premium, window=252).reindex(master_index, method="ffill")
-    feats['Term_Premium_diff5'] = feats['Term_Premium_z252'].diff(5).reindex(master_index, method="ffill")
-    feats['Term_Premium_diff5_z252'] = _featuring_z_score(feats['Term_Premium_diff5'] , window=252).reindex(master_index, method="ffill")
-
     # クレジットとボラティリティの「乖離」
     vix_z = _featuring_z_score(vix, window=252)
     feats['Credit_Equity_Divergence'] = (feats['hy_z252'] - vix_z).reindex(master_index, method="ffill")
@@ -236,9 +225,17 @@ def _macro_gravity_feats(df, feats, master_index):
     dgs2 = df["DGS2"].dropna()
     dgs3mo = df["DGS3MO"].dropna()
 
+    feats['DFII10_diff5_z252'] = _featuring_z_score(dfii10.diff(5), window=252).reindex(master_index, method="ffill")
+    term_premium = dgs10 - dgs3mo
+    feats["Term_Premium_Momentum_z252"] = _featuring_z_score(term_premium.diff(5), window=252).reindex(master_index, method="ffill")
+    curve10y2y = dgs10 - dgs2
+    feats["Curve_Steepening_Accel_z252"] = _featuring_z_score(curve10y2y.diff(5), window=252).reindex(master_index, method="ffill")
+
+    # --- old ---
+
     # 実質金利のモメンタム
     dfii10_diff = dfii10.diff(5)
-    feats['DFII10_diff5_z252'] = _featuring_z_score(dfii10_diff, window=252).reindex(master_index, method="ffill")
+    
     feats['DFII10_z252'] = _featuring_z_score(dfii10, window=252).reindex(master_index, method="ffill")
 
     # イールドカーブ
@@ -259,6 +256,12 @@ def _macro_gravity_feats(df, feats, master_index):
     flattening_speed = curve10y2y.diff(20)
     feats['Curve_flattening_speed_z252'] = _featuring_z_score(flattening_speed, window=252).reindex(master_index, method="ffill")
 
+    # 金融機関の「収益性・貸出意欲」の悪化
+    term_premium = dgs10 - dgs3mo
+    feats['Term_Premium_z252'] = _featuring_z_score(term_premium, window=252).reindex(master_index, method="ffill")
+    feats['Term_Premium_diff5'] = feats['Term_Premium_z252'].diff(5).reindex(master_index, method="ffill")
+    feats['Term_Premium_diff5_z252'] = _featuring_z_score(feats['Term_Premium_diff5'] , window=252).reindex(master_index, method="ffill")
+
     return feats
 
 def _momentum_flow_feats(df, feats, master_index):
@@ -269,7 +272,21 @@ def _momentum_flow_feats(df, feats, master_index):
     tlt = df["TLT"].dropna()
     hy = df["BAMLH0A0HYM2"].dropna()
     oil = df["CL=F"].dropna()
+    cu = df["HG=F"].dropna()
+    
+    returns_sp = sp500.pct_change()
+    returns_tlt = tlt.pct_change()
+    corr20d = returns_sp.rolling(20, min_periods=10).corr(returns_tlt)
+    feats['Stock_Bond_Corr_z252'] = _featuring_z_score(corr20d, window=252).reindex(master_index, method="ffill")
+    feats['Stock_Bond_Corr_raw'] = corr20d.reindex(master_index, method="ffill")
+    ratio = cu / gold
+    ratio = ratio.ffill()
+    feats['Copper_Gold_Momentum_z252'] = _featuring_z_score(ratio.pct_change(20), window=252).reindex(master_index, method="ffill")
+    equity_gold = sp500 / gold
+    equity_gold = equity_gold.ffill()
+    feats['Equity_Gold_Ratio_z252'] = _featuring_z_score(equity_gold, window=252).reindex(master_index, method="ffill")
 
+    # --- old ---
     sma200 = sp500.rolling(window=200).mean()
     feats['SPX_vs_SMA200'] = _featuring_z_score((sp500 - sma200) / sma200, window=252).reindex(master_index, method="ffill")
 
@@ -290,8 +307,7 @@ def _momentum_flow_feats(df, feats, master_index):
 
     # リスクオン・オフの体温計
     feats['Gold_z252'] = _featuring_z_score(gold, window=252).reindex(master_index, method="ffill")
-    equity_gold = sp500 / gold
-    feats['Equity_Gold_Ratio_z252'] = _featuring_z_score(equity_gold, window=252).reindex(master_index, method="ffill")
+    
 
     # 資金の逃避速度
     fts_index = returns_tlt - returns_sp
@@ -333,39 +349,38 @@ def _make_label(df_daily, smear_days=5):
     master_index = df_daily["^GSPC"].dropna().index
     df = pd.DataFrame(index=master_index)
 
-    # 指標の生成
-    tlt_ret = df_daily["TLT"].pct_change()
-    tlt_vol = tlt_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+    # --- Step 1: 現在の常識（閾値）の計算 ---
+    sp500_clean = df_daily['^GSPC'].dropna()
+    sp500_vol_20d_current = sp500_clean.pct_change(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
-    sp500_ret = df_daily['^GSPC'].pct_change()
-    sp500_vol = sp500_ret.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
+    tlt_clean = df_daily["TLT"].dropna()
+    tlt_vol_20d_current = tlt_clean.pct_change(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
-    hy_diff = df_daily["BAMLH0A0HYM2"].diff()
-    hy_diff_vol = hy_diff.rolling(60,min_periods=20).std().reindex(master_index, method='ffill')
-
-    for col, asset_name in zip(["^GSPC", "TLT"], ["sp500", "tlt"]):
-        # NAを落として、その資産の純粋な営業日だけで未来20日を計算
-        asset_clean = df_daily[col].dropna()
-        future_ret = asset_clean.pct_change(20).shift(-20)
-        df[f'next_20d_ret_{asset_name}'] = future_ret.reindex(master_index, method="ffill")
-
-    # HYスプレッドは「差分(diff)」で計算する
     hy_clean = df_daily["BAMLH0A0HYM2"].dropna()
-    future_diff = hy_clean.diff(20).shift(-20) # 20日後に何ポイント拡大したか
-    df['next_20d_diff_hy'] = future_diff.reindex(master_index, method="ffill")
+    hy_diff_20d_current_vol = hy_clean.diff(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
-    # --- Step 1: 生のフラグ（Raw Flags）を立てる ---
-    # Credit: HYスプレッドの拡大（※絶対値ではなく拡大側にバイアスをかけるのが戦略的）
+    # --- Step 2: 未来の事実（ターゲット）の計算 ---
+    future_sp500_ret = sp500_clean.pct_change(20).shift(-20)
+    df['next_20d_ret_sp500'] = future_sp500_ret.reindex(master_index, method="ffill")
+
+    future_tlt_ret = tlt_clean.pct_change(20).shift(-20)
+    df['next_20d_ret_tlt'] = future_tlt_ret.reindex(master_index, method="ffill")
+
+    future_hy_diff = hy_clean.diff(20).shift(-20)
+    df['next_20d_diff_hy'] = future_hy_diff.reindex(master_index, method="ffill")
+
+    # --- Step 3: 生のフラグ（Raw Flags）を立てる ---
+    # Credit: HYスプレッドの異常な拡大 ＋ 株安
     raw_credit = (
-        (df['next_20d_diff_hy'] > (2.0 * hy_diff_vol * np.sqrt(20))) & # 拡大のみ
-        (df['next_20d_ret_sp500'] < 0) &
-        ((df['next_20d_diff_hy'] / hy_diff_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
+        (df['next_20d_diff_hy'] > (2.0 * hy_diff_20d_current_vol)) & # 20日差分が現在の2シグマを超える
+        (df['next_20d_ret_sp500'] < 0) & # 必ず株安を伴う
+        ((df['next_20d_diff_hy'] / hy_diff_20d_current_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
-
-    # Bond: TLTの激しい動き
+    # Bond: TLTの異常な変動 ＋ 株安
     raw_bond = (
-        (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol * np.sqrt(20))) &
-        ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
+        (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol_20d_current)) &
+        (df['next_20d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
+        ((df['next_20d_ret_tlt'].abs() / tlt_vol_20d_current) > (df['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
     # Bond: TLTの激しい下落（＝金利上昇）による株安局面のみを抽出
     #raw_bond = (
@@ -384,7 +399,6 @@ def _make_label(df_daily, smear_days=5):
         for idx in event_indices:
             for d in range(window + 1):
                 if idx - d >= 0:
-                    # 指数減衰：イベント当日(d=0)が1.0、遡るほど小さくなる
                     decay_val = np.exp(-d / tau)
                     scores[idx - d] = max(scores[idx - d], decay_val)
         return scores
@@ -393,14 +407,10 @@ def _make_label(df_daily, smear_days=5):
     df['credit_score'] = calculate_decay_score(raw_credit, smear_days)
     df['bond_score'] = calculate_decay_score(raw_bond, smear_days)
 
-    # --- Step 3: スコアに基づく動的ラベル付与 ---
-    # 単なる0/1ではなく、閾値（例: 0.5）を超えた期間をレジュームとして認定
-    # これにより「あまりに遠い予兆」を無理に学習することを防ぐ
+    # --- Step 5: スコアに基づく動的ラベル付与 ---
     threshold = 0.4
-
     df["driver"] = 3 # Neutral
 
-    # 1. まず、閾値を超えている場所を特定
     is_bond_candidate = df['bond_score'] > threshold
     is_credit_candidate = df['credit_score'] > threshold
 
@@ -410,7 +420,6 @@ def _make_label(df_daily, smear_days=5):
     df.loc[is_bond_candidate & (df['bond_score'] > df['credit_score']), 'driver'] = 2
 
     df = df.dropna()
-    #check_nan_time(df)
 
     #_analysis_label(df, df_daily)
 
@@ -418,9 +427,9 @@ def _make_label(df_daily, smear_days=5):
 
 def _analysis_label(df, df_daily):
 
-    s_date = "2005-01-01"
+    s_date = "2024-01-01"
     e_date = "2026-01-01"
-    print(f"\nDriver教師ラベルの期間: {s_date}〜{e_date}")
+    print(f"\nDriver教師ラベルの期間 Era4: {s_date}〜{e_date}")
 
     df = df.loc[s_date:e_date]
     df_daily = df_daily.loc[s_date:e_date]

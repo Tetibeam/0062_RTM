@@ -274,20 +274,21 @@ def learning_lgbm_test_driver(
     report_lgbm_total_result(all_y_test, all_y_pred, all_importances)
 
     # 9. 期待値ベースの評価レポートを表示
-    print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-    #df_oof_ev=df_oof_ev.loc["2010-01-01":"2026-01-01"]
-    #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
-    #bins = [0, 0.5, 0.63, 0.75, 0.85, 1.1]
+    print("\n=== ev_rank 評価レポート ===")
     bins = [0, 0.2, 0.4, 0.6, 0.8, 1.1]
-    df_oof_ev['ev_rank'] = pd.cut(
-        df_oof_ev['risk_score'],
-        #df_oof_ev['risk_sum'],
-        bins=bins,
-        labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
-        include_lowest=True
-    )
-    ev_summary = df_oof_ev.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
-    print(ev_summary)
+    terms=[("2010-01-01","2015-12-31"),("2016-01-01","2019-12-31"),("2020-01-01","2023-12-31"),("2024-01-01","2026-03-15")]
+    for start, end in terms:
+        print(f"\n期間：{start} ~ {end}")
+        df_tmp=df_oof_ev.loc[start:end]
+
+        df_tmp['ev_rank'] = pd.cut(
+            df_tmp['risk_score'],
+            bins=bins,
+            labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
+            include_lowest=True
+        )
+        ev_summary = df_tmp.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
+        print(ev_summary)
 
     return df_oof_all, final_shap_dfs, df_oof_ev
 

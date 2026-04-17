@@ -26,6 +26,7 @@ regime_index_list = [
     "ドルインデックス",
     "金先物",
     "原油",
+    "実効FF金利",
 
     "リバースレポ残高",
     "FRB総資産",
@@ -47,7 +48,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_3:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_4:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
