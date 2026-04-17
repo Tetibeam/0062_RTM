@@ -83,24 +83,24 @@ def get_driver_beta(df_index, df_sp500):
     features_refined = [
         # アンカー
         "Liq_eff",
-        #"Real_Yield_Level",
+        "Real_Yield_Level",
         "DXY_Level",
         # Era
         "Era",
         # 火薬
         #"VIX_Accel",
-        "MOVE_to_VIX_Ratio_z252",
-        "VVIX_z252",
+        "MOVE_to_VIX_Ratio_z252",#
+        "VVIX_z252",#
         #"HY_diff5_z252",
-        "OAS_to_VIX_Ratio_z252",
+        "OAS_to_VIX_Ratio_z252",#
         #"cp_spread_z252",
         #"rate_shock_z252",
         #"DFII10_diff5_z252",
-        "Term_Premium_Momentum_z252",
-        "Curve_Steepening_Accel_z252",
-        "Stock_Bond_Corr_z252",
+        "Term_Premium_Momentum_z252",#
+        "Curve_Steepening_Accel_z252",#
+        "Stock_Bond_Corr_z252",#
         #"Stock_Bond_Corr_raw",
-        "Copper_Gold_Momentum_z252",
+        "Copper_Gold_Momentum_z252",#
         #"Equity_Gold_Ratio_z252",
 
         ]
