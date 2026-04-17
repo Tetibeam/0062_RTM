@@ -66,6 +66,7 @@ ticker_map = {
     "建築許可件数": ["PERMIT", "fred", "PERMIT"],
     "シカゴ連銀全米金融コンディション指数（調整済み）": ["ANFCI", "fred", "ANFCI"],
     "実効FF金利": ["EFFR", "fred", "EFFR"],
+    "Baa-10年国債スプレッド":["BAA10Y","fred","BAA10Y"],
     
 
     "S&P500指数": ["sp500", "yfinance", "^GSPC"],

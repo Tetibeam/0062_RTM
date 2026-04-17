@@ -27,6 +27,7 @@ regime_index_list = [
     "金先物",
     "原油",
     "実効FF金利",
+    "Baa-10年国債スプレッド",
 
     "リバースレポ残高",
     "FRB総資産",
@@ -48,7 +49,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_4:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_7:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
@@ -56,6 +57,7 @@ def get_index_for_learning(months=24):
     start = today - pd.DateOffset(months=months)
 
     df = get_index_by_asset_class(regime_index_list, start, today)
+    #print(df["BAA10Y"].dropna().head(10))
 
     df_sp500 = get_index_by_asset_class(["S&P500構成銘柄"], start, today)
     df_nikkei = get_index_by_asset_class(["日経平均構成銘柄"], start, today)
