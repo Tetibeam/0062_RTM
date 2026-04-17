@@ -60,6 +60,9 @@ def learning_lgbm_test_driver(
     n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
     class_weight="balanced", reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
     sample_weight=None, objective="multiclass",
+    max_depth=3,
+    stopping_rounds=100,
+    extra_trees="False",
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -107,7 +110,9 @@ def learning_lgbm_test_driver(
             #num_class=len(labels),
             n_estimators=n_estimators,
             learning_rate=learning_rate,
-            #max_depth=4,
+            #max_depth=max_depth,
+            #stopping_rounds=stopping_rounds,
+            #extra_trees=extra_trees,
             num_leaves=num_leaves,
             min_data_in_leaf=min_data_in_leaf,
             class_weight=class_weight,
@@ -166,7 +171,7 @@ def learning_lgbm_test_driver(
                 if float(class_id) == 1.0:
                     risk_score += y_prob[:, i] * 1.0
                 elif float(class_id) == 2.0:
-                    risk_score += y_prob[:, i] * 0.5
+                    risk_score += y_prob[:, i] * 0#0.5
         #print("期待値の出力")
         #print(ev_fold)
 
@@ -270,7 +275,7 @@ def learning_lgbm_test_driver(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== 期待値ベース評価レポート (Expected Value Analysis) ===")
-
+    #df_oof_ev=df_oof_ev.loc["2010-01-01":"2026-01-01"]
     #bins = [0, 0.4, 0.6, 0.75, 0.85, 1.1] # 学習条件がかわればrisk_sumの分布をみて調整すべし
     #bins = [0, 0.5, 0.63, 0.75, 0.85, 1.1]
     bins = [0, 0.2, 0.4, 0.6, 0.8, 1.1]

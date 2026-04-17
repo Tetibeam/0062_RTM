@@ -26,19 +26,19 @@ def get_driver_beta(df_index, df_sp500):
     df_features = _featuring_all(df_daily, df_sp500)
 
     features_refined = [
-        'VIX_z252',#
-        'VVIX_z252',#
-        'MOVE_z252',#
-        'VIX_diff5_z252',
-        'MOVE_diff5_z252',
-        'MOVE_VIX_ratio_z252',
-        'VIX_gap_z252',
-        'VIX_rv_z252',
-        "MOVE_vov",#
-        "MOVE_accel",
+        #'VIX_z252',#
+        #'VVIX_z252',#
+        #'MOVE_z252',#
+        #'VIX_diff5_z252',
+        #'MOVE_diff5_z252',
+        #'MOVE_VIX_ratio_z252',
+        #'VIX_gap_z252',
+        #'VIX_rv_z252',
+        #"MOVE_vov",#
+        #"MOVE_accel",
         
         #'HY_diff5_z252',
-        #'hy_z252',
+        'hy_z252',
         #"HY_Acceleration_z252",
         #'TED_spread_z252',
         #'TED_diff5_z252',
@@ -97,10 +97,10 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
-        n_estimators=3500,learning_rate=0.001,num_leaves=35, min_data_in_leaf=90,
+        n_estimators=2500,learning_rate=0.001,num_leaves=50, min_data_in_leaf=90,
         class_weight="balanced",
         sample_weight=df_label["sample_weight"],
-        reg_alpha=0.1, reg_lambda=0.1, learning_curve=True,
+        reg_alpha=0.3, reg_lambda=0.3, learning_curve=True,
         )
 
      # --- ファイル保存 ---
@@ -218,6 +218,7 @@ def _credit_liq_feats(df, feats, master_index):
 
     # 金融機関の「収益性・貸出意欲」の悪化
     term_premium = dgs10 - dgs3mo
+    feats['Term_Premium'] = term_premium
     feats['Term_Premium_z252'] = _featuring_z_score(term_premium, window=252).reindex(master_index, method="ffill")
     feats['Term_Premium_diff5'] = feats['Term_Premium_z252'].diff(5).reindex(master_index, method="ffill")
     feats['Term_Premium_diff5_z252'] = _featuring_z_score(feats['Term_Premium_diff5'] , window=252).reindex(master_index, method="ffill")
@@ -239,11 +240,13 @@ def _macro_gravity_feats(df, feats, master_index):
     # 実質金利のモメンタム
     dfii10_diff = dfii10.diff(5)
     feats['DFII10_diff5_z252'] = _featuring_z_score(dfii10_diff, window=252).reindex(master_index, method="ffill")
+    feats['DFII10'] = dfii10
     feats['DFII10_z252'] = _featuring_z_score(dfii10, window=252).reindex(master_index, method="ffill")
 
     # イールドカーブ
     curve10y2y = dgs10 - dgs2
     curve10y3m = dgs10 - dgs3mo
+    feats["Curve_10Y2Y"] = curve10y2y
     feats['Curve_10Y2Y_z252'] = _featuring_z_score(curve10y2y, window=252).reindex(master_index, method="ffill")
     feats['Curve_10Y3M_z252'] = _featuring_z_score(curve10y3m, window=252).reindex(master_index, method="ffill")
 
@@ -327,7 +330,7 @@ def _featuring_z_score(df, window):
 # 教師ラベル作成 - カンニングラベル
 ########################################################
 
-def _make_label(df_daily, smear_days=5):
+def _make_label(df_daily, smear_days=10):
 
     # リバランスの実行基準となるマスターカレンダー
     master_index = df_daily["^GSPC"].dropna().index
@@ -363,16 +366,16 @@ def _make_label(df_daily, smear_days=5):
     )
 
     # Bond: TLTの激しい動き
-    raw_bond = (
-        (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol * np.sqrt(20))) &
-        ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
-    )
-    # Bond: TLTの激しい下落（＝金利上昇）による株安局面のみを抽出
     #raw_bond = (
-    #    (df['next_20d_ret_tlt'] < -(1.5 * tlt_vol * np.sqrt(20))) &  # TLTの大幅下落（絶対値ではなくマイナス方向）
-    #    (df['next_20d_ret_sp500'] < 0) &                            # SP500の価格下落を伴う
+    #    (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol * np.sqrt(20))) &
     #    ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
     #)
+    # Bond: TLTの激しい下落（＝金利上昇）による株安局面のみを抽出
+    raw_bond = (
+        (df['next_20d_ret_tlt'] < -(1.5 * tlt_vol * np.sqrt(20))) &  # TLTの大幅下落（絶対値ではなくマイナス方向）
+        (df['next_20d_ret_sp500'] < 0) &                            # SP500の価格下落を伴う
+        ((df['next_20d_ret_tlt'].abs() / tlt_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol * 0.5))
+    )
 
     # --- Step 2: 数学的Smearing（減衰スコアの計算） ---
     def calculate_decay_score(raw_series, window):
@@ -417,7 +420,7 @@ def _make_label(df_daily, smear_days=5):
     return df
 
 def _analysis_label(df, df_daily):
-
+    
     s_date = "2005-01-01"
     e_date = "2026-01-01"
     print(f"\nDriver教師ラベルの期間: {s_date}〜{e_date}")

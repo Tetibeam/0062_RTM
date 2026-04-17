@@ -20,7 +20,6 @@ regime_index_list = [
     "銀行信用リスクのプレミアム",
     "米国10年国債利回り",
     "米国債 3ヶ月金利",
-    "VIX指数",
     "10年物米国債インフレ連動債利回り",
     "期待インフレ率",
     "米国債2年利回り",
@@ -48,7 +47,7 @@ regime_index_list = [
 
 @cache.cached(
     timeout=60 * 60 * 6,
-    key_prefix=lambda *args, **kwargs: f"index_for_model_2:prices:raw:{kwargs.get('months')}"
+    key_prefix=lambda *args, **kwargs: f"index_for_model_3:prices:raw:{kwargs.get('months')}"
 )
 def get_index_for_learning(months=24):
     # 日付
@@ -64,7 +63,9 @@ def get_index_for_learning(months=24):
 
 def cal_main():
     # 指標の取得
+
     df_index, df_sp500, df_nikkei = get_index_for_learning(months=360)
+
     #df_index = get_index_for_learning(months=360)
 
     # --- Macro学習モデルの作成 ---
