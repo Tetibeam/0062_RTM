@@ -126,7 +126,7 @@ def get_driver_beta(df_index, df_sp500):
     mask_bond = (df_label['driver'] == 3)
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
-    df_driver = df_features.join(df_label[["driver", "next_20d_ret_sp500"]])
+    df_driver = df_features.join(df_label[["driver", "next_40d_ret_sp500"]])
     start = df_driver.apply(pd.Series.first_valid_index).max()
     end = df_driver.apply(pd.Series.last_valid_index).min()
     df_driver = df_driver.loc[start:end]
@@ -140,7 +140,7 @@ def get_driver_beta(df_index, df_sp500):
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
-    """print(f"特徴量とmonotone_constraints設定: {features_refined}")
+    print(f"特徴量とmonotone_constraints設定: {features_refined}")
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
@@ -153,7 +153,7 @@ def get_driver_beta(df_index, df_sp500):
         importance_type='gain',
         sample_weight=None,#df_label["sample_weight"],
         learning_curve=True,
-        )"""
+        )
     #shap_stats(df_driver, df_features.columns, df_shap)
 
      # --- ファイル保存 ---
@@ -464,15 +464,15 @@ def _make_label(df_daily, smear_days=5):
     # --- Step 3: 生のフラグ（Raw Flags）を立てる ---
     # Credit: HYスプレッドの異常な拡大 ＋ 株安
     raw_credit = (
-        (df['next_20d_diff_hy'] > (2.0 * hy_diff_40d_current_vol)) & # 20日差分が現在の2シグマを超える
-        (df['next_20d_ret_sp500'] < 0) & # 必ず株安を伴う
-        ((df['next_20d_diff_hy'] / hy_diff_40d_current_vol) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
+        (df['next_40d_diff_hy'] > (2.0 * hy_diff_40d_current_vol)) & # 20日差分が現在の2シグマを超える
+        (df['next_40d_ret_sp500'] < 0) & # 必ず株安を伴う
+        ((df['next_40d_diff_hy'] / hy_diff_40d_current_vol) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
     )
     # Bond: TLTの異常な変動 ＋ 株安
     raw_bond = (
-        (df['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol_20d_current)) &
-        (df['next_20d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
-        ((df['next_20d_ret_tlt'].abs() / tlt_vol_20d_current) > (df['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
+        (df['next_40d_ret_tlt'].abs() > (1.5 * tlt_vol_40d_current)) &
+        (df['next_40d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
+        ((df['next_40d_ret_tlt'].abs() / tlt_vol_40d_current) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
     )
 
     # --- Step 2: 数学的Smearing（減衰スコアの計算） ---
@@ -526,13 +526,13 @@ def _analysis_label(df, df_daily):
     #print(stats)
 
     market_summary = df.groupby('driver').agg({
-        'next_20d_ret_sp500': [
+        'next_40d_ret_sp500': [
             'count', 'mean', 'median', 'std', 
             lambda x: x.quantile(0.05), 'min', # 下位5%と最小値でリスクの深さを測る
             lambda x: (x > 0).mean() # 勝率
         ],
-        'next_20d_ret_tlt': ['mean', 'std', 'min'],
-        'next_20d_diff_hy': ['mean', 'std', 'max'] # HYは拡大(max)がリスク
+        'next_40d_ret_tlt': ['mean', 'std', 'min'],
+        'next_40d_diff_hy': ['mean', 'std', 'max'] # HYは拡大(max)がリスク
     }).round(4)
 
     # カラム名を分かりやすく整理（任意）

@@ -68,7 +68,7 @@ def learning_lgbm_test_driver(
     learning_curve=False,
     # カスタム閾値の探索
     study_signal_filter=False,
-    return_col='next_20d_ret_sp500',
+    return_col='next_40d_ret_sp500',
     ):
     # 1. 前処理：データの準備
     df_ready = df_ready.dropna(subset=[target_col, return_col])
