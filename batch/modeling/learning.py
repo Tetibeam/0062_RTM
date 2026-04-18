@@ -182,7 +182,7 @@ def learning_lgbm_test_driver(
                 if float(class_id) == 1.0:
                     risk_score += y_prob[:, i] * 1.0
                 elif float(class_id) == 2.0:
-                    risk_score += y_prob[:, i] * 0.5
+                    risk_score += y_prob[:, i] * 0#0.5
         #print("期待値の出力")
         #print(ev_fold)
 
