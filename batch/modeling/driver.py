@@ -37,6 +37,7 @@ driver_index = {
     "GC=F":1,
     "DFII10":1,
     "NDFACBM027SBOG":1,
+    "T10YIE":1,
 
     # 火薬
     "VIXCLS":1,
@@ -47,7 +48,8 @@ driver_index = {
     "DGS10":1,
     "DGS2":1,
     "DGS3MO":1,
-    "CL=F":1
+    "CL=F":1,
+    "STLFSI4":1
     }
 
 def get_driver_beta(df_index, df_sp500):
@@ -80,31 +82,38 @@ def get_driver_beta(df_index, df_sp500):
     #pd.set_option("display.max_rows", None)
     #print(df_features.tail(20))
 
-    features_refined = [
+    features_refined = {
         # アンカー
-        "Liq_eff",
-        "Real_Yield_Level",
-        "DXY_Level",
+        "Liq_eff":0,
+        #"Real_Yield_Level":0,
+        "T10YIE":0,
+        "DXY_Level_z252":0,
+        "Cu_Au_Ratio":0,
+        #"cp_spread":0,
         # Era
-        "Era",
+        "Era":0,
         # 火薬
-        #"VIX_Accel",
-        "MOVE_to_VIX_Ratio_z252",#
-        "VVIX_z252",#
-        #"HY_diff5_z252",
-        "OAS_to_VIX_Ratio_z252",#
-        #"cp_spread_z252",
+        #"VIX_Accel":0,
+        #"MOVE_to_VIX_Ratio_z252":0,#
+        #"VVIX_z252":0,#
+        #"HY_diff5_z252":0,
+        #"OAS_to_VIX_Ratio_z252":0,#
+        #"cp_spread_z252":0,
         #"rate_shock_z252",
         #"DFII10_diff5_z252",
-        "Term_Premium_Momentum_z252",#
-        "Curve_Steepening_Accel_z252",#
-        "Stock_Bond_Corr_z252",#
+        #"Term_Premium_Momentum_z252":0,#
+        #"Curve_Steepening_Accel_z252":0,#
+        #"Stock_Bond_Corr_z252":0,#
         #"Stock_Bond_Corr_raw",
-        "Copper_Gold_Momentum_z252",#
-        #"Equity_Gold_Ratio_z252",
-
-        ]
-    df_features = df_features[features_refined]
+        #"Copper_Gold_Momentum_z252":0,#
+        #"Equity_Gold_Ratio_z252":0,
+        #"tlt_hy_ratio_z252":0,
+        #"stlfsi4":0
+#
+    }
+    df_features = df_features[list(features_refined.keys())]
+    monotone_constraints = list(features_refined.values())
+    #print(monotone_constraints)
 
     # --- 学習モデル生成 ---
     # サンプルフェイト
@@ -131,19 +140,21 @@ def get_driver_beta(df_index, df_sp500):
         n_estimators=2800,learning_rate=0.001,num_leaves=50, min_data_in_leaf=100,
         reg_alpha=0.3, reg_lambda=0.3,)"""
 
-    #print(f"特徴量のリスト: {df_features.columns}")
+    """print(f"特徴量とmonotone_constraints設定: {features_refined}")
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
         n_splits=5, gap =30,
-        n_estimators=3500,learning_rate=0.001,
-        num_leaves=13, min_data_in_leaf=90,max_depth=3,
-        reg_alpha=0.3, reg_lambda=0.3,
-        #extra_trees="True",
+        n_estimators=5000,learning_rate=0.001,
+        num_leaves=35, min_data_in_leaf=90,max_depth=5,
+        reg_alpha=0.1, reg_lambda=0.1,
+        extra_trees="False",
         class_weight="balanced",
+        monotone_constraints = None,
         importance_type='gain',
         sample_weight=None,#df_label["sample_weight"],
         learning_curve=True,
-        )
+        )"""
+    #shap_stats(df_driver, df_features.columns, df_shap)
 
      # --- ファイル保存 ---
 
@@ -285,6 +296,7 @@ def _featuring_all(df_daily):
     #check_nan_time(feats, date="2005-01-01")
 
     return feats
+
 def _featuring_anchors(df_daily, feats, master_index):
     # Net Liquidity
     feats['RRP_filled'] = df_daily['RRPONTSYD'].fillna(0) * 1000
@@ -303,6 +315,20 @@ def _featuring_anchors(df_daily, feats, master_index):
 
     # ドル指標
     feats['DXY_Level'] = df_daily["DX-Y.NYB"].ewm(span=5, adjust=False).mean().reindex(master_index, method='ffill')
+    feats['DXY_Level_z252'] = _featuring_z_score(feats['DXY_Level'], window=252).reindex(master_index, method='ffill')
+
+    # Copper/Gold Ratio (リスクオンセンチメント)
+    feats["Cu_Au_Ratio"] = df_daily["HG=F"] / df_daily["GC=F"]
+    feats["Cu_Au_Ratio_z252"] = _featuring_z_score(feats["Cu_Au_Ratio"], 252).reindex(master_index, method='ffill')
+    
+    # cp spread
+    cpf3m = df_daily["CPF3M"].dropna()
+    dtb3 = df_daily["DTB3"].dropna()
+    feats["cp_spread"] = (cpf3m - dtb3).reindex(master_index, method="ffill")
+    feats["cp_spread_z252"] = _featuring_z_score((cpf3m - dtb3).dropna(), window=252).reindex(master_index, method="ffill")
+    
+    feats["T10YIE"] = df_daily["T10YIE"].dropna()
+    feats["T10YIE_z252"] = _featuring_z_score(feats["T10YIE"], window=252).reindex(master_index, method="ffill")
 
     return feats
 
@@ -338,7 +364,6 @@ def _credit_liq_feats(df, feats, master_index):
     ratio = hy / vix
     ratio = ratio.ffill()
     feats["OAS_to_VIX_Ratio_z252"] = _featuring_z_score(ratio, window=252).reindex(master_index, method="ffill")
-    feats["cp_spread_z252"] = _featuring_z_score((cpf3m - dtb3).dropna(), window=252).clip(lower=0).reindex(master_index, method="ffill")
     idx = sofr.index.union(effr.index)
     short_rate = sofr.reindex(idx).combine_first(effr.reindex(idx))
     rate_diff_5d = short_rate.diff(5)
@@ -354,12 +379,15 @@ def _macro_gravity_feats(df, feats, master_index):
     dgs10 = df["DGS10"].dropna()
     dgs2 = df["DGS2"].dropna()
     dgs3mo = df["DGS3MO"].dropna()
+    stlfsi4 = df["STLFSI4"].dropna()
 
     feats['DFII10_diff5_z252'] = _featuring_z_score(dfii10.diff(5), window=252).reindex(master_index, method="ffill")
     term_premium = dgs10 - dgs3mo
     feats["Term_Premium_Momentum_z252"] = _featuring_z_score(term_premium.diff(5), window=252).reindex(master_index, method="ffill")
     curve10y2y = dgs10 - dgs2
     feats["Curve_Steepening_Accel_z252"] = _featuring_z_score(curve10y2y.diff(5), window=252).reindex(master_index, method="ffill")
+    feats["stlfsi4"] = stlfsi4.reindex(master_index, method="ffill")
+    feats["stlfsi4_z252"] = _featuring_z_score(stlfsi4, window=252).reindex(master_index, method="ffill")
 
     return feats
 
@@ -412,33 +440,33 @@ def _make_label(df_daily, smear_days=5):
 
     # --- Step 1: 現在の常識（閾値）の計算 ---
     sp500_clean = df_daily['^GSPC'].dropna()
-    sp500_vol_20d_current = sp500_clean.pct_change(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    sp500_vol_40d_current = sp500_clean.pct_change(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
     tlt_clean = df_daily["TLT"].dropna()
-    tlt_vol_20d_current = tlt_clean.pct_change(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    tlt_vol_40d_current = tlt_clean.pct_change(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
     #hy_clean = df_daily["BAMLH0A0HYM2"].dropna()
     #hy_diff_20d_current_vol = hy_clean.diff(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
     
     hy_clean = df_daily["BAA10Y"].dropna()
-    hy_diff_20d_current_vol = hy_clean.diff(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    hy_diff_40d_current_vol = hy_clean.diff(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
     # --- Step 2: 未来の事実（ターゲット）の計算 ---
-    future_sp500_ret = sp500_clean.pct_change(20).shift(-20)
-    df['next_20d_ret_sp500'] = future_sp500_ret.reindex(master_index, method="ffill")
+    future_sp500_ret = sp500_clean.pct_change(40).shift(-40)
+    df['next_40d_ret_sp500'] = future_sp500_ret.reindex(master_index, method="ffill")
 
-    future_tlt_ret = tlt_clean.pct_change(20).shift(-20)
-    df['next_20d_ret_tlt'] = future_tlt_ret.reindex(master_index, method="ffill")
+    future_tlt_ret = tlt_clean.pct_change(40).shift(-40)
+    df['next_40d_ret_tlt'] = future_tlt_ret.reindex(master_index, method="ffill")
 
-    future_hy_diff = hy_clean.diff(20).shift(-20)
-    df['next_20d_diff_hy'] = future_hy_diff.reindex(master_index, method="ffill")
+    future_hy_diff = hy_clean.diff(40).shift(-40)
+    df['next_40d_diff_hy'] = future_hy_diff.reindex(master_index, method="ffill")
 
     # --- Step 3: 生のフラグ（Raw Flags）を立てる ---
     # Credit: HYスプレッドの異常な拡大 ＋ 株安
     raw_credit = (
-        (df['next_20d_diff_hy'] > (2.0 * hy_diff_20d_current_vol)) & # 20日差分が現在の2シグマを超える
+        (df['next_20d_diff_hy'] > (2.0 * hy_diff_40d_current_vol)) & # 20日差分が現在の2シグマを超える
         (df['next_20d_ret_sp500'] < 0) & # 必ず株安を伴う
-        ((df['next_20d_diff_hy'] / hy_diff_20d_current_vol) > (df['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
+        ((df['next_20d_diff_hy'] / hy_diff_40d_current_vol) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
     )
     # Bond: TLTの異常な変動 ＋ 株安
     raw_bond = (
@@ -479,7 +507,7 @@ def _make_label(df_daily, smear_days=5):
 
     df = df.dropna()
 
-    #_analysis_label(df, df_daily)
+    _analysis_label(df, df_daily)
 
     return df
 
@@ -552,7 +580,6 @@ def check_nan_time(df, date:str="2006-01-01"):
     print("--- データが終わっている日付 ---")
     print(df_e)
 
-
 def _chk_ev_hist(df_oof_ev):
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -570,3 +597,24 @@ def _chk_ev_hist(df_oof_ev):
     plt.axvline(x=0.5, color='red', linestyle='--', label='Threshold 0.5')
     plt.legend()
     plt.show()
+
+def shap_stats(df_master, features_list, df_shap):
+    for label, shap_df in df_shap.items():
+        print(f"\n=== レジーム: {label} の符号検証 ===")
+        # 検証データ期間の元の特徴量を取得
+        original_X = df_master.loc[shap_df.index, features_list]
+
+        logic_results = []
+        for col in features_list:
+            # 元の値とSHAP値の相関を計算
+            correlation = original_X[col].corr(shap_df[col])
+
+            # 方向性の判定
+            direction = "正の相関 (+)" if correlation > 0 else "負の相関 (-)"
+            logic_results.append({
+                "特徴量": col,
+                "方向性": direction,
+                "相関係数": f"{correlation:.3f}"
+            })
+
+        print(pd.DataFrame(logic_results))

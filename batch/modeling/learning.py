@@ -63,6 +63,7 @@ def learning_lgbm_test_driver(
     max_depth=3,
     stopping_rounds=100,
     extra_trees="False",
+    monotone_constraints = None,
     # 学習曲線の表示
     learning_curve=False,
     # カスタム閾値の探索
@@ -74,6 +75,10 @@ def learning_lgbm_test_driver(
     X = df_ready.drop(columns=[target_col, return_col])
     y = df_ready[target_col]
     returns_all = df_ready[return_col]
+    
+    # 特徴量リストとEraのインデックス特定
+    feature_names = X.columns.tolist()
+    cat_features = ['Era'] if 'Era' in feature_names else []
 
     # 2. TimeSeriesSplitの設定
     # gap を指定することで、TrainとTestの間に空白を作り、未来リーク（カンニング）を完全に防ぐ
@@ -103,6 +108,8 @@ def learning_lgbm_test_driver(
         y_train, y_test = y.iloc[train_index], y.iloc[test_index]
         #ret_train = returns_all.iloc[train_index] # 学習データの重み計算用リターン
         ret_test = returns_all.iloc[test_index]   # 検証用の実リターン
+        
+        w_train = sample_weight.iloc[train_index] if sample_weight is not None else None
 
         # モデル設定
         clf = lgb.LGBMClassifier(
@@ -110,17 +117,19 @@ def learning_lgbm_test_driver(
             #num_class=len(labels),
             n_estimators=n_estimators,
             learning_rate=learning_rate,
-            #max_depth=max_depth,
-            #stopping_rounds=stopping_rounds,
-            #extra_trees=extra_trees,
+            max_depth=max_depth,
+            stopping_rounds=stopping_rounds,
+            extra_trees=extra_trees,
             num_leaves=num_leaves,
             min_data_in_leaf=min_data_in_leaf,
             class_weight=class_weight,
             reg_alpha=reg_alpha,
             reg_lambda=reg_lambda,
             importance_type=importance_type,
+            #monotone_constraints=monotone_constraints,
             random_state=42,
-            verbose=-1
+            verbose=-1,
+            #interaction_constraints=[feature_names],
         )
 
         # 学習
@@ -134,7 +143,9 @@ def learning_lgbm_test_driver(
             callbacks=[
                 lgb.early_stopping(stopping_rounds=30, verbose=False),
                 lgb.record_evaluation(evals_result)
-            ]
+            ],
+            #sample_weight=w_train,
+            categorical_feature=cat_features,
         )
 
         # 1. クラスIDからラベル名へのマッピングを作成
@@ -171,7 +182,7 @@ def learning_lgbm_test_driver(
                 if float(class_id) == 1.0:
                     risk_score += y_prob[:, i] * 1.0
                 elif float(class_id) == 2.0:
-                    risk_score += y_prob[:, i] * 0#0.5
+                    risk_score += y_prob[:, i] * 0.5
         #print("期待値の出力")
         #print(ev_fold)
 
@@ -275,7 +286,7 @@ def learning_lgbm_test_driver(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== ev_rank 評価レポート ===")
-    bins = [0, 0.2, 0.4, 0.6, 0.8, 1.1]
+    bins = [0, 0.2, 0.45, 0.65, 1.1]
     terms=[("2010-01-01","2015-12-31"),("2016-01-01","2019-12-31"),("2020-01-01","2023-12-31"),("2024-01-01","2026-03-15")]
     for start, end in terms:
         print(f"\n期間：{start} ~ {end}")
@@ -284,7 +295,7 @@ def learning_lgbm_test_driver(
         df_tmp['ev_rank'] = pd.cut(
             df_tmp['risk_score'],
             bins=bins,
-            labels=['Safe', 'Neutral', 'Caution', 'High Risk', 'CRITICAL'],
+            labels=['Safe', 'Neutral', 'Caution', 'High Risk'],
             include_lowest=True
         )
         ev_summary = df_tmp.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])
