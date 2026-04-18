@@ -68,7 +68,7 @@ def learning_lgbm_test_driver(
     learning_curve=False,
     # カスタム閾値の探索
     study_signal_filter=False,
-    return_col='next_40d_ret_sp500',
+    return_col='next_20d_ret_sp500',
     ):
     # 1. 前処理：データの準備
     df_ready = df_ready.dropna(subset=[target_col, return_col])
@@ -286,8 +286,12 @@ def learning_lgbm_test_driver(
 
     # 9. 期待値ベースの評価レポートを表示
     print("\n=== ev_rank 評価レポート ===")
-    bins = [0, 0.2, 0.45, 0.65, 1.1]
-    terms=[("2010-01-01","2015-12-31"),("2016-01-01","2019-12-31"),("2020-01-01","2023-12-31"),("2024-01-01","2026-03-15")]
+    bins = [0, 0.2, 0.4, 0.6, 0.8, 1.1]
+    terms = [
+        ("2010-10-01","2013-06-01"),("2013-06-01","2016-10-01"),("2016-10-01","2019-09-01"),
+        ("2019-09-01","2020-04-01"),("2020-04-01","2021-12-01"),("2021-12-01","2023-10-01"),
+        ("2023-10-01","2026-02-01")
+        ]
     for start, end in terms:
         print(f"\n期間：{start} ~ {end}")
         df_tmp=df_oof_ev.loc[start:end]
@@ -295,7 +299,7 @@ def learning_lgbm_test_driver(
         df_tmp['ev_rank'] = pd.cut(
             df_tmp['risk_score'],
             bins=bins,
-            labels=['Safe', 'Neutral', 'Caution', 'High Risk'],
+            labels=['Safe', 'Neutral', 'Caution', 'High Risk', "Critical"],
             include_lowest=True
         )
         ev_summary = df_tmp.groupby('ev_rank', observed=True)['actual_return'].agg(['mean',"median", 'count'])

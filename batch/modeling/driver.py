@@ -78,6 +78,7 @@ def get_driver_beta(df_index, df_sp500):
 
     # --- 前処理（特徴量） ---
     df_features = _featuring_all(df_agg_daily)
+    
     #check_nan_time(df_features, date="2005-01-01")
     #pd.set_option("display.max_rows", None)
     #print(df_features.tail(20))
@@ -87,28 +88,28 @@ def get_driver_beta(df_index, df_sp500):
         "Liq_eff":0,
         #"Real_Yield_Level":0,
         "T10YIE":0,
-        "DXY_Level_z252":0,
+        "DXY_Level":0,
         "Cu_Au_Ratio":0,
         #"cp_spread":0,
         # Era
         "Era":0,
         # 火薬
         #"VIX_Accel":0,
-        #"MOVE_to_VIX_Ratio_z252":0,#
+        "MOVE_to_VIX_Ratio_z252":0,#
         #"VVIX_z252":0,#
         #"HY_diff5_z252":0,
-        #"OAS_to_VIX_Ratio_z252":0,#
+        "OAS_to_VIX_Ratio_z252":0,#
         #"cp_spread_z252":0,
         #"rate_shock_z252",
         #"DFII10_diff5_z252",
         #"Term_Premium_Momentum_z252":0,#
         #"Curve_Steepening_Accel_z252":0,#
-        #"Stock_Bond_Corr_z252":0,#
+        "Stock_Bond_Corr_z252":0,#
         #"Stock_Bond_Corr_raw",
-        #"Copper_Gold_Momentum_z252":0,#
+        "Copper_Gold_Momentum_z252":0,#
         #"Equity_Gold_Ratio_z252":0,
         #"tlt_hy_ratio_z252":0,
-        #"stlfsi4":0
+        "stlfsi4":0
 #
     }
     df_features = df_features[list(features_refined.keys())]
@@ -126,11 +127,11 @@ def get_driver_beta(df_index, df_sp500):
     mask_bond = (df_label['driver'] == 3)
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
-    df_driver = df_features.join(df_label[["driver", "next_40d_ret_sp500"]])
+    df_driver = df_features.join(df_label[["driver", "next_20d_ret_sp500"]])
     start = df_driver.apply(pd.Series.first_valid_index).max()
     end = df_driver.apply(pd.Series.last_valid_index).min()
     df_driver = df_driver.loc[start:end]
-    #df_driver = df_driver.loc["2010-01-01":]
+    df_driver = df_driver.loc["2008-01-01":]
     #check_nan_time(df_driver, date="2005-01-01")
     #pd.set_option("display.max_rows", None)
     #print(df_driver.tail(20))
@@ -143,10 +144,10 @@ def get_driver_beta(df_index, df_sp500):
     print(f"特徴量とmonotone_constraints設定: {features_refined}")
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
         df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
-        n_splits=5, gap =30,
+        n_splits=2, gap =30,
         n_estimators=5000,learning_rate=0.001,
-        num_leaves=35, min_data_in_leaf=90,max_depth=5,
-        reg_alpha=0.1, reg_lambda=0.1,
+        num_leaves=35, min_data_in_leaf=51,max_depth=9,
+        reg_alpha=0.5, reg_lambda=0.5,
         extra_trees="False",
         class_weight="balanced",
         monotone_constraints = None,
@@ -245,6 +246,80 @@ def _aggregation_daily(df):
 
     return df_combine.dropna(how="all")
 
+def _aggregation_weekly(df):
+
+    df_daily = df[get_columns_by_frequency(df, target="daily")]
+    df_weekly = df[get_columns_by_frequency(df, target="weekly")]
+    df_monthly = df[get_columns_by_frequency(df, target="monthly")]
+    df_quarterly = df[get_columns_by_frequency(df, target="quarterly")]
+
+    print(f"--- 特徴量や目的変数で使う指標の頻度 ---")
+    print(f"日次: {df_daily.columns.tolist()}")
+    print(f"週次: {df_weekly.columns.tolist()}")
+    print(f"月次: {df_monthly.columns.tolist()}")
+    print(f"四半期: {df_quarterly.columns.tolist()}\n")
+    #pd.set_option("display.max_rows", None)
+    #print(df_monthly.dropna(how="all").tail(10))
+
+    # 日次>週次
+    lagged_series_list = []
+    for col in df_daily.columns:
+        # オリジナル
+        s = df_daily[col].dropna().copy()
+        # ラグ
+        lag_days = driver_index.get(col, 2)
+        s.index = s.index + pd.Timedelta(days=lag_days)
+        # 日次>週次
+        s_w = s.resample("W-FRI").mean()
+        #print(s_w.tail(20))
+        lagged_series_list.append(s_w)
+    df_daily_w_lagged = pd.concat(lagged_series_list, axis=1)
+    #check_nan_time(df_daily_w_lagged,"1990-01-01")
+    #print(df_daily_w_lagged.tail(20))
+
+    # 週次>週次
+    lagged_series_list = []
+    for col in df_weekly.columns:
+        # オリジナル
+        s = df_weekly[col].dropna().copy()
+        #print(s.tail(20))
+        # ラグ
+        lag_days = driver_index.get(col, 7)
+        s.index = s.index + pd.Timedelta(days=lag_days)
+        s = s.dropna()
+        # 週次>週次
+        s_w = s.resample("W-FRI").ffill()
+        #print(s_w.tail(20))
+        lagged_series_list.append(s_w)
+    df_weekly_w_lagged = pd.concat(lagged_series_list, axis=1)
+    #check_nan_time(df_weekly_w_lagged,"1990-01-01")
+    #print(df_weekly_w_lagged.tail(20))
+
+    # 月次>週次
+    df_monthly.index = df_monthly.index + pd.offsets.MonthEnd(0)
+    lagged_series_list = []
+    for col in df_monthly.columns:
+        # オリジナル
+        s = df_monthly[col].dropna().copy()
+        #print(s.tail(20))
+        # ラグ
+        lag_days = driver_index.get(col, 31)
+        s.index = s.index + pd.Timedelta(days=lag_days)
+        s = s.dropna()
+        # 月次>週次
+        s_w = s.resample("W-FRI").ffill()
+        #print(s_w.tail(20))
+        lagged_series_list.append(s_w)
+    df_monthly_w_lagged = pd.concat(lagged_series_list, axis=1)
+    #check_nan_time(df_monthly_w_lagged,"1990-01-01")
+    #print(df_monthly_w_lagged.tail(20))
+
+    # 結合
+    df_combine = pd.concat([df_daily_w_lagged, df_weekly_w_lagged, df_monthly_w_lagged], axis=1)
+    #check_nan_time(df_combine,"1990-01-01")
+
+    return df_combine.dropna(how="all")
+
 ########################################################
 # 特徴量抽出
 ########################################################
@@ -260,13 +335,15 @@ def _featuring_all(df_daily):
 
     # --- Era ---
     conditions = [
-        (feats.index < '2010-01-01'),
-        (feats.index >= '2010-01-01') & (feats.index < '2016-01-01'),
-        (feats.index >= '2016-01-01') & (feats.index < '2020-01-01'),
-        (feats.index >= '2020-01-01') & (feats.index < '2024-01-01'),
-        (feats.index >= '2024-01-01')
+        (feats.index < '2010-10-01'),
+        (feats.index >= '2010-10-01') & (feats.index < '2013-06-01'),
+        (feats.index >= '2013-06-01') & (feats.index < '2019-09-01'),
+        (feats.index >= '2019-09-01') & (feats.index < '2020-04-01'),
+        (feats.index >= '2020-04-01') & (feats.index < '2021-12-01'),
+        (feats.index >= '2021-12-01') & (feats.index < '2023-10-01'),
+        (feats.index >= '2023-10-01')
     ]
-    choices = [0, 1, 2, 3, 4]
+    choices = [0, 1, 2, 3, 4, 5, 6]
 
     # 2. 条件に合致しない場合は最新のEra4とする
     feats['Era'] = np.select(conditions, choices, default=4)
@@ -432,47 +509,48 @@ def _featuring_z_score(df, window):
 # 教師ラベル作成 - カンニングラベル
 ########################################################
 
-def _make_label(df_daily, smear_days=5):
+def _make_label(df, smear_days=5):
+    future_lag = 20
 
     # リバランスの実行基準となるマスターカレンダー
-    master_index = df_daily["^GSPC"].dropna().index
-    df = pd.DataFrame(index=master_index)
+    master_index = df["^GSPC"].dropna().index
+    df_label = pd.DataFrame(index=master_index)
 
     # --- Step 1: 現在の常識（閾値）の計算 ---
-    sp500_clean = df_daily['^GSPC'].dropna()
-    sp500_vol_40d_current = sp500_clean.pct_change(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    sp500_clean = df['^GSPC'].dropna()
+    sp500_vol_20d_current = sp500_clean.pct_change(future_lag).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
-    tlt_clean = df_daily["TLT"].dropna()
-    tlt_vol_40d_current = tlt_clean.pct_change(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    tlt_clean = df["TLT"].dropna()
+    tlt_vol_20d_current = tlt_clean.pct_change(future_lag).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
-    #hy_clean = df_daily["BAMLH0A0HYM2"].dropna()
-    #hy_diff_20d_current_vol = hy_clean.diff(20).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    #hy_clean = df["BAMLH0A0HYM2"].dropna()
+    #hy_diff_20d_current_vol = hy_clean.diff(future_lag).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
     
-    hy_clean = df_daily["BAA10Y"].dropna()
-    hy_diff_40d_current_vol = hy_clean.diff(40).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
+    hy_clean = df["BAA10Y"].dropna()
+    hy_diff_20d_current_vol = hy_clean.diff(future_lag).rolling(252, min_periods=60).std().reindex(master_index, method='ffill')
 
     # --- Step 2: 未来の事実（ターゲット）の計算 ---
-    future_sp500_ret = sp500_clean.pct_change(40).shift(-40)
-    df['next_40d_ret_sp500'] = future_sp500_ret.reindex(master_index, method="ffill")
+    future_sp500_ret = sp500_clean.pct_change(future_lag).shift(-future_lag)
+    df_label['next_20d_ret_sp500'] = future_sp500_ret.reindex(master_index, method="ffill")
 
-    future_tlt_ret = tlt_clean.pct_change(40).shift(-40)
-    df['next_40d_ret_tlt'] = future_tlt_ret.reindex(master_index, method="ffill")
+    future_tlt_ret = tlt_clean.pct_change(future_lag).shift(-future_lag)
+    df_label['next_20d_ret_tlt'] = future_tlt_ret.reindex(master_index, method="ffill")
 
-    future_hy_diff = hy_clean.diff(40).shift(-40)
-    df['next_40d_diff_hy'] = future_hy_diff.reindex(master_index, method="ffill")
+    future_hy_diff = hy_clean.diff(future_lag).shift(-future_lag)
+    df_label['next_20d_diff_hy'] = future_hy_diff.reindex(master_index, method="ffill")
 
     # --- Step 3: 生のフラグ（Raw Flags）を立てる ---
     # Credit: HYスプレッドの異常な拡大 ＋ 株安
     raw_credit = (
-        (df['next_40d_diff_hy'] > (2.0 * hy_diff_40d_current_vol)) & # 20日差分が現在の2シグマを超える
-        (df['next_40d_ret_sp500'] < 0) & # 必ず株安を伴う
-        ((df['next_40d_diff_hy'] / hy_diff_40d_current_vol) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
+        (df_label['next_20d_diff_hy'] > (2.0 * hy_diff_20d_current_vol)) & # 20日差分が現在の2シグマを超える
+        (df_label['next_20d_ret_sp500'] < 0) & # 必ず株安を伴う
+        ((df_label['next_20d_diff_hy'] / hy_diff_20d_current_vol) > (df_label['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
     # Bond: TLTの異常な変動 ＋ 株安
     raw_bond = (
-        (df['next_40d_ret_tlt'].abs() > (1.5 * tlt_vol_40d_current)) &
-        (df['next_40d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
-        ((df['next_40d_ret_tlt'].abs() / tlt_vol_40d_current) > (df['next_40d_ret_sp500'].abs() / sp500_vol_40d_current * 0.5))
+        (df_label['next_20d_ret_tlt'].abs() > (1.5 * tlt_vol_20d_current)) &
+        (df_label['next_20d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
+        ((df_label['next_20d_ret_tlt'].abs() / tlt_vol_20d_current) > (df_label['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
 
     # --- Step 2: 数学的Smearing（減衰スコアの計算） ---
@@ -490,79 +568,83 @@ def _make_label(df_daily, smear_days=5):
         return scores
 
     # スコア（確信度 0.0 ~ 1.0）を算出
-    df['credit_score'] = calculate_decay_score(raw_credit, smear_days)
-    df['bond_score'] = calculate_decay_score(raw_bond, smear_days)
+    df_label['credit_score'] = calculate_decay_score(raw_credit, smear_days)
+    df_label['bond_score'] = calculate_decay_score(raw_bond, smear_days)
 
     # --- Step 5: スコアに基づく動的ラベル付与 ---
     threshold = 0.4
-    df["driver"] = 3 # Neutral
+    df_label["driver"] = 3 # Neutral
 
-    is_bond_candidate = df['bond_score'] > threshold
-    is_credit_candidate = df['credit_score'] > threshold
+    is_bond_candidate = df_label['bond_score'] > threshold
+    is_credit_candidate = df_label['credit_score'] > threshold
 
     # 基本はスコアが高い方を採用（勝者総取り）
-    df.loc[is_bond_candidate, 'driver'] = 2
-    df.loc[is_credit_candidate & (df['credit_score'] >= df['bond_score']), 'driver'] = 1
-    df.loc[is_bond_candidate & (df['bond_score'] > df['credit_score']), 'driver'] = 2
+    df_label.loc[is_bond_candidate, 'driver'] = 2
+    df_label.loc[is_credit_candidate & (df_label['credit_score'] >= df_label['bond_score']), 'driver'] = 1
+    df_label.loc[is_bond_candidate & (df_label['bond_score'] > df_label['credit_score']), 'driver'] = 2
 
-    df = df.dropna()
+    df_label = df_label.dropna()
 
-    _analysis_label(df, df_daily)
+    #_analysis_label(df_label, df)
 
-    return df
+    return df_label
 
 def _analysis_label(df, df_daily):
+    df_origin = df.copy()
+    terms = [
+        ("2010-10-01","2013-06-01"),("2013-06-01","2016-10-01"),("2016-10-01","2019-09-01"),
+        ("2019-09-01","2020-04-01"),("2020-04-01","2021-12-01"),("2021-12-01","2023-10-01"),
+        ("2023-10-01","2026-02-01"),("2010-10-01","2021-12-01"),("2021-12-01","2026-02-01"),
+        ]
+    for start,end in terms:
+        print(f"\nDriver教師ラベルの期間 : {start}〜{end}")
 
-    s_date = "2010-01-01"
-    e_date = "2016-01-01"
-    print(f"\nDriver教師ラベルの期間 Era4: {s_date}〜{e_date}")
+        df_sub = df_origin.loc[start:end]
+        #df_daily_sub = df_daily.loc[start:end]
 
-    df = df.loc[s_date:e_date]
-    df_daily = df_daily.loc[s_date:e_date]
+        # 分析・可視化
+        stats = df_sub['driver'].value_counts().to_frame(name='Count')
+        stats['Percentage (%)'] = (df_sub['driver'].value_counts(normalize=True) * 100).round(2)
+        #print(stats)
 
-    # 分析・可視化
-    stats = df['driver'].value_counts().to_frame(name='Count')
-    stats['Percentage (%)'] = (df['driver'].value_counts(normalize=True) * 100).round(2)
-    #print(stats)
+        market_summary = df_sub.groupby('driver').agg({
+            'next_20d_ret_sp500': [
+                'count', 'mean', 'median', 'std', 
+                lambda x: x.quantile(0.05), 'min', # 下位5%と最小値でリスクの深さを測る
+                lambda x: (x > 0).mean() # 勝率
+            ],
+            'next_20d_ret_tlt': ['mean', 'std', 'min'],
+            'next_20d_diff_hy': ['mean', 'std', 'max'] # HYは拡大(max)がリスク
+        }).round(4)
 
-    market_summary = df.groupby('driver').agg({
-        'next_40d_ret_sp500': [
-            'count', 'mean', 'median', 'std', 
-            lambda x: x.quantile(0.05), 'min', # 下位5%と最小値でリスクの深さを測る
-            lambda x: (x > 0).mean() # 勝率
-        ],
-        'next_40d_ret_tlt': ['mean', 'std', 'min'],
-        'next_40d_diff_hy': ['mean', 'std', 'max'] # HYは拡大(max)がリスク
-    }).round(4)
+        # カラム名を分かりやすく整理（任意）
+        market_summary.columns = [
+            'count', 'ret_mean', 'ret_median', 'ret_std', 
+            'ret_q05', 'ret_min', 'win_rate',
+            'tlt_mean', 'tlt_std', 'tlt_min',
+            'hy_diff_mean', 'hy_diff_std', 'hy_diff_max'
+        ]
+        print(market_summary)
 
-    # カラム名を分かりやすく整理（任意）
-    market_summary.columns = [
-        'count', 'ret_mean', 'ret_median', 'ret_std', 
-        'ret_q05', 'ret_min', 'win_rate',
-        'tlt_mean', 'tlt_std', 'tlt_min',
-        'hy_diff_mean', 'hy_diff_std', 'hy_diff_max'
-    ]
-    print(market_summary)
+        # 継続日数の算出
+        df_sub['change'] = df_sub['driver'] != df_sub['driver'].shift()
+        df_sub['regime_id'] = df_sub['change'].cumsum()
 
-    # 継続日数の算出
-    df['change'] = df['driver'] != df['driver'].shift()
-    df['regime_id'] = df['change'].cumsum()
+        # 各期間の長さをカウント
+        duration_stats = df_sub.groupby(['regime_id', 'driver']).size().reset_index(name='duration')
+        avg_duration = duration_stats.groupby('driver')['duration'].mean().round(1)
+        print(f"平均継続日数:\n{avg_duration}")
 
-    # 各期間の長さをカウント
-    duration_stats = df.groupby(['regime_id', 'driver']).size().reset_index(name='duration')
-    avg_duration = duration_stats.groupby('driver')['duration'].mean().round(1)
-    print(f"平均継続日数:\n{avg_duration}")
+        # 遷移マトリクス（現在の状態 -> 次の状態）
+        transition_matrix = pd.crosstab(
+            df_sub['driver'], 
+            df_sub['driver'].shift(-1), 
+            normalize='index'
+        ).round(2)
 
-    # 遷移マトリクス（現在の状態 -> 次の状態）
-    transition_matrix = pd.crosstab(
-        df['driver'], 
-        df['driver'].shift(-1), 
-        normalize='index'
-    ).round(2)
-
-    print("遷移マトリクス（行：現在 -> 列：次）:")
-    print(transition_matrix)
-    #plot_driver_soft_label(df, df_daily, start_date=s_date, end_date=e_date)
+        print("遷移マトリクス（行：現在 -> 列：次）:")
+        print(transition_matrix)
+        #plot_driver_soft_label(df, df_daily, start_date=s_date, end_date=e_date)
 
 ########################################################
 # 実装確認・デバッグ
