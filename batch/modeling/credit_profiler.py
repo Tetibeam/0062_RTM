@@ -28,6 +28,8 @@ credit_index = {
     "^MOVE":1,
     "VVIX":1,
     "T10Y2Y":1,
+    "DGS10":1,
+    "T10YIE":1,
     }
 
 def get_driver_beta(df_index, df_sp500):
@@ -73,6 +75,9 @@ def get_driver_beta(df_index, df_sp500):
         "MOVE_Cum_Stress_20d":0,
         #"BAA_Days_Above_SMA60":0,
         #"YC_Inverted_Days_252d":0,
+        "T10YIE_MA500_Gap":0,
+        "DGS10_MA500_Gap":0,
+        "Era":0,
     }
     df_features = df_features[list(features_refined.keys())]
     monotone_constraints = list(features_refined.values())
@@ -82,7 +87,7 @@ def get_driver_beta(df_index, df_sp500):
     start = df_credit.apply(pd.Series.first_valid_index).max()
     end = df_credit.apply(pd.Series.last_valid_index).min()
     df_credit = df_credit.loc[start:end]
-    #df_credit = df_credit.loc["2007-01-01":]
+    df_credit = df_credit.loc["2007-01-01":]
     #check_nan_time(df_credit, date="2005-01-01")
     #pd.set_option("display.max_rows", None)
     #print(df_driver.tail(20))
@@ -91,8 +96,8 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_regression(
         df_credit, target_col="target_score", 
         n_splits=5, gap =50,
-        n_estimators=8000,learning_rate=0.01,
-        num_leaves=31, min_data_in_leaf=90,max_depth=3,
+        n_estimators=1000,learning_rate=0.001,
+        num_leaves=15, min_data_in_leaf=7,max_depth=3,
         reg_alpha=2, reg_lambda=2,
         extra_trees="False",
         importance_type='gain',
@@ -306,10 +311,17 @@ def _featuring_all(df_daily):
     # C. イールドカーブ逆転の滞留日数 (T10Y2Y が 0 未満の日数を過去1年でカウント)
     is_inverted = (df_daily['T10Y2Y'] < 0).astype(int)
     feats['YC_Inverted_Days_252d'] = is_inverted.rolling(252).sum()
+    
+    
+    # T10YIE (実質金利/インフレ期待) の MA500乖離
+    feats['T10YIE_MA500_Gap'] = df_daily['T10YIE'] - df_daily['T10YIE'].rolling(500).mean()
+
+    # または、シンプルに10年金利のMA500乖離でもOK
+    feats['DGS10_MA500_Gap'] = df_daily['DGS10'] - df_daily['DGS10'].rolling(500).mean()
 
 
     # --- Era ---
-    """conditions = [
+    conditions = [
         (feats.index < '2010-10-01'),
         (feats.index >= '2010-10-01') & (feats.index < '2013-06-01'),
         (feats.index >= '2013-06-01') & (feats.index < '2019-09-01'),
@@ -324,7 +336,7 @@ def _featuring_all(df_daily):
     feats['Era'] = np.select(conditions, choices, default=4)
 
     # 3. 【超重要】数値型からカテゴリ型へ明示的に変換
-    feats['Era'] = feats['Era'].astype('category')"""
+    feats['Era'] = feats['Era'].astype('category')
 
 
     # 開始日、終了日をを決める
