@@ -465,6 +465,6 @@ if __name__ == "__main__":
     start = pd.Timestamp("1999-01-01")
     end = pd.Timestamp("2026-05-01")
     #df = _get_yfinance_prices_test(ticker="EEM", name="EEM", start_date=start, end_date=end)
-    df = _get_fred_prices_test(ticker="BAA10Y", name="BAA10Y", start_date=start, end_date=end)
+    df = _get_fred_prices_test(ticker="BAMLH0A0HYM2", name="BAMLH0A0HYM2", start_date=start, end_date=end)
     #df = _get_fred_prices(tickers=["CP"], start_date=start, end_date=end)
     print(df.dropna())
