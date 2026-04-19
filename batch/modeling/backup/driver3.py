@@ -86,16 +86,16 @@ def get_driver_beta(df_index, df_sp500):
     features_refined = {
         # アンカー
         "Liq_eff":0,
-        "Real_Yield_Level":0,
-        "Real_Yield_gap_ma500":0,
-        "T10YIE":0,
-        "T10YIE_gap_ma500":0,
-        "DXY_Level":0,
+        #"Real_Yield_Level":0,
+        #"Real_Yield_gap_ma500":0,
+        #"T10YIE":0,
+        #"T10YIE_gap_ma500":0,
+        #"DXY_Level":0,
         "DXY_gap_ma500":0,
         "Cu_Au_Ratio":0,
-        "Cu_Au_Ratio_gap_ma500":0,
-        "cp_spread":0,
-        "cp_spread_gap_ma500":0,
+        #"Cu_Au_Ratio_gap_ma500":0,
+        #"cp_spread":0,
+        #"cp_spread_gap_ma500":0,
         # Era
         "Era":0,
         # 火薬
@@ -106,14 +106,14 @@ def get_driver_beta(df_index, df_sp500):
         "OAS_to_VIX_Ratio_z252":0,#
         #"cp_spread_z252":0,
         #"rate_shock_z252",
-        #"DFII10_diff5_z252",
-        #"Term_Premium_Momentum_z252":0,#
-        #"Curve_Steepening_Accel_z252":0,#
-        "Stock_Bond_Corr_z252":0,#
+        #"DFII10_diff5_z252":0,
+        "Term_Premium_Momentum_z252":0,#
+        "Curve_Steepening_Accel_z252":0,#
+        #"Stock_Bond_Corr_z252":0,#
         #"Stock_Bond_Corr_raw",
-        #"Copper_Gold_Momentum_z252":0,#
-        "Equity_Gold_Ratio_z252":0,
-        "tlt_hy_ratio_z252":0,
+        "Copper_Gold_Momentum_z252":0,#
+        #"Equity_Gold_Ratio_z252":0,
+        #"tlt_hy_ratio_z252":0,
         "stlfsi4":0
 #
     }
@@ -132,14 +132,14 @@ def get_driver_beta(df_index, df_sp500):
     mask_bond = (df_label['driver'] == 3)
     df_label.loc[mask_bond, 'sample_weight'] = 0.8
 
-    df_driver = df_features.join(df_label[["driver", "next_20d_ret_sp500"]])
+    df_driver = df_features.join(df_label[["driver", "next_20d_diff_hy"]])
     start = df_driver.apply(pd.Series.first_valid_index).max()
     end = df_driver.apply(pd.Series.last_valid_index).min()
     df_driver = df_driver.loc[start:end]
-    #df_driver = df_driver.loc["2008-01-01":]
-    check_nan_time(df_driver, date="2005-01-01")
-    pd.set_option("display.max_rows", None)
-    print(df_driver.tail(20))
+    df_driver = df_driver.loc["2009-01-01":]
+    #check_nan_time(df_driver, date="2005-01-01")
+    #pd.set_option("display.max_rows", None)
+    #print(df_driver.tail(20))
 
     """driver_clf, df_driver_trajectory = learning_lgbm_final(
         df_driver, "driver", model_name="Driver", label_name_list=["1:Credit", "2:Bond", "3:Mix"],
@@ -153,7 +153,7 @@ def get_driver_beta(df_index, df_sp500):
         n_estimators=8000,learning_rate=0.005,
         num_leaves=35, min_data_in_leaf=35,max_depth=7,
         reg_alpha=0.5, reg_lambda=0.5,
-        extra_trees="True",
+        extra_trees="False",
         class_weight="balanced",
         monotone_constraints = None,
         importance_type='gain',
@@ -559,13 +559,13 @@ def _make_label(df, smear_days=5):
     # --- Step 3: 生のフラグ（Raw Flags）を立てる ---
     # Credit: HYスプレッドの異常な拡大 ＋ 株安
     raw_credit = (
-        (df_label['next_20d_diff_hy'] > (2.0 * hy_diff_20d_current_vol)) #& # 20日差分が現在の2シグマを超える
+        (df_label['next_20d_diff_hy'] > (1.75 * hy_diff_20d_current_vol)) #& # 20日差分が現在の2シグマを超える
         #(df_label['next_20d_ret_sp500'] < 0) & # 必ず株安を伴う
         #((df_label['next_20d_diff_hy'] / hy_diff_20d_current_vol) > (df_label['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
     # Bond: TLTの異常な変動 ＋ 株安
     raw_bond = (
-        (df_label['next_20d_ret_tlt'].abs() > (2.0 * tlt_vol_20d_current))# &
+        (df_label['next_20d_ret_tlt'].abs() > (1.75 * tlt_vol_20d_current))# &
         #(df_label['next_20d_ret_sp500'] < 0) & # ★ポジティブな金利上昇（株高）をノイズとして除外
         #((df_label['next_20d_ret_tlt'].abs() / tlt_vol_20d_current) > (df_label['next_20d_ret_sp500'].abs() / sp500_vol_20d_current * 0.5))
     )
@@ -622,7 +622,7 @@ def _analysis_label(df, df_daily):
         # 分析・可視化
         stats = df_sub['driver'].value_counts().to_frame(name='Count')
         stats['Percentage (%)'] = (df_sub['driver'].value_counts(normalize=True) * 100).round(2)
-        #print(stats)
+        print(stats)
 
         market_summary = df_sub.groupby('driver').agg({
             'next_20d_ret_sp500': [
