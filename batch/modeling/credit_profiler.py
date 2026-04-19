@@ -3,6 +3,7 @@
 ########################################################
 from batch.modeling.learning import(
     learning_lgbm_test_driver,
+    learning_lgbm_regression
     )
 from batch.modeling.visualize import (
     plot_driver_soft_label,
@@ -26,6 +27,7 @@ credit_index = {
     "VIXCLS":1,
     "^MOVE":1,
     "VVIX":1,
+    "T10Y2Y":1,
     }
 
 def get_driver_beta(df_index, df_sp500):
@@ -67,6 +69,10 @@ def get_driver_beta(df_index, df_sp500):
         "VIX_Mom_20d":0,
         "MOVE_Mom_20d":0,
         "Combined_Shock":0,
+        #"VIX_Cum_Stress_20d":0,
+        #"MOVE_Cum_Stress_20d":0,
+        #"BAA_Days_Above_SMA60":0,
+        #"YC_Inverted_Days_252d":0,
     }
     df_features = df_features[list(features_refined.keys())]
     monotone_constraints = list(features_refined.values())
@@ -81,20 +87,17 @@ def get_driver_beta(df_index, df_sp500):
     #pd.set_option("display.max_rows", None)
     #print(df_driver.tail(20))
 
-    """print(f"特徴量とmonotone_constraints設定: {features_refined}")
-    df_oof_all, df_shap, df_oof_ev = learning_lgbm_test_driver(
-        df_driver, "driver", labels=["1:Credit", "2:Bond", "3:Mix"],
-        n_splits=5, gap =30,
-        n_estimators=8000,learning_rate=0.005,
-        num_leaves=35, min_data_in_leaf=35,max_depth=7,
+    print(f"特徴量: {df_features.columns}")
+    df_oof_all, df_shap, df_oof_ev = learning_lgbm_regression(
+        df_credit, target_col="target_score", 
+        n_splits=5, gap =50,
+        n_estimators=8000,learning_rate=0.05,
+        num_leaves=35, min_data_in_leaf=15,max_depth=7,
         reg_alpha=0.5, reg_lambda=0.5,
-        extra_trees="True",
-        class_weight="balanced",
-        monotone_constraints = None,
+        extra_trees="False",
         importance_type='gain',
-        sample_weight=None,#df_label["sample_weight"],
         learning_curve=True,
-        )"""
+        )
     #shap_stats(df_driver, df_features.columns, df_shap)
 
     # --- ファイル保存 ---
@@ -286,6 +289,25 @@ def _featuring_all(df_daily):
     # 債券と株の両方が同時にパニックになっている度合い
     feats['Combined_Shock'] = feats['VIX_Accel'] + feats['MOVE_Accel']
 
+    # A. VIX & MOVE の累積ストレス (20日間)
+    # 閾値の例として、過去252日の中央値（または固定値 20 や 100 など）を使用
+    vix_threshold = df_daily['VIXCLS'].rolling(252).median()
+    move_threshold = df_daily['^MOVE'].rolling(252).median()
+
+    # 閾値を超えた分（超過ストレス）だけを抽出し、20日間で合計（積分）する
+    feats['VIX_Cum_Stress_20d'] = np.maximum(df_daily['VIXCLS'] - vix_threshold, 0).rolling(20).sum()
+    feats['MOVE_Cum_Stress_20d'] = np.maximum(df_daily['^MOVE'] - move_threshold, 0).rolling(20).sum()
+
+    # B. BAA10Yの「茹でガエル」滞空時間 (過去60日のうち、SMA60より上にいた日数)
+    baa_sma60 = df_daily['BAA10Y'].rolling(60).mean()
+    is_above_sma = (df_daily['BAA10Y'] > baa_sma60).astype(int)
+    feats['BAA_Days_Above_SMA60'] = is_above_sma.rolling(60).sum()
+    
+    # C. イールドカーブ逆転の滞留日数 (T10Y2Y が 0 未満の日数を過去1年でカウント)
+    is_inverted = (df_daily['T10Y2Y'] < 0).astype(int)
+    feats['YC_Inverted_Days_252d'] = is_inverted.rolling(252).sum()
+
+
     # --- Era ---
     """conditions = [
         (feats.index < '2010-10-01'),
@@ -383,7 +405,7 @@ def _make_label(df, smear_days=10, future_lag=20):
     # (後で分析できるように next_diff_hy は残しておくのが吉)
     df_label = df_label.dropna()
 
-    _analysis_label(df_label)
+    #_analysis_label(df_label)
 
     return df_label
 

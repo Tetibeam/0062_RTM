@@ -12,6 +12,7 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     accuracy_score,
     r2_score,
+    root_mean_squared_error,
     precision_recall_curve,
     f1_score
 )
@@ -306,6 +307,157 @@ def learning_lgbm_test_driver(
         print(ev_summary)
 
     return df_oof_all, final_shap_dfs, df_oof_ev
+
+def learning_lgbm_regression(
+    # 特徴量と目的変数
+    df_ready, target_col='target_score',
+    # TimeSeriesSplitの設定値
+    n_splits=3, gap=3,
+    # 学習パラメータの設定
+    n_estimators=200, learning_rate=0.03, num_leaves=7, min_data_in_leaf=5,
+    reg_alpha=0.5, reg_lambda=0.5, importance_type='gain',
+    objective="regression", # ★回帰に変更
+    max_depth=3,
+    stopping_rounds=100,
+    extra_trees="False",
+    # 学習曲線の表示
+    learning_curve=False,
+    return_col='next_diff_hy', # ★今回はS&P500のリターンではなく、HYスプレッドの拡大を見る
+    ):
+
+    # 1. 前処理：データの準備
+    df_ready = df_ready.dropna(subset=[target_col, return_col])
+    X = df_ready.drop(columns=[target_col, return_col])
+    y = df_ready[target_col]
+    returns_all = df_ready[return_col] # これは評価用の実際のHY拡大幅
+
+    feature_names = X.columns.tolist()
+    cat_features = ['Era'] if 'Era' in feature_names else []
+
+    # 2. TimeSeriesSplitの設定
+    tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+
+    # 3. 学習過程を保持するリスト (回帰用にシンプル化)
+    all_importances = []
+    all_y_test = []
+    all_y_pred = []
+    evals_result = {}
+    all_ev_list = []
+    oof_shap_list = []   # ★クラス別ではなく、1つのリストにする
+
+    print(f"\n全サンプル数: {len(X)}")
+    print("\n=== TimeSeriesSplit (Regression) ===\n")
+
+    fold = 1
+    for train_index, test_index in tscv.split(X):
+        # データ分割
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        ret_test = returns_all.iloc[test_index]
+
+        # モデル設定 (分類特有の引数を削除)
+        clf = lgb.LGBMRegressor( # ★Regressorに変更
+            objective=objective,
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            max_depth=max_depth,
+            num_leaves=num_leaves,
+            min_data_in_leaf=min_data_in_leaf,
+            reg_alpha=reg_alpha,
+            reg_lambda=reg_lambda,
+            importance_type=importance_type,
+            extra_trees=extra_trees,
+            random_state=42,
+            verbose=-1,
+        )
+
+        # 学習
+        clf.fit(
+            X_train, y_train,
+            eval_set=[(X_train, y_train), (X_test, y_test)],
+            eval_names=['train', 'valid'],
+            eval_metric='rmse', # ★評価指標をRMSE(二乗平均平方根誤差)に変更
+            callbacks=[
+                lgb.early_stopping(stopping_rounds=stopping_rounds, verbose=False),
+                lgb.record_evaluation(evals_result)
+            ],
+            categorical_feature=cat_features,
+        )
+
+        # ★予測値の取得（確率ではなく、そのままスコアとして扱う）
+        y_pred = clf.predict(X_test)
+
+        # 評価用データの保存
+        df_ev_fold = pd.DataFrame({
+            'actual_target_score': y_test.values, # 本当のSmearingスコア
+            'pred_risk_score': y_pred,            # AIが予測した不穏さスコア
+            'actual_hy_diff': ret_test.values,    # 実際の40日後のHY拡大幅
+        }, index=X_test.index)
+        all_ev_list.append(df_ev_fold)
+
+        # SHAP値の計算 (回帰なのでシンプル)
+        explainer = shap.TreeExplainer(clf)
+        shap_values = explainer.shap_values(X_test)
+
+        df_fold_shap = pd.DataFrame(shap_values, index=X_test.index, columns=X.columns)
+        oof_shap_list.append(df_fold_shap)
+
+        # Fold情報の表示 (RMSEで評価)
+        rmse = root_mean_squared_error(y_test, y_pred)
+        best_iter = clf.best_iteration_
+        print(f"Fold {fold} | Test: {X_test.index[0].date()} ~ {X_test.index[-1].date()} | RMSE: {rmse:.4f} (Best Iter: {best_iter})")
+
+        # 重要度の記録
+        imp = pd.Series(clf.feature_importances_, index=X.columns)
+        all_importances.append(imp)
+
+        all_y_test.extend(y_test)
+        all_y_pred.extend(y_pred)
+        fold += 1
+
+    # 学習曲線の表示 (RMSE用)
+    if learning_curve:
+        from batch.modeling.visualize import plot_index
+        train_loss = evals_result['train']['rmse']
+        valid_label = 'valid' if 'valid' in evals_result else 'valid_0'
+        valid_loss = evals_result[valid_label]['rmse'] if valid_label in evals_result else [None] * len(train_loss)
+
+        plot_df = pd.DataFrame({
+            'Train Loss (RMSE)': train_loss,
+            'Valid Loss (RMSE)': valid_loss
+        })
+        plot_index(plot_df, x_label="counts")
+
+    # データの結合
+    final_shap_df = pd.concat(oof_shap_list).sort_index()
+    df_oof_ev = pd.concat(all_ev_list).sort_index()
+
+    # ★期待値ベースの評価レポート (AIがスコアを高く出した時、本当にHYは拡大したか？)
+    print("\n=== AI予測スコア (pred_risk_score) vs 実際のHY拡大幅 (actual_hy_diff) ===")
+    
+    # 予測スコアを低・中・高に分類して評価
+    bins = [-np.inf, 0.1, 0.4, np.inf] # 予測スコアの閾値（状況を見て調整）
+    terms = [
+        ("2010-10-01","2013-06-01"),("2013-06-01","2016-10-01"),("2016-10-01","2019-09-01"),
+        ("2019-09-01","2020-04-01"),("2020-04-01","2021-12-01"),("2021-12-01","2023-10-01"),
+        ("2023-10-01","2026-02-01")
+    ]
+    for start, end in terms:
+        print(f"\n期間：{start} ~ {end}")
+        df_tmp = df_oof_ev.loc[start:end].copy()
+        if len(df_tmp) == 0:
+            continue
+
+        df_tmp['pred_rank'] = pd.cut(
+            df_tmp['pred_risk_score'],
+            bins=bins,
+            labels=['Low Risk', 'Mid Risk', 'High Risk'],
+        )
+        # 高リスクと予測した時の、実際のHY拡大幅の平均を見る
+        ev_summary = df_tmp.groupby('pred_rank', observed=True)['actual_hy_diff'].agg(['mean', "median", 'count'])
+        print(ev_summary)
+
+    return df_oof_ev, final_shap_df, all_importances
 
 def report_lgbm_total_result(all_y_test, all_y_pred, all_importances):
     print("\n=======================================================")
