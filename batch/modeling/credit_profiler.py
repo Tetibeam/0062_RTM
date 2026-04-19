@@ -69,8 +69,8 @@ def get_driver_beta(df_index, df_sp500):
         "VIX_Mom_20d":0,
         "MOVE_Mom_20d":0,
         "Combined_Shock":0,
-        #"VIX_Cum_Stress_20d":0,
-        #"MOVE_Cum_Stress_20d":0,
+        "VIX_Cum_Stress_20d":0,
+        "MOVE_Cum_Stress_20d":0,
         #"BAA_Days_Above_SMA60":0,
         #"YC_Inverted_Days_252d":0,
     }
@@ -82,7 +82,7 @@ def get_driver_beta(df_index, df_sp500):
     start = df_credit.apply(pd.Series.first_valid_index).max()
     end = df_credit.apply(pd.Series.last_valid_index).min()
     df_credit = df_credit.loc[start:end]
-    #df_credit = df_credit.loc["2008-01-01":]
+    #df_credit = df_credit.loc["2007-01-01":]
     #check_nan_time(df_credit, date="2005-01-01")
     #pd.set_option("display.max_rows", None)
     #print(df_driver.tail(20))
@@ -91,9 +91,9 @@ def get_driver_beta(df_index, df_sp500):
     df_oof_all, df_shap, df_oof_ev = learning_lgbm_regression(
         df_credit, target_col="target_score", 
         n_splits=5, gap =50,
-        n_estimators=8000,learning_rate=0.05,
-        num_leaves=35, min_data_in_leaf=15,max_depth=7,
-        reg_alpha=0.5, reg_lambda=0.5,
+        n_estimators=8000,learning_rate=0.01,
+        num_leaves=31, min_data_in_leaf=90,max_depth=3,
+        reg_alpha=2, reg_lambda=2,
         extra_trees="False",
         importance_type='gain',
         learning_curve=True,
